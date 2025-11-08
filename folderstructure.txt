@@ -1,0 +1,10 @@
+C:\utils\ATLSApp
+└─ app
+   ├─ main.py
+   └─ ui
+      ├─ layout.py
+      ├─ productions.py
+      ├─ locations.py
+      ├─ facilities.py
+      ├─ jobs.py
+      └─ settings.py
