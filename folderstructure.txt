@@ -1,10 +1,14 @@
-C:\utils\ATLSApp
-└─ app
-   ├─ main.py
-   └─ ui
-      ├─ layout.py
-      ├─ productions.py
-      ├─ locations.py
-      ├─ facilities.py
-      ├─ jobs.py
-      └─ settings.py
+atlsGUIapp/
+├─ app/
+│  ├─ main.py
+│  ├─ ui/
+│  ├─ api/
+│  └─ services/
+├─ scripts/
+├─ docs/
+│  ├─ README.md                ← replaces old repo README
+│  ├─ PROJECT_HANDBOOK.md
+│  ├─ AGENTS.md
+│  ├─ DEV_NOTES.md
+│  └─ API_MAP.md               ← new file for endpoint tracking
+└─ requirements.txt
