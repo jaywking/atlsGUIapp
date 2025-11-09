@@ -11,10 +11,10 @@ configure_logging()
 fastapi_app = FastAPI(title='ATLSApp')
 
 # UI page imports
-from app.ui import layout, productions, locations, medicalfacilities, jobs, settings
+from app.ui import layout, productions, locations, medicalfacilities, jobs, settings, dashboard
 
 # API router imports
-from app.api import locations_api, facilities_api, jobs_api, settings_api
+from app.api import locations_api, facilities_api, jobs_api, settings_api, dashboard_api
 
 # ---------------------------------------------------------------------
 # Register API Routers
@@ -23,6 +23,7 @@ fastapi_app.include_router(locations_api.router)
 fastapi_app.include_router(facilities_api.router)
 fastapi_app.include_router(jobs_api.router)
 fastapi_app.include_router(settings_api.router)
+fastapi_app.include_router(dashboard_api.router)
 
 
 # ---------------------------------------------------------------------
@@ -31,7 +32,12 @@ fastapi_app.include_router(settings_api.router)
 
 @ui.page('/')
 def index_page():
-    layout.shell('Productions', productions.page_content)
+    layout.shell('Dashboard', dashboard.page_content)
+
+
+@ui.page('/dashboard')
+def dashboard_page():
+    layout.shell('Dashboard', dashboard.page_content)
 
 
 @ui.page('/productions')

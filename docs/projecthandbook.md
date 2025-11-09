@@ -99,6 +99,13 @@ Operational diagnostics are mirrored to `./logs/app.log` whenever the FastAPI se
 - UI buttons call backend APIs with relative paths (`/api/...`) via the helper in `app/services/api_client.py`.
 - Never hard-code `http://localhost` or specific ports in UI modules; the helper derives the correct base URL from the active client so browser origin and server origin always match.
 
+## 6.2 Dashboard Overview
+
+- **Landing Experience:** `/` renders `app/ui/dashboard.py` via `layout.shell()`, surfacing production and location totals alongside system status cards.
+- **Data Source:** `/api/dashboard/summary` (`app/api/dashboard_api.py`) aggregates Notion counts, recent Jobs log entries, and the latest Settings connection results.
+- **Navigation Hub:** Quick-action buttons on the dashboard route to Productions, Locations, Jobs, and Settings, and the sidebar now includes a dedicated “Dashboard” entry.
+- **Refresh Behavior:** Metrics load asynchronously at page entry and can be reloaded with the dashboard “Refresh” button without freezing the UI thread.
+
 ---
 
 ---

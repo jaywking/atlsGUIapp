@@ -282,3 +282,25 @@ Goal Tracking (v0.3 Series)
 | v0.3.3 - Settings Connection Tests | Config tester service, `/api/settings/test_connections`, UI controls | Complete | Settings page now runs diagnostics; docs/env updated. |
 | v0.3.4 - Jobs UI Enhancements | Archive Now control, filtering, highlighting | Complete | Jobs view adds manual archive + filters and improved readability. |
 
+---
+
+Date: 2025-11-10 (Session 9)
+Author: Codex 5 (Developer)
+Milestone: v0.4.0 – Production Dashboard Kickoff
+
+Summary
+- Established the Dashboard landing page with async metric loading, system status cards, and quick navigation buttons.
+- Added `/api/dashboard/summary` to aggregate Notion totals, recent job history, and connection health for the UI.
+
+Changes
+- New `app/ui/dashboard.py` rendering the dashboard layout with refresh controls and cards.
+- New `app/api/dashboard_api.py` providing production/location counts, recent jobs (24h), and service statuses.
+- Updated `app/main.py` to register the dashboard router and set `/` (and `/dashboard`) to the new page; navigation includes a Dashboard link.
+- Docs: `docs/api_map`, `docs/projecthandbook.md`, and this log now document the dashboard feature and endpoint.
+
+Testing
+- `python -m compileall app/api/dashboard_api.py app/ui/dashboard.py app/main.py`
+
+Notes
+- Notion counts gracefully fall back to `0` when tokens/IDs are absent; service badges surface missing-credential or error states for quick diagnostics.
+

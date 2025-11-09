@@ -14,6 +14,7 @@ Each endpoint connects a NiceGUI frontend action to a backend automation script 
 | Jobs / Logs | `/api/jobs/logs` | GET | `app/services/logger.py` | Retrieve recent job execution logs for display in GUI. | `{"status": "success", "message": "Logs retrieved", "logs": [...]}` |
 | Jobs / Maintenance | `/api/jobs/prune` | POST | `app/services/prune_logs.py` | Force log pruning/rotation using retention limits (drives the "Archive Now" button in Jobs UI). | `{"status": "success", "message": "Old log entries pruned", "stats": {...}}` |
 | Settings | `/api/settings/test_connections` | POST | `app/services/config_tester.py` | Validate Notion and Google Maps credentials injected via `.env`. | `{"status": "success", "notion": "Connected", "maps": "Connected"}` |
+| Dashboard | `/api/dashboard/summary` | GET | `app/api/dashboard_api.py` | Aggregate production/location totals, recent jobs, and service connectivity for the home screen. | `{"productions_total": 0, "locations_total": 0, ...}` |
 
 ---
 
