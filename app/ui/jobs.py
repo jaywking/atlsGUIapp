@@ -43,11 +43,11 @@ def page_content() -> None:
     with ui.row().classes('gap-3 items-end w-full mb-2 flex-wrap'):
         category_select = ui.select(['all'], value='all', label='Category').classes('w-52')
         status_select = ui.select(['all', 'success', 'error'], value='all', label='Status').classes('w-52')
-        search_input = ui.input(label='Search message…').props('clearable dense debounce=300').classes('w-64')
+        search_input = ui.input(label='Search message...').props('clearable dense debounce=300').classes('w-64')
         result_count = ui.label('0 logs shown').classes('text-sm text-slate-500 mt-3')
 
     with ui.row().classes('items-center gap-3 mt-2'):
-        archive_button = ui.button('📦 Archive Now').classes('bg-slate-800 text-white')
+        archive_button = ui.button('Archive Now').classes('bg-slate-800 text-white')
         archive_spinner = ui.spinner(size='sm').style('display: none;')
         archive_summary = ui.label('No archive run yet.').classes('text-sm text-slate-500')
 
@@ -70,7 +70,7 @@ def page_content() -> None:
         status_value = row.get('status', 'unknown')
         is_success = status_value == 'success'
         color_cls = 'bg-green-100 text-green-700' if is_success else 'bg-red-100 text-red-700'
-        label = status_value.capitalize() if status_value else '—'
+        label = status_value.capitalize() if status_value else '-'
         ui.label(label).classes(f'{color_cls} px-2 py-1 rounded text-xs font-semibold uppercase')
 
     @table.add_slot('body-cell-message')
@@ -78,14 +78,14 @@ def page_content() -> None:
         classes = 'px-2 py-1 rounded block'
         if row.get('recent'):
             classes += ' bg-slate-50'
-        ui.label(row.get('message', '') or '—').classes(classes)
+        ui.label(row.get('message', '') or '-').classes(classes)
 
     def set_loading(is_loading: bool) -> None:
         refresh_button.set_enabled(not is_loading)
         spinner.style('display: inline-block;' if is_loading else 'display: none;')
 
     def update_category_options() -> None:
-        categories = sorted({entry.get('category', '—') for entry in state['logs'] if entry.get('category')})
+        categories = sorted({entry.get('category', '-') for entry in state['logs'] if entry.get('category')})
         options = ['all'] + categories if categories else ['all']
         category_select.options = options
         if state['category'] not in options:
@@ -110,9 +110,9 @@ def page_content() -> None:
             rows.append(
                 {
                     "row_id": f"{entry.get('timestamp', 'unknown')}-{idx}",
-                    "timestamp": entry.get('timestamp', '—'),
-                    "category": entry.get('category', '—'),
-                    "action": entry.get('action', '—'),
+                    "timestamp": entry.get('timestamp', '-'),
+                    "category": entry.get('category', '-'),
+                    "action": entry.get('action', '-'),
                     "status": (entry.get('status') or 'unknown').lower(),
                     "message": entry.get('message', ''),
                     "recent": idx < HIGHLIGHT_COUNT,
@@ -150,7 +150,7 @@ def page_content() -> None:
             if data.get('status') != 'success':
                 raise ValueError(data.get('message', 'Archive failed'))
             stats = data.get('stats', {})
-            archive_summary.text = f"Kept {stats.get('kept', 0)} · Archived {stats.get('archived', 0)}"
+            archive_summary.text = f"Kept {stats.get('kept', 0)}  |  Archived {stats.get('archived', 0)}"
             ui.notify('Logs archived', type='positive')
             load_logs(auto_scroll=True)
         except Exception as exc:  # noqa: BLE001

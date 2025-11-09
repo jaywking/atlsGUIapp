@@ -27,7 +27,7 @@ def page_content():
             'Type': 'Urgent Care',
             'Address': '500 Medical Dr',
             'Phone': '(203) 555-0100',
-            'Hours': 'Mon–Fri 8–8',
+            'Hours': 'Mon-Fri 8-8',
         },
         {
             'Facility Name': "St. Mary's ER",
