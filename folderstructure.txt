@@ -1,0 +1,14 @@
+atlsGUIapp/
+├─ app/
+│  ├─ main.py
+│  ├─ ui/
+│  ├─ api/
+│  └─ services/
+├─ scripts/
+├─ docs/
+│  ├─ README.md                ← replaces old repo README
+│  ├─ PROJECT_HANDBOOK.md
+│  ├─ AGENTS.md
+│  ├─ DEV_NOTES.md
+│  └─ API_MAP.md               ← new file for endpoint tracking
+└─ requirements.txt
