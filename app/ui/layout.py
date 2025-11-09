@@ -1,6 +1,7 @@
 from nicegui import ui
 
 SIDEBAR_LINKS = [
+    ('Dashboard', '/', 'dashboard'),
     ('Productions', '/productions', 'folder'),
     ('Locations', '/locations', 'place'),
     ('Facilities', '/facilities', 'medical_services'),
