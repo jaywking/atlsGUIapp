@@ -1,12 +1,15 @@
 from fastapi import FastAPI
 from nicegui import ui
 
-from app.ui import layout
-from app.ui import productions, locations, facilities, jobs, settings
+from app.ui import layout, productions, locations, medicalfacilities, jobs, settings
+from app.api import locations_api   # ← add this line
 
 fastapi_app = FastAPI(title='ATLSApp')
 
-# Home / default route goes to productions
+# register API routers
+fastapi_app.include_router(locations_api.router)   # ← add this line
+
+# UI pages
 @ui.page('/')
 def index_page():
     layout.shell('Productions', productions.page_content)
@@ -21,7 +24,7 @@ def locations_page():
 
 @ui.page('/facilities')
 def facilities_page():
-    layout.shell('Facilities', facilities.page_content)
+    layout.shell('Facilities', medicalfacilities.page_content)
 
 @ui.page('/jobs')
 def jobs_page():

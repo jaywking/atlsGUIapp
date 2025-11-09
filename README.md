@@ -1,69 +1,51 @@
-# ATLS GUI App
 
-**Above the Line Safety – ATLSApp / NiceGUI Prototype**
+## 🔗 Future API & Logic Integration
 
-ATLS GUI App is the browser-based interface for the *ATLSApp* project — a unified toolset that supports production safety workflows such as location management, medical facility lookups, and risk assessment document generation. It’s built using **NiceGUI** and **FastAPI**, with a focus on clarity, speed, and compatibility with existing CLI scripts.
+The current version of **ATLS GUI App** provides layout-only pages for interface design and navigation.  
+Backend logic will connect through **FastAPI** endpoints located in the `/app/api/` directory.
 
----
+### Planned Connections
 
-## 📁 Project Structure
-
-app/
-├─ main.py                # Entry point – launches FastAPI + NiceGUI app
-└─ ui/
-├─ layout.py          # Common layout (header + sidebar)
-├─ productions.py     # Production dashboard (baseline view)
-├─ locations.py       # Production locations table
-├─ medicalfacilities.py  # Nearby medical facilities table + map
-├─ jobs.py            # Background job / process monitor
-└─ settings.py        # Environment config page
+| UI Page | Planned Backend Logic | Description |
+|----------|----------------------|--------------|
+| **Productions** | Notion API (`sync_productions`) | Pull production lists and details directly from Notion’s *Productions Master* database. |
+| **Locations** | `process_new_locations.py` | Process “Ready” locations, geocode via Google Maps, and sync updates to Notion. |
+| **Medical Facilities** | `fetch_medical_facilities.py` | Find and refresh nearby medical facilities for each master location. |
+| **Jobs / Logs** | Local CSV or Redis worker | Display recent task history, durations, and statuses. |
+| **Settings** | `.env` configuration tester | Verify Notion, Google Maps, and S3 credentials from the config file. |
 
 ---
 
-## 🚀 Run Locally
+### Implementation Plan
 
-### Prerequisites
-- Python 3.10+
-- FastAPI + NiceGUI
+Each backend feature will be exposed as a **FastAPI route**.  
+Example:
 
-Install dependencies:
-```bash
-pip install nicegui fastapi uvicorn
+app/api/locations_api.py
 
-Run the app:
+from fastapi import APIRouter
 
-uvicorn app.main:fastapi_app --reload
+router = APIRouter()
 
-Visit:
+@router.post(”/process_locations”)
+def process_locations():
+# TODO: integrate with scripts/process_new_locations.py
+return {“status”: “ok”, “message”: “Locations processed (placeholder)”}
 
-http://localhost:8080
+This route is then registered inside `app/main.py`:
 
+from app.api import locations_api
+fastapi_app.include_router(locations_api.router)
 
-⸻
+The frontend (NiceGUI) calls these routes using lightweight Python or JavaScript hooks to trigger scripts or refresh UI components.  
+As each feature is connected, the GUI will evolve from a static layout into a fully functional operations console for production safety workflows.
 
-🧩 Current Scope
+---
 
-This prototype focuses on:
-	•	Managing Productions as the top-level organizing unit
-	•	Viewing Locations linked to each production
-	•	Displaying nearby Medical Facilities using Google Maps integration
+### Next Steps
 
-Later iterations will incorporate:
-	•	RASP & LHA generation
-	•	Notion API sync
-	•	Background job tracking and document previews
-
-⸻
-
-🧠 Notes
-
-This repo currently includes layout-only NiceGUI pages.
-Functional logic will be added by connecting existing ATLS scripts (e.g., process_new_locations.py, fetch_medical_facilities.py) via FastAPI service adapters.
-
-⸻
-
-Author: Jay King
-Organization: Above the Line Safety LLC
-Last Updated: November 2025
+1. Add `/app/api/` folder with placeholder API files (starting with `locations_api.py`).  
+2. Commit these changes to GitHub.  
+3. When a desktop environment is available, connect real script logic and test the first endpoint.  
 
 ---
