@@ -1,9 +1,18 @@
 from fastapi import FastAPI
 from nicegui import ui
+from pathlib import Path
+from dotenv import load_dotenv
 
 from app.services.logging_setup import configure_logging
 
 configure_logging()
+
+# ---------------------------------------------------------------------
+# Load environment from .env (repo root)
+# ---------------------------------------------------------------------
+_ROOT = Path(__file__).resolve().parents[1]
+_ENV = _ROOT / ".env"
+load_dotenv(dotenv_path=_ENV if _ENV.exists() else None)
 
 # ---------------------------------------------------------------------
 # Initialize FastAPI

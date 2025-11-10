@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any, Dict, List
+from datetime import datetime, timezone
 
 import httpx
 from nicegui import ui
@@ -154,14 +155,37 @@ def _populate_jobs_table(table, jobs: List[Dict[str, Any]]) -> None:
         jobs = []
     rows: List[Dict[str, Any]] = []
     for idx, job in enumerate(jobs):
+        raw_ts = job.get('timestamp', '--')
+        ts_display = _format_local_timestamp(raw_ts)
         rows.append(
             {
                 'id': f"job-{idx}",
-                'timestamp': job.get('timestamp', '--'),
+                'timestamp': ts_display,
                 'category': job.get('category', '--'),
                 'status': (job.get('status') or 'unknown').title(),
                 'message': job.get('message', ''),
             }
         )
     table.rows = rows
+
+
+def _format_local_timestamp(raw: Any) -> str:
+    """Convert ISO8601 UTC (e.g., 2025-11-09T21:44:52Z) to local time.
+
+    Output format: "YYYY-MM-DD - HH:MM:SS". Falls back gracefully when parsing
+    fails or when value is missing.
+    """
+    if not isinstance(raw, str) or not raw:
+        return '--'
+    try:
+        iso = raw
+        if iso.endswith('Z'):
+            iso = iso[:-1] + '+00:00'
+        dt = datetime.fromisoformat(iso)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        local_dt = dt.astimezone()  # convert to local timezone
+        return local_dt.strftime('%Y-%m-%d - %H:%M:%S')
+    except Exception:
+        return raw
 

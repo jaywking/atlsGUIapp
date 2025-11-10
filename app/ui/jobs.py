@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -107,10 +107,11 @@ def page_content() -> None:
             filtered.append(entry)
 
         for idx, entry in enumerate(filtered):
+            ts_display = _format_local_timestamp(entry.get('timestamp'))
             rows.append(
                 {
                     "row_id": f"{entry.get('timestamp', 'unknown')}-{idx}",
-                    "timestamp": entry.get('timestamp', '-'),
+                    "timestamp": ts_display,
                     "category": entry.get('category', '-'),
                     "action": entry.get('action', '-'),
                     "status": (entry.get('status') or 'unknown').lower(),
@@ -203,3 +204,23 @@ def _scroll_to_latest() -> None:
         body?.lastElementChild?.scrollIntoView({{behavior: 'smooth', block: 'end'}});
         """
     )
+
+
+def _format_local_timestamp(raw: Any) -> str:
+    """Convert ISO8601 UTC (e.g., 2025-11-09T21:44:52Z) to local time display.
+
+    Output format: "YYYY-MM-DD - HH:MM:SS". Falls back to '--' on errors.
+    """
+    if not isinstance(raw, str) or not raw:
+        return '--'
+    try:
+        iso = raw
+        if iso.endswith('Z'):
+            iso = iso[:-1] + '+00:00'
+        dt = datetime.fromisoformat(iso)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        local_dt = dt.astimezone()
+        return local_dt.strftime('%Y-%m-%d - %H:%M:%S')
+    except Exception:
+        return raw or '--'

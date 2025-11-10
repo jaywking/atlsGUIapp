@@ -304,3 +304,26 @@ Testing
 Notes
 - Notion counts gracefully fall back to `0` when tokens/IDs are absent; service badges surface missing-credential or error states for quick diagnostics.
 
+---
+
+Date: 2025-11-10 10:30 -0500 (Session 10)
+Author: Codex 5 (Developer)
+Milestone: v0.4.1 – Dashboard Hardening & Env Autoload
+
+Summary
+- Fixed dashboard "slot stack" error by making API URL resolution work from background tasks.
+- Dashboard Recent Jobs timestamps now display in local time: `YYYY-MM-DD - HH:MM:SS`.
+- App automatically loads `.env` at startup so Settings tests and API routes see credentials.
+
+Changes
+- `app/services/api_client.py`: fallback to `http://127.0.0.1:{APP_PORT|8080}` when `ui.context.client` is missing (e.g., `asyncio.create_task`).
+- `app/ui/dashboard.py`: added `_format_local_timestamp()` and applied it to the jobs table.
+- `app/main.py`: `dotenv.load_dotenv()` loads repo-root `.env` before router/page registration.
+
+Operational Notes
+- Jobs log entries remain UTC (`...Z`) in storage and API; UI converts to local timezone for readability.
+- Ensure `.env` resides at repository root with valid `NOTION_*` IDs and `GOOGLE_MAPS_API_KEY`.
+
+Docs
+- `docs/projecthandbook.md` updated (env autoload, URL fallback, local-time display).
+- `docs/api_map` updated to clarify UTC payload vs local UI rendering for timestamps.
