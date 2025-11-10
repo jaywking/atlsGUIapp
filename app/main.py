@@ -23,7 +23,7 @@ fastapi_app = FastAPI(title='ATLSApp')
 from app.ui import layout, productions, locations, medicalfacilities, jobs, settings, dashboard
 
 # API router imports
-from app.api import locations_api, facilities_api, jobs_api, settings_api, dashboard_api
+from app.api import locations_api, facilities_api, jobs_api, settings_api, dashboard_api, productions_api
 
 # ---------------------------------------------------------------------
 # Register API Routers
@@ -33,6 +33,7 @@ fastapi_app.include_router(facilities_api.router)
 fastapi_app.include_router(jobs_api.router)
 fastapi_app.include_router(settings_api.router)
 fastapi_app.include_router(dashboard_api.router)
+fastapi_app.include_router(productions_api.router)
 
 
 # ---------------------------------------------------------------------

@@ -1,5 +1,5 @@
 # AGENTS.md - ATLS GUI App
-Last Updated: 2025-11-09 19:45 -05:00
+Last Updated: 2025-11-09 20:06 -05:00
 
 Defines the roles, communication protocols, and collaboration model for all human and AI agents working on the ATLS GUI App project.
 
@@ -109,7 +109,7 @@ To keep iteration fast and avoid tooling hiccups:
 
 - Shell environment: this workspace uses PowerShell on Windows. Avoid `sed`/`awk`; use `rg` for search and `Get-Content -First/-Tail` for reads.
 - File edits: use the `apply_patch` tool for modifications; avoid shell editors.
-- Large files: read in chunks (≤ 250 lines) to prevent truncation and keep output responsive.
+- Large files: read in chunks (<= 250 lines) to prevent truncation and keep output responsive.
 - Docs source of truth: prefer `docs/` as canonical documentation. If mirrored files exist under `app/docs/`, update both or keep the app copy minimal and consistent.
 - Stable anchors: when adding sections to docs, maintain headers like `## 6.1 Frontend Integration`, `## 6.2 Dashboard Overview`, and `## ?? Last Updated` so patches can target reliably.
 - Timestamps policy: APIs return UTC (`...Z`); UI should render local time. Reflect this in docs when changing dashboard/jobs features.
@@ -118,5 +118,6 @@ To keep iteration fast and avoid tooling hiccups:
 These conventions reduce failed patch attempts and speed up doc sync.
 
 ---
+
 
 

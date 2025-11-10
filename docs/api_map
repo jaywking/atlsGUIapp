@@ -11,9 +11,11 @@ Each endpoint connects a NiceGUI frontend action to a backend automation script 
 |-----------|-----------|--------|----------------|----------|-----------|
 | Locations | `/api/locations/process` | POST | `scripts/process_new_locations.py` | Process "Ready" production locations, geocode via Google Maps, and sync results to Notion. | `{"status": "success", "message": "Locations processed"}` |
 | Facilities | `/api/facilities/fetch` | POST | `scripts/fetch_medical_facilities.py` | Retrieve nearest medical facilities (ERs, urgent care) for each master location. | `{"status": "success", "message": "Facilities updated"}` |
+| Productions | `/api/productions/fetch` | GET | `app/api/productions_api.py` | Retrieve productions from Notion for the UI table (Title, Status, Start Date, Last Updated). | `{"status": "success", "message": "...", "data": [...]}` |
+| Productions | `/api/productions/sync` | POST | `app/api/productions_api.py` | Push production status/start date updates back to Notion and log the action. | `{"status": "success", "message": "...", "stats": {...}}` |
 | Jobs / Logs | `/api/jobs/logs` | GET | `app/services/logger.py` | Retrieve recent job execution logs for display in GUI. | `{"status": "success", "message": "Logs retrieved", "logs": [...]}` |
 | Jobs / Maintenance | `/api/jobs/prune` | POST | `app/services/prune_logs.py` | Force log pruning/rotation using retention limits (drives the "Archive Now" button in Jobs UI). | `{"status": "success", "message": "Old log entries pruned", "stats": {...}}` |
-| Settings | `/api/settings/test_connections` | POST | `app/services/config_tester.py` | Validate Notion and Google Maps credentials injected via `.env`. | `{"status": "success", "notion": "Connected", "maps": "Connected"}` |
+| Settings | `/api/settings/test_connections` | POST | `app/services/config_tester.py` | Validate Notion token (Locations & Productions DBs) plus Google Maps key. | `{"status": "success", "notion": "Connected", "productions": "Connected", "maps": "Connected"}` |
 | Dashboard | `/api/dashboard/summary` | GET | `app/api/dashboard_api.py` | Aggregate production/location totals, recent jobs, and service connectivity for the home screen. | `{"productions_total": 0, "locations_total": 0, ...}` |
 
 ---
@@ -22,7 +24,6 @@ Each endpoint connects a NiceGUI frontend action to a backend automation script 
 
 | Category | Endpoint | Method | Linked Script | Description | Response |
 |-----------|-----------|--------|----------------|-------------|-----------|
-| Productions | `/api/productions/sync` | POST | (future) `scripts/sync_productions.py` | Sync production metadata and status from Notion Productions Master DB. | `{"status": "success", "message": "Productions synced"}` |
 | Locations | `/api/locations/match` | POST | `scripts/match_location_master.py` | Match production-specific locations to master records using geocoded data. | `{"status": "success", "message": "Matches complete"}` |
 | Facilities | `/api/facilities/backfill` | POST | (future) `scripts/backfill_facility_details.py` | Update missing facility contact details, hours, and coordinates. | `{"status": "success", "message": "Backfill complete"}` |
 

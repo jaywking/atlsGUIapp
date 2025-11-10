@@ -327,3 +327,33 @@ Operational Notes
 Docs
 - `docs/projecthandbook.md` updated (env autoload, URL fallback, local-time display).
 - `docs/api_map` updated to clarify UTC payload vs local UI rendering for timestamps.
+
+---
+
+Date: 2025-11-09 20:06 -0500 (Session 11)
+Author: Codex 5 (Developer)
+Milestone: v0.4.2 – Productions Data View & Notion Sync
+
+Summary
+- Added the `/productions` NiceGUI page with a live Notion-backed table plus Refresh and Sync controls.
+- Implemented `/api/productions/fetch` and `/api/productions/sync` endpoints (async, structured JSON, job logging).
+- Extended Settings diagnostics to verify the Productions DB connection alongside existing checks.
+
+Changes
+- New `app/api/productions_api.py` for fetch/sync logic using `scripts/notion_utils` and jobs log category “Productions Sync”.
+- Rebuilt `app/ui/productions.py` to render the Notion table (Title, Status, Start Date, Last Updated) and wire up Refresh/Sync buttons.
+- Updated `app/main.py` to register the productions router.
+- `app/api/settings_api.py` & `app/ui/settings.py`: added Productions DB diagnostics row.
+- Docs: `docs/api_map`, `docs/projecthandbook.md`, `docs/agents.md` updated; `app/docs/api_map` now points to canonical docs.
+
+Testing
+- `python -m compileall app/api/productions_api.py app/ui/productions.py app/ui/settings.py app/api/settings_api.py app/main.py`
+- Manual verification requires live Notion credentials; confirm via `/productions` UI and `/settings` → “Test Connections” in an environment with valid `.env`.
+
+Notes
+- Sync endpoint replays the current table values back to Notion (Status, Start Date) so operators can push updates without leaving the UI; job entries record success/failure in the log.
+- UI shows timestamps in local time while payloads remain UTC.
+
+Next Recommendations
+- Allow inline edits (status/date) in the productions table before triggering Sync.
+- Add filters/search/pagination plus a scheduled background sync job.

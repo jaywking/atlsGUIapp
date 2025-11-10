@@ -1,5 +1,5 @@
 # Project Handbook - ATLS GUI App
-Last Updated: 2025-11-09 19:45 -05:00
+Last Updated: 2025-11-09 20:06 -05:00
 
 This handbook defines the internal structure, coding standards, and operational workflow for development under VS Code + Codex 5.
 
@@ -155,6 +155,8 @@ v0.1.0  - Prototype GUI
 v0.2.0  - API integration (Locations, Facilities)
 v0.3.0  - Job logging + Settings testers
 v0.4.0  - Dashboard landing
+v0.4.1  - Dashboard hardening & .env autoload
+v0.4.2  - Productions data view & Notion sync
 v1.0.0  - Production release
 ```
 
@@ -178,5 +180,4 @@ v1.0.0  - Production release
 - Update `DEV_NOTES.md` after each completed feature.
 
 ---
-
 

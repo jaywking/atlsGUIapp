@@ -12,7 +12,11 @@ def page_content():
         ui.label('Validate Notion and Google Maps credentials stored in the server environment.').classes('text-sm text-slate-500 mb-4')
 
         status_labels = {}
-        for service, label in [('notion', 'Notion API'), ('maps', 'Google Maps')]:
+        for service, label in [
+            ('notion', 'Notion API (Locations DB)'),
+            ('productions', 'Productions DB'),
+            ('maps', 'Google Maps'),
+        ]:
             with ui.row().classes('items-center justify-between w-full mb-2'):
                 ui.label(label).classes('font-medium')
                 status_labels[service] = ui.label('Not tested').classes('text-slate-500 text-sm')
@@ -47,12 +51,14 @@ def page_content():
                 return
 
             notion_success = data.get('notion') == 'Connected'
+            productions_success = data.get('productions') == 'Connected'
             maps_success = data.get('maps') == 'Connected'
 
             update_status('notion', notion_success, data.get('notion', 'Error'))
+            update_status('productions', productions_success, data.get('productions', 'Error'))
             update_status('maps', maps_success, data.get('maps', 'Error'))
 
-            overall_success = notion_success and maps_success
+            overall_success = notion_success and maps_success and productions_success
             summary_label.text = data.get('message', 'Finished')
             summary_label.classes.clear()
             summary_label.classes('text-sm text-green-600' if overall_success else 'text-sm text-red-600')
