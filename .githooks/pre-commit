@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Run the doc date updater for staged docs/*.md or *.txt
+if command -v python >/dev/null 2>&1; then
+  python scripts/update_doc_date.py || true
+elif command -v py >/dev/null 2>&1; then
+  py -3 scripts/update_doc_date.py || true
+else
+  echo "[pre-commit] Python not found; skipping doc date update" >&2
+fi
+
+exit 0
+

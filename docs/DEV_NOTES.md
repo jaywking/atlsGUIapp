@@ -1,6 +1,6 @@
 # DEV_NOTES.md - ATLS GUI App
 
-Date: 2025-11-09
+Date: 2025-11-09 18:59 -0500
 Author: Codex 5 (Developer)
 Milestone: v0.3 – Job Logging System
 
@@ -32,7 +32,7 @@ Next Recommendations
 
 ---
 
-Date: 2025-11-09 (Session 2)
+Date: 2025-11-09 19:01 -0500 (Session 2)
 Author: Codex 5 (Developer)
 Milestone: v0.3.1 - Live Jobs Log UI
 
@@ -60,7 +60,7 @@ Next Recommendations
 
 ---
 
-Date: 2025-11-09 (Session 3)
+Date: 2025-11-09 19:01 -0500 (Session 3)
 Author: Codex 5 (Developer)
 Milestone: v0.3.1 - Live Jobs Log UI (Docs sync)
 
@@ -84,7 +84,7 @@ Next Recommendations
 
 ---
 
-Date: 2025-11-09 (Session 4)
+Date: 2025-11-09 19:01 -0500 (Session 4)
 Author: Codex 5 (Developer)
 Milestone: v0.3.1 - Stabilization
 
@@ -109,7 +109,7 @@ Next Recommendations
 
 ---
 
-Date: 2025-11-09 (Session 5)
+Date: 2025-11-09 19:01 -0500 (Session 5)
 Author: Codex 5 (Developer)
 Milestone: v0.3.2 - Log Pruning & Rotation
 
@@ -136,7 +136,7 @@ Next Recommendations
 
 ---
 
-Date: 2025-11-09 (Session 6)
+Date: 2025-11-09 19:01 -0500 (Session 6)
 Author: Codex 5 (Developer)
 Milestone: v0.3.3 - Settings Connection Tests
 
@@ -164,7 +164,7 @@ Next Recommendations
 
 
 
-Date: 2025-11-09 (Session 7)
+Date: 2025-11-09 19:01 -0500 (Session 7)
 Author: Codex 5 (Developer)
 Milestone: v0.3.4 - Jobs UI Enhancements
 
@@ -191,7 +191,7 @@ Next Recommendations
 
 
 
-Date: 2025-11-09 (Session 8)
+Date: 2025-11-09 19:01 -0500 (Session 8)
 Author: Codex 5 (Developer)
 Milestone: v0.3.4 - Hotfix
 
@@ -211,7 +211,7 @@ Notes
 
 
 
-Date: 2025-11-09 (Session 8.1)
+Date: 2025-11-09 19:01 -0500 (Session 8.1)
 Author: Codex 5 (Developer)
 Milestone: v0.3.4.1 - Diagnostics Logging
 
@@ -230,7 +230,7 @@ Notes
 
 ---
 
-Date: 2025-11-09 (Session 8.2)
+Date: 2025-11-09 19:01 -0500 (Session 8.2)
 Author: Codex 5 (Developer)
 Milestone: v0.3.4.2 - File-based Logging
 
@@ -250,7 +250,7 @@ Notes
 
 ---
 
-Date: 2025-11-09 (Session 8.3)
+Date: 2025-11-09 19:01 -0500 (Session 8.3)
 Author: Codex 5 (Developer)
 Milestone: v0.3.4.2 - API Path Standardization Fix
 
@@ -284,7 +284,7 @@ Goal Tracking (v0.3 Series)
 
 ---
 
-Date: 2025-11-10 (Session 9)
+Date: 2025-11-10 19:01 -0500 (Session 9)
 Author: Codex 5 (Developer)
 Milestone: v0.4.0 – Production Dashboard Kickoff
 
