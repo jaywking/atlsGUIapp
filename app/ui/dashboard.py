@@ -18,7 +18,9 @@ SUMMARY_ENDPOINT = "/api/dashboard/summary"
 def page_content() -> None:
     """Render the dashboard shell with async data loading."""
 
-    ui.label('Operations Dashboard').classes('text-xl font-semibold')
+    with ui.row().classes('items-center gap-3'):
+        ui.label('Operations Dashboard').classes('text-xl font-semibold')
+        status_spinner = ui.spinner(size='sm').style('display: none;')
     ui.label('Snapshot of productions, locations, and system health.').classes(
         'text-slate-500 mb-4'
     )
@@ -34,7 +36,7 @@ def page_content() -> None:
             ui.label('Recent Jobs (last 24h)').classes('text-lg font-semibold')
             refresh_button = ui.button('Refresh').classes('bg-blue-500 text-white px-4')
         error_label = ui.label('').classes('text-sm text-red-600').style('display: none;')
-        spinner = ui.spinner(size='md').style('display: none; margin-bottom: 12px;')
+        jobs_spinner = ui.spinner(size='md').style('display: none; margin-bottom: 12px;')
         jobs_table = ui.table(
             columns=[
                 {'name': 'timestamp', 'label': 'Timestamp', 'field': 'timestamp', 'sortable': True},
@@ -66,7 +68,8 @@ def page_content() -> None:
             notion_status,
             maps_status,
             jobs_table,
-            spinner,
+            status_spinner,
+            jobs_spinner,
             error_label,
         )
 
@@ -75,7 +78,10 @@ def page_content() -> None:
 
 
 def _metric_card(title: str, initial_value: str):
-    with ui.card().classes('min-w-[200px] flex-1 shadow-sm border border-slate-200') as card:
+    with ui.card().classes(
+        'min-w-[200px] flex-1 shadow-sm border border-slate-200 '
+        'flex flex-col justify-between min-h-[120px] py-3'
+    ) as card:
         ui.label(title).classes('text-sm text-slate-500')
         value_label = ui.label(initial_value).classes('text-3xl font-semibold text-slate-900')
     card.value_label = value_label  # type: ignore[attr-defined]
@@ -83,7 +89,10 @@ def _metric_card(title: str, initial_value: str):
 
 
 def _status_card(title: str, status: str):
-    with ui.card().classes('min-w-[200px] flex-1 shadow-sm border border-slate-200') as card:
+    with ui.card().classes(
+        'min-w-[200px] flex-1 shadow-sm border border-slate-200 '
+        'flex flex-col justify-between min-h-[120px] py-3'
+    ) as card:
         ui.label(title).classes('text-sm text-slate-500')
         status_label = ui.label(_format_status_text(status)).classes(_status_classes(status))
     card.status_label = status_label  # type: ignore[attr-defined]
@@ -96,10 +105,12 @@ async def _load_summary(
     notion_status,
     maps_status,
     jobs_table,
-    spinner,
+    status_spinner,
+    jobs_spinner,
     error_label,
 ) -> None:
-    spinner.style('display: inline-block; margin-bottom: 12px;')
+    status_spinner.style('display: inline-block;')
+    jobs_spinner.style('display: inline-block; margin-bottom: 12px;')
     error_label.style('display: none;')
     try:
         async with httpx.AsyncClient(timeout=20.0) as client:
@@ -111,7 +122,8 @@ async def _load_summary(
         error_label.style('display: block;')
         return
     finally:
-        spinner.style('display: none;')
+        status_spinner.style('display: none;')
+        jobs_spinner.style('display: none;')
 
     _update_metric_card(production_card, data.get('productions_total', 0))
     _update_metric_card(location_card, data.get('locations_total', 0))

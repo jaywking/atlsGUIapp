@@ -1,5 +1,5 @@
+import httpx
 from nicegui import ui
-import requests
 
 from app.services.api_client import api_url
 
@@ -56,29 +56,31 @@ def page_content():
         ui.label('Map container')
 
     # Link the fetch button to backend trigger
-    fetch_button.on('click', lambda: trigger_fetch(fetch_button, spinner))
+    fetch_button.on('click', lambda _: ui.run_task(trigger_fetch(fetch_button, spinner)))
 
 
 # ----------------------------------------------------------------------
 # Backend Trigger Function
 # ----------------------------------------------------------------------
 
-def trigger_fetch(button, spinner):
+async def trigger_fetch(button, spinner):
     """Call the FastAPI endpoint to run fetch_medical_facilities with a spinner."""
     button.set_enabled(False)
     spinner.style('display: inline-block; margin-left: 8px;')
     ui.notify('Fetching facilities...', type='info')
 
     try:
-        response = requests.post(api_url("/api/facilities/fetch"), timeout=90)
-        if response.status_code == 200:
-            data = response.json()
-            status = data.get("status", "info")
-            message = data.get("message", "No response message")
-            ui.notify(message, type=status)
+        async with httpx.AsyncClient(timeout=90.0) as client:
+            response = await client.post(api_url("/api/facilities/fetch"))
+        response.raise_for_status()
+        data = response.json()
+        status = data.get("status", "info")
+        message = data.get("message", "No response message")
+        if data.get('status') == 'error':
+            ui.notify(message, type='negative')
         else:
-            ui.notify(f"Error: {response.status_code}", type="negative")
-    except Exception as e:
+            ui.notify(message, type=status)
+    except Exception as e:  # noqa: BLE001
         ui.notify(f"Request failed: {e}", type="negative")
     finally:
         spinner.style('display: none;')

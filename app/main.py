@@ -24,6 +24,7 @@ from app.ui import layout, productions, locations, medicalfacilities, jobs, sett
 
 # API router imports
 from app.api import locations_api, facilities_api, jobs_api, settings_api, dashboard_api, productions_api
+from app.services import background_sync
 
 # ---------------------------------------------------------------------
 # Register API Routers
@@ -34,6 +35,11 @@ fastapi_app.include_router(jobs_api.router)
 fastapi_app.include_router(settings_api.router)
 fastapi_app.include_router(dashboard_api.router)
 fastapi_app.include_router(productions_api.router)
+
+
+@fastapi_app.on_event("startup")
+async def _start_background_sync() -> None:
+    background_sync.ensure_started()
 
 
 # ---------------------------------------------------------------------

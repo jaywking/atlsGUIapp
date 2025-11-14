@@ -1,5 +1,5 @@
+import httpx
 from nicegui import ui
-import requests
 
 from app.services.api_client import api_url
 
@@ -55,29 +55,31 @@ def page_content():
     ).classes('w-full')
 
     # Link the process button to backend trigger
-    process_button.on('click', lambda: trigger_process(process_button, spinner))
+    process_button.on('click', lambda _: ui.run_task(trigger_process(process_button, spinner)))
 
 
 # ----------------------------------------------------------------------
 # Backend Trigger Function
 # ----------------------------------------------------------------------
 
-def trigger_process(button, spinner):
+async def trigger_process(button, spinner):
     """Call the FastAPI endpoint to run process_new_locations with a spinner."""
     button.set_enabled(False)
     spinner.style('display: inline-block; margin-left: 8px;')
     ui.notify('Processing locations...', type='info')
 
     try:
-        response = requests.post(api_url("/api/locations/process"), timeout=60)
-        if response.status_code == 200:
-            data = response.json()
-            status = data.get("status", "info")
-            message = data.get("message", "No response message")
-            ui.notify(message, type=status)
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(api_url("/api/locations/process"))
+        response.raise_for_status()
+        data = response.json()
+        status = data.get("status", "info")
+        message = data.get("message", "No response message")
+        if data.get('status') == 'error':
+            ui.notify(message, type='negative')
         else:
-            ui.notify(f"Error: {response.status_code}", type="negative")
-    except Exception as e:
+            ui.notify(message, type=status)
+    except Exception as e:  # noqa: BLE001
         ui.notify(f"Request failed: {e}", type="negative")
     finally:
         spinner.style('display: none;')

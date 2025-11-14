@@ -11,8 +11,9 @@ Each endpoint connects a NiceGUI frontend action to a backend automation script 
 |-----------|-----------|--------|----------------|----------|-----------|
 | Locations | `/api/locations/process` | POST | `scripts/process_new_locations.py` | Process "Ready" production locations, geocode via Google Maps, and sync results to Notion. | `{"status": "success", "message": "Locations processed"}` |
 | Facilities | `/api/facilities/fetch` | POST | `scripts/fetch_medical_facilities.py` | Retrieve nearest medical facilities (ERs, urgent care) for each master location. | `{"status": "success", "message": "Facilities updated"}` |
-| Productions | `/api/productions/fetch` | GET | `app/api/productions_api.py` | Retrieve productions from Notion for the UI table (Title, Status, Start Date, Last Updated). | `{"status": "success", "message": "...", "data": [...]}` |
-| Productions | `/api/productions/sync` | POST | `app/api/productions_api.py` | Push production status/start date updates back to Notion and log the action. | `{"status": "success", "message": "...", "stats": {...}}` |
+| Productions | `/api/productions/fetch` | GET | `app/api/productions_api.py` | Retrieve productions from Notion (falls back to cached data when offline). | `{"status": "success", "message": "...", "data": [...], "source": "cache|live"}` |
+| Productions | `/api/productions/sync` | POST | `app/api/productions_api.py` | Push production status/start-date updates OR trigger a manual background sync (`{"operation": "auto_sync"}`). | `{"status": "success", "message": "...", "stats|data": {...}}` |
+| Productions | `/api/productions/status` | GET | `app/api/productions_api.py` | Return metadata about the background sync loop (interval, cache path, last run). | `{"status": "success", "data": {...}}` |
 | Jobs / Logs | `/api/jobs/logs` | GET | `app/services/logger.py` | Retrieve recent job execution logs for display in GUI. | `{"status": "success", "message": "Logs retrieved", "logs": [...]}` |
 | Jobs / Maintenance | `/api/jobs/prune` | POST | `app/services/prune_logs.py` | Force log pruning/rotation using retention limits (drives the "Archive Now" button in Jobs UI). | `{"status": "success", "message": "Old log entries pruned", "stats": {...}}` |
 | Settings | `/api/settings/test_connections` | POST | `app/services/config_tester.py` | Validate Notion token (Locations & Productions DBs) plus Google Maps key. | `{"status": "success", "notion": "Connected", "productions": "Connected", "maps": "Connected"}` |
@@ -101,4 +102,4 @@ def process_locations():
 ---
 
 ## Last Updated
-2025-11-10
+2025-11-09

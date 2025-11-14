@@ -5,10 +5,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from fastapi import APIRouter
 
+from app.services import background_sync
 from app.services.logger import log_job
 
 try:  # pragma: no cover - optional dependency for local dev
@@ -24,41 +25,48 @@ router = APIRouter(prefix="/api/productions", tags=["productions"])
 
 @router.get("/fetch")
 async def fetch_productions() -> Dict[str, Any]:
-    """Fetch production records from Notion."""
+    """Fetch production records from Notion (with cache fallback)."""
 
-    if not notion_utils:
-        message = "Notion utilities are unavailable"
-        logger.error(message)
-        return {"status": "error", "message": message, "data": []}
-
-    notion_token = os.getenv("NOTION_TOKEN")
-    productions_db_id = os.getenv("NOTION_PRODUCTIONS_DB_ID")
-
-    if not notion_token or not productions_db_id:
-        message = "Missing NOTION_TOKEN or NOTION_PRODUCTIONS_DB_ID"
-        logger.warning(message)
-        return {"status": "error", "message": message, "data": []}
-
-    def _worker() -> List[Dict[str, Any]]:
-        pages = notion_utils.query_database(productions_db_id)  # type: ignore[union-attr]
-        return [_map_production(page) for page in pages]
+    cache_used = False
 
     try:
-        records = await asyncio.to_thread(_worker)
+        records = await background_sync.fetch_from_notion()
     except Exception as exc:  # noqa: BLE001
-        err = f"Failed to fetch productions: {exc}"
-        logger.exception(err)
-        log_job("Productions Sync", "fetch", "error", err)
-        return {"status": "error", "message": err, "data": []}
+        logger.warning("Productions fetch failed; attempting cache fallback: %s", exc)
+        cache = background_sync.get_cached_records()
+        records = cache.get("records", [])
+        if records:
+            cache_used = True
+            message = f"Served {len(records)} cached productions (Notion unavailable)"
+        else:
+            err = f"Failed to fetch productions: {exc}"
+            log_job("Productions Sync", "fetch", "error", err)
+            return {"status": "error", "message": err, "data": []}
+    else:
+        message = f"Fetched {len(records)} productions"
 
-    message = f"Fetched {len(records)} productions"
     log_job("Productions Sync", "fetch", "success", message)
-    return {"status": "success", "message": message, "data": records}
+    response = {"status": "success", "message": message, "data": records}
+    if cache_used:
+        response["source"] = "cache"
+    return response
 
 
 @router.post("/sync")
 async def sync_productions(payload: Dict[str, Any] | None = None) -> Dict[str, Any]:
-    """Push updates to Notion by syncing status / start dates."""
+    """Handle manual auto-sync or push updates to Notion."""
+
+    payload = payload or {}
+    if payload.get("operation") == "auto_sync":
+        result = await background_sync.trigger_manual_sync()
+        status = "success" if result.get("ok") else "error"
+        message = result.get("message", "")
+        data = background_sync.get_status()
+        return {
+            "status": status,
+            "message": message,
+            "data": data,
+        }
 
     if not notion_utils:
         message = "Notion utilities are unavailable"
@@ -73,7 +81,7 @@ async def sync_productions(payload: Dict[str, Any] | None = None) -> Dict[str, A
         logger.warning(message)
         return {"status": "error", "message": message}
 
-    updates = (payload or {}).get("updates") or []
+    updates = payload.get("updates") or []
     if not isinstance(updates, list):
         updates = []
 
@@ -120,42 +128,9 @@ async def sync_productions(payload: Dict[str, Any] | None = None) -> Dict[str, A
     return {"status": "success", "message": message, "stats": stats}
 
 
-def _map_production(page: Dict[str, Any]) -> Dict[str, Any]:
-    props = page.get("properties", {})
-    title = _extract_title(props)
-    status = _extract_status(props)
-    start_date_iso = _extract_start_date(props)
-    last_updated_iso = page.get("last_edited_time")
+@router.get("/status")
+async def productions_status() -> Dict[str, Any]:
+    """Return metadata about the background sync/cache."""
 
-    return {
-        "id": page.get("id"),
-        "title": title,
-        "status": status,
-        "start_date": start_date_iso,
-        "last_updated": last_updated_iso,
-    }
-
-
-def _extract_title(props: Dict[str, Any]) -> str:
-    for value in props.values():
-        if value.get("type") == "title":
-            title_items = value.get("title") or []
-            if title_items:
-                return title_items[0].get("plain_text") or title_items[0].get("text", {}).get("content", "")
-    return "Untitled"
-
-
-def _extract_status(props: Dict[str, Any]) -> str:
-    for value in props.values():
-        if value.get("type") == "status":
-            option = value.get("status") or {}
-            return option.get("name") or ""
-    return ""
-
-
-def _extract_start_date(props: Dict[str, Any]) -> str | None:
-    for value in props.values():
-        if value.get("type") == "date":
-            date_obj = value.get("date") or {}
-            return date_obj.get("start")
-    return None
+    data = background_sync.get_status()
+    return {"status": "success", "message": "Productions sync status", "data": data}

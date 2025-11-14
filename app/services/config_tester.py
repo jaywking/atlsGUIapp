@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional, Tuple
+from time import perf_counter
+from typing import Awaitable, Optional, Tuple, TypeVar
 
 import httpx
 
@@ -14,6 +15,7 @@ NOTION_BASE_URL = "https://api.notion.com/v1"
 NOTION_VERSION = "2022-06-28"
 MAPS_GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
 MAPS_TEST_ADDRESS = "New York, NY"
+T = TypeVar("T")
 
 
 async def check_notion_connection(
@@ -97,3 +99,14 @@ def _extract_error(response: httpx.Response) -> str:
     except ValueError:
         return f"{response.status_code} {response.text[:200]}"
     return data.get("message") or data.get("error", {}).get("message") or str(data)
+
+
+async def run_with_timing(awaitable: Awaitable[T]) -> Tuple[T, float]:
+    """Measure how long an awaited check takes and return (result, seconds)."""
+
+    start = perf_counter()
+    try:
+        result = await awaitable
+    finally:
+        duration = perf_counter() - start
+    return result, duration

@@ -357,3 +357,120 @@ Notes
 Next Recommendations
 - Allow inline edits (status/date) in the productions table before triggering Sync.
 - Add filters/search/pagination plus a scheduled background sync job.
+
+---
+
+Date: 2025-11-09 20:25 -0500 (Session 12)
+Author: Codex 5 (Developer)
+Milestone: v0.4.3 – UI Enhancements & Background Sync
+
+Summary
+- Added pagination, search, alternating row colors, status tags, and auto-refresh to the Productions table.
+- Implemented a background sync service with cache storage, auto interval, manual trigger, and `/api/productions/status`.
+- Settings page now shows sync metadata and can run the background sync on demand.
+
+Changes
+- `app/ui/productions.py`: search bar, pagination controls, auto-refresh toggle, striped rows, colored status chips.
+- New `app/services/background_sync.py` plus startup wiring in `app/main.py`.
+- `app/api/productions_api.py`: cache fallback, manual background sync operation, and `/api/productions/status`.
+- `app/ui/settings.py`: displays sync interval/cache path and exposes “Run Auto Sync Now”.
+- Docs updated: `.env.template` (sync env vars), `docs/api_map`, `docs/projecthandbook.md`, and this log.
+
+Testing
+- `python -m compileall app/api/productions_api.py app/ui/productions.py app/ui/settings.py app/services/background_sync.py app/main.py`
+- Verified pagination/search and auto-refresh in-browser requires live Notion credentials; confirmed API responses via manual requests.
+
+Notes
+- Background sync writes cache JSON (`PRODUCTIONS_CACHE_PATH`) and logs every cycle under “Productions Sync”.
+- `/api/productions/fetch` serves cached data seamlessly when Notion is unavailable.
+
+Next Recommendations
+- Surface toast/notification when auto-sync completes in the UI.
+- Implement cache rotation/cleanup and allow editing rows inline before syncing back to Notion.
+
+---
+
+Date: 2025-11-12 22:59 -0500 (Session 13)
+Author: Codex 5 (Developer)
+Milestone: v0.4.4 - Diagnostics UX Polish
+
+Summary
+- Hardened the Settings "Test Connections" flow by keeping the UI responsive and allowing longer waits for real API calls.
+- Parallelized the backend credential checks so the endpoint returns as soon as the slowest service responds.
+- Added visible loading states and consistent sizing on the Dashboard metrics cards.
+
+Changes
+- `app/ui/settings.py`: converted the Test Connections handler to async `httpx`, raised the timeout to 35s, and preserved spinner/label feedback during long requests.
+- `app/api/settings_api.py`: now uses `asyncio.create_task` to hit Notion (locations + productions) and Google Maps in parallel while handling missing Production DB IDs gracefully.
+- `app/ui/dashboard.py`: introduced header and jobs-table spinners tied to the summary fetch plus unified the card dimensions with compact flex layouts.
+
+Testing
+- GUI exercised manually via NiceGUI while `uvicorn app.main:fastapi_app --reload` was running; requires valid `.env` secrets for full end-to-end verification.
+- No automated tests added; underlying modules continue to import cleanly (`python -m compileall app/ui/settings.py app/api/settings_api.py app/ui/dashboard.py`).
+
+Notes
+- Settings auto-sync button still uses `requests` synchronously; consider migrating to async if operators report reconnect banners there too.
+- Dashboard status labels now show loading spinners anytime `/api/dashboard/summary` is pending, preventing confusion during slow external calls.
+
+Next Recommendations
+- Add per-service duration stats to the Settings diagnostics payload to spot slow credentials at a glance.
+- Expose simple style tokens (card height/padding) via configuration so operators can tweak layout without code edits.
+
+---
+
+Date: 2025-11-13 00:15 -0500 (Session 14)
+Author: Codex 5 (Developer)
+Milestone: v0.4.5 - Async Cleanup + Diagnostic Timing
+
+Summary
+- Reworked the Settings auto-sync trigger to use async `httpx` with spinner/button state so the UI never blocks.
+- Instrumented `/api/settings/test_connections` to capture per-service timings (Notion Locations, Notion Productions, Google Maps) and surface the milliseconds in the UI diagnostics block.
+- Ensured timing data is returned even on failures and confirmed all Settings UI HTTP calls now run asynchronously.
+
+Changes
+- `app/services/config_tester.py`: added a reusable `run_with_timing` helper around existing check coroutines.
+- `app/api/settings_api.py`: wrapped each credential check with the timing helper, rounded to 3 decimals, and ensured the response always includes a `timing` object plus clean JSON errors.
+- `app/ui/settings.py`: converted the "Run Auto Sync Now" handler to async `httpx`, added spinner/button disable handling, and rendered `Time: <ms>` rows under every diagnostics status with graceful fallbacks.
+- `docs/DEV_NOTES.md`: documented Session 14 deliverables (this entry).
+
+Testing
+- `python -m compileall app/ui/settings.py app/api/settings_api.py app/services/config_tester.py`
+- In-browser verification still requires live credentials; pending operator confirmation once deployed.
+
+Notes
+- Settings page no longer imports `requests`; both Test Connections and Auto Sync use async `httpx` to keep the UI responsive.
+- Timing metrics now show up immediately under each service, allowing operators to spot slow APIs at a glance; unspecified timings render as `Time: —`.
+- Recommend adding alerting thresholds (e.g., highlight timings above 1s) and expanding async conversions to other UI pages that still rely on `requests`.
+
+Next Recommendations
+- Build a lightweight diagnostics history log so operators can compare timing trends over time.
+- Convert remaining UI modules (`locations`, `productions`, `jobs`, etc.) to async HTTP calls for consistency once bandwidth allows.
+- Consider surfacing the background auto-sync duration similarly so Settings shows end-to-end timing for that workflow.
+
+---
+
+Date: 2025-11-13 01:05 -0500 (Session 15)
+Author: Codex 5 (Developer)
+Milestone: v0.4.6 - Async Conversion Across UI Pages
+
+Summary
+- Eliminated all synchronous `requests` usage from the Productions, Jobs, Locations, and Medical Facilities NiceGUI pages.
+- Replaced every HTTP call with async `httpx.AsyncClient` wrappers, adding spinner/button disable states and consistent toast handling for success/error cases.
+- Ensured auto-refresh timers and onboarding loads execute through `ui.run_task` without blocking the UI thread.
+
+Changes
+- `app/ui/productions.py`: async refresh/sync workflows, httpx fetch/sync calls, and timer-driven auto-refresh using tasks.
+- `app/ui/jobs.py`: async log fetching/archive operations plus async auto-refresh cycle and updated button wiring.
+- `app/ui/locations.py` & `app/ui/medicalfacilities.py`: async trigger helpers for the process/fetch actions with spinner handling and toast feedback.
+- `docs/DEV_NOTES.md`: added this Session 15 record.
+
+Testing
+- `python -m compileall app/ui`
+- Manual browser verification pending deployment with live backend credentials.
+
+Notes / Recommendations
+- Remaining NiceGUI modules now consistently rely on async HTTP; consider adopting a shared utility for button disable/spinner patterns to reduce repetition.
+- Future work could extend async conversions to background polling intervals shorter than 10s/60s by batching requests or using websockets for push updates.
+- Evaluate adding structured error messages (status/message) for the Locations/Facilities API endpoints to further improve toast clarity.
+
+---

@@ -1,8 +1,13 @@
+import asyncio
 import logging
 import os
 from fastapi import APIRouter
 
-from app.services.config_tester import check_maps_connection, check_notion_connection
+from app.services.config_tester import (
+    check_maps_connection,
+    check_notion_connection,
+    run_with_timing,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -23,19 +28,65 @@ async def test_connections():
         bool(productions_db_id),
     )
 
-    notion_ok, notion_msg = await check_notion_connection(notion_token, notion_db_id)
-    if productions_db_id:
-        productions_ok, productions_msg = await check_notion_connection(notion_token, productions_db_id)
-    else:
-        productions_ok, productions_msg = False, "Missing Productions DB ID"
-    maps_ok, maps_msg = await check_maps_connection(maps_key)
-
-    overall_ok = notion_ok and maps_ok and productions_ok
-    response = {
-        "status": "success" if overall_ok else "error",
-        "message": "Connections verified" if overall_ok else "Check credentials",
-        "notion": "Connected" if notion_ok else notion_msg,
-        "productions": "Connected" if productions_ok else productions_msg,
-        "maps": "Connected" if maps_ok else maps_msg,
+    timing = {
+        "notion_locations": None,
+        "notion_productions": None,
+        "google_maps": None,
     }
-    return response
+
+    try:
+        notion_task = asyncio.create_task(
+            run_with_timing(check_notion_connection(notion_token, notion_db_id))
+        )
+        maps_task = asyncio.create_task(
+            run_with_timing(check_maps_connection(maps_key))
+        )
+
+        productions_task = None
+        productions_ok: bool
+        productions_msg: str
+        if productions_db_id:
+            productions_task = asyncio.create_task(
+                run_with_timing(
+                    check_notion_connection(notion_token, productions_db_id)
+                )
+            )
+        else:
+            productions_ok, productions_msg = False, "Missing Productions DB ID"
+            timing["notion_productions"] = 0.0
+
+        (notion_result, notion_duration) = await notion_task
+        notion_ok, notion_msg = notion_result
+        timing["notion_locations"] = round(notion_duration, 3)
+
+        (maps_result, maps_duration) = await maps_task
+        maps_ok, maps_msg = maps_result
+        timing["google_maps"] = round(maps_duration, 3)
+
+        if productions_task:
+            (productions_result, productions_duration) = await productions_task
+            productions_ok, productions_msg = productions_result
+            timing["notion_productions"] = round(productions_duration, 3)
+
+        overall_ok = notion_ok and maps_ok and productions_ok
+        response = {
+            "status": "success" if overall_ok else "error",
+            "message": "Connections verified"
+            if overall_ok
+            else "Check credentials",
+            "notion": "Connected" if notion_ok else notion_msg,
+            "productions": "Connected" if productions_ok else productions_msg,
+            "maps": "Connected" if maps_ok else maps_msg,
+            "timing": timing,
+        }
+        return response
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Settings diagnostics failed")
+        return {
+            "status": "error",
+            "message": f"Settings diagnostics failed: {exc}",
+            "notion": "Error",
+            "productions": "Error",
+            "maps": "Error",
+            "timing": timing,
+        }

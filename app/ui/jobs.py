@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-import requests
+import httpx
 from nicegui import ui
 
 from app.services.api_client import api_url
@@ -9,10 +9,11 @@ TABLE_DOM_ID = "jobs-log-table"
 HIGHLIGHT_COUNT = 5
 
 
-def fetch_logs() -> List[Dict[str, Any]]:
+async def fetch_logs() -> List[Dict[str, Any]]:
     """Fetch job logs from the backend and validate the payload."""
 
-    response = requests.get(api_url("/api/jobs/logs"), timeout=15)
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.get(api_url("/api/jobs/logs"))
     response.raise_for_status()
     data = response.json()
     if data.get("status") != "success":
@@ -126,10 +127,10 @@ def page_content() -> None:
         if auto_scroll and rows:
             _scroll_to_latest()
 
-    def load_logs(show_toast: bool = False, auto_scroll: bool = True) -> None:
+    async def load_logs(show_toast: bool = False, auto_scroll: bool = True) -> None:
         set_loading(True)
         try:
-            state['logs'] = fetch_logs()
+            state['logs'] = await fetch_logs()
             update_category_options()
             apply_filters(auto_scroll=auto_scroll)
             last_updated.text = f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
@@ -140,12 +141,13 @@ def page_content() -> None:
         finally:
             set_loading(False)
 
-    def run_archive() -> None:
+    async def run_archive() -> None:
         archive_button.set_enabled(False)
         archive_spinner.style('display: inline-block;')
         archive_summary.classes('text-sm text-slate-500')
         try:
-            response = requests.post(api_url("/api/jobs/prune"), timeout=30)
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(api_url("/api/jobs/prune"))
             response.raise_for_status()
             data = response.json()
             if data.get('status') != 'success':
@@ -153,7 +155,7 @@ def page_content() -> None:
             stats = data.get('stats', {})
             archive_summary.text = f"Kept {stats.get('kept', 0)}  |  Archived {stats.get('archived', 0)}"
             ui.notify('Logs archived', type='positive')
-            load_logs(auto_scroll=True)
+            await load_logs(auto_scroll=True)
         except Exception as exc:  # noqa: BLE001
             archive_summary.text = f'Archive failed: {exc}'
             archive_summary.classes('text-sm text-red-600')
@@ -178,11 +180,16 @@ def page_content() -> None:
     status_select.on('update:model-value', lambda e: on_status_change(e.value))
     search_input.on('update:model-value', lambda e: on_search_change(e.value))
 
-    refresh_button.on('click', lambda: load_logs(show_toast=True, auto_scroll=True))
-    archive_button.on('click', run_archive)
-    ui.timer(10.0, lambda: load_logs(auto_scroll=True) if state.get('auto_refresh') else None)
+    refresh_button.on('click', lambda _: ui.run_task(load_logs(show_toast=True, auto_scroll=True)))
+    archive_button.on('click', lambda _: ui.run_task(run_archive()))
 
-    load_logs(auto_scroll=True)
+    async def auto_refresh_task() -> None:
+        if state.get('auto_refresh'):
+            await load_logs(auto_scroll=True)
+
+    ui.timer(10.0, lambda: ui.run_task(auto_refresh_task()))
+
+    ui.run_task(load_logs(auto_scroll=True))
 
 
 def _timestamp_key(entry: Dict[str, Any]) -> datetime:
