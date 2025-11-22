@@ -13,48 +13,38 @@ This app modernizes your LocationSync and Medical Facility automation scripts in
 
 ---
 
-## Features (v0.4.4)
+## Features (v0.4.13)
 
 ### Dashboard
-
-- Notion (Locations + Productions) connection status  
-- Google Maps API health  
-- Total productions and total locations  
-- Recent jobs (24h), shown in local time  
-- Spinners and a consistent card layout for async loads
+- Enhanced per-service diagnostic timings (v0.4.5)
+- Local-time normalization improvements
+- More resilient async loaders and error states
 
 ### Productions
-
-- Live Notion-backed table  
-- Search and pagination  
-- Alternating row colors  
-- Colored status chips  
-- Manual Refresh and Sync  
-- Auto-refresh toggle  
-- Background sync with cache fallback  
-- Sync status surfaced in Settings
+- Table layout supports horizontal scroll alongside the sidebar
+- All headers/cells left-aligned for readability
+- Locations Table condensed to a clickable “Link”
+- ProductionID opens the corresponding Notion page (NotionURL mapped automatically)
+- Browser fetch reliability, logging, and 8-second timeout enforcement remain in place
+### UI Layout / v0.4.x Enhancements
+- Improved global layout: fixed sidebar wrapping issues, added sticky headers, better overflow behavior, and stabilized main content width.
+### UI/UX Features
+- Global Light/Dark theme toggle (header, top right)
+- Consistent Material-style table styling across all pages (light + dark variants) with finalized header alignment
+- Multi-table theming is applied automatically via the global theme block
+- Full dark-mode coverage with reactive header/sidebar/toggle and persistent theme selection
 
 ### Settings
-
-- Fully async “Test Connections”  
-- Parallelized checks (Notion Locations, Notion Productions, Google Maps)  
-- Per-service results  
-- Sync interval and cache path display  
-- “Run Auto Sync Now” button  
+- Async diagnostics with refined timing metrics
+- Slot-safe UI updates and consistent spinners
 
 ### Jobs
-
-- Full JSONL log table  
-- Category and status filters  
-- Free-text search  
-- Highlighting of newest entries  
-- Manual archive (log pruning)
+- Expanded logging visibility and fetch lifecycle entries
+- Highlighting, filtering, and improved archive operations
 
 ### Locations & Medical Facilities
-
-- Placeholder UIs ready for expansion
-
----
+- Backend logic matured (async conversion, diagnostics, logging)
+- UI placeholders now backed by functional service endpoints
 
 ## Folder Structure
 
@@ -133,19 +123,25 @@ uvicorn app.main:fastapi_app --reload
 - v0.4.2 – Productions + Sync  
 - v0.4.3 – UI Enhancements + Background Sync  
 - v0.4.4 – Diagnostics UX Polish  
+- v0.4.5 – Async Diagnostics Timing  
+- v0.4.6 – Full Async Conversion  
+- v0.4.7 - Productions Table UX, Slot Fixes, Page-Context Enforcement
+- v0.4.8 - Productions Layout & UX Improvements
+- v0.4.9 - Productions Notion Link Integration
+- v0.4.10 - Global Layout Improvements
+- v0.4.11 - Global Theme + Material Table Styles
+- v0.4.12 - Final Table Header Alignment & CSS Consolidation
+- v0.4.13 - Dark Mode Polish, Persistent Theme, Typography
 
----
 
-## Next Steps (v0.4.5 candidates)
+## Next Steps (v0.4.14 planning)
 
-- Convert synchronous UI actions to async  
-- Add diagnostic timing metrics  
-- Dashboard UI configuration options  
-- Inline editing for productions  
-- Cache rotation utilities  
-- Locations & Medical Facilities feature expansion  
+- Extend Locations & Medical Facilities full UI
+- Add cache rotation utilities
+- Add dashboard UI configuration options
+- Introduce error-handling standards across API/UI/services
+- Improve documentation governance and consolidate DEV_NOTES variants
 
----
 
-# © Above the Line Safety
-Designed for internal use and continuous expansion within the ATLS ecosystem.
+## Development Guardrails
+See `docs/DEV_NOTES.md` for NiceGUI slot rules, async-only HTTP, and Codex 5.1 guardrails.

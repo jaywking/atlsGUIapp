@@ -1,5 +1,7 @@
 from nicegui import ui
 
+from app.services.api_client import api_url
+
 SIDEBAR_LINKS = [
     ('Dashboard', '/', 'dashboard'),
     ('Productions', '/productions', 'folder'),
@@ -10,23 +12,185 @@ SIDEBAR_LINKS = [
     ('Settings', '/settings', 'settings'),
 ]
 
+
 def shell(title: str, content_callable):
-    with ui.row().classes('w-full h-screen'):
+    dark_mode = ui.dark_mode()
+
+    ui.add_head_html(
+        """
+<style>
+/* ========================================================= */
+/*  Section A - Base Global Styling & Typography             */
+/* ========================================================= */
+:root {
+    font-family: Inter, Segoe UI, Arial, sans-serif;
+    font-size: 15px;
+}
+h1, h2, h3, h4 {
+    letter-spacing: -0.2px;
+    font-weight: 600;
+}
+.q-table thead th { font-weight: 600 !important; font-size: 14px !important; }
+.q-table tbody td { font-size: 14px !important; }
+
+/* ========================================================= */
+/*  Section B - Light Mode Table & Layout Styles             */
+/* ========================================================= */
+.q-table thead th {
+    background-color: #f2f2f2 !important;
+    color: #333 !important;
+    vertical-align: middle !important;
+    padding: 6px 8px !important;
+    white-space: nowrap !important;
+    text-align: left !important;
+    display: table-cell !important;
+    border-color: #e2e8f0 !important;
+}
+.q-table tbody td {
+    text-align: left !important;
+    vertical-align: middle !important;
+    padding: 6px 8px !important;
+    white-space: nowrap !important;
+    color: #111827 !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+}
+
+/* ========================================================= */
+/*  Section C - Dark Mode Table & Layout Styles              */
+/* ========================================================= */
+.body--dark .q-table thead th {
+    background-color: #1f2937 !important;
+    color: #e5e7eb !important;
+    border-color: #374151 !important;
+    text-align: left !important;
+}
+.body--dark .q-table tbody td {
+    color: #e5e7eb !important;
+    border-color: #374151 !important;
+    text-align: left !important;
+    border-bottom: 1px solid #4b5563 !important;
+}
+.body--dark,
+.body--dark .q-page,
+.body--dark .q-layout,
+.body--dark .q-page-container,
+.body--dark .nicegui-content,
+.body--dark .q-header,
+.body--dark .q-drawer,
+.body--dark .q-page-sticky,
+.body--dark .q-page-scroller,
+.body--dark .q-page-container > div {
+    background-color: #0f172a !important;
+    color: #e5e7eb !important;
+}
+.body--dark .q-drawer {
+    border-right: 1px solid #1f2937 !important;
+}
+
+/* ========================================================= */
+/*  Section D - Alignment Overrides (Final Authority)        */
+/* ========================================================= */
+.q-table thead th .q-table__th-content,
+.q-table__th-content,
+.q-table .q-table__th-content,
+.q-table__td-content,
+.q-table .q-table__td-content {
+    justify-content: flex-start !important;
+    align-items: center !important;
+    text-align: left !important;
+    width: 100% !important;
+}
+.q-table__th-content > span,
+.q-table__th-content > div,
+.q-table__td-content > span,
+.q-table__td-content > div {
+    width: 100% !important;
+    text-align: left !important;
+    justify-content: flex-start !important;
+}
+.q-table__th,
+.q-table__td,
+.q-table .q-table__th,
+.q-table .q-table__td {
+    text-align: left !important;
+    justify-content: flex-start !important;
+    align-items: center !important;
+}
+/* Final Quasar header alignment override - v0.4.13 */
+.q-table thead th.text-right,
+.q-table thead th.text-center {
+    text-align: left !important;
+    justify-content: flex-start !important;
+}
+.q-table thead th.sortable {
+    position: relative !important;
+    padding-right: 18px !important;
+}
+.q-table thead th.sortable .q-table__sort-icon,
+.q-table thead th.sortable .q-table__sort-icon--right {
+    position: absolute !important;
+    right: 6px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    margin: 0 !important;
+    float: none !important;
+}
+.body--dark .q-table thead th.text-right,
+.body--dark .q-table thead th.text-center {
+    text-align: left !important;
+    justify-content: flex-start !important;
+}
+.body--dark .q-table thead th.sortable {
+    position: relative !important;
+    padding-right: 18px !important;
+}
+.body--dark .q-table thead th.sortable .q-table__sort-icon,
+.body--dark .q-table thead th.sortable .q-table__sort-icon--right {
+    position: absolute !important;
+    right: 6px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    margin: 0 !important;
+    float: none !important;
+}
+
+</style>
+"""
+    )
+
+    with ui.row().classes('w-full h-screen no-wrap items-start'):
         # sidebar
-        with ui.column().classes('w-56 h-full bg-slate-100 gap-1 py-4 px-3'):
-            ui.label('ATLSApp').classes('text-xl font-semibold pb-4')
+        with ui.column().classes('w-56 h-full bg-slate-100 text-slate-900 gap-1 py-4 px-3 dark:bg-slate-800 dark:text-white'):
+            ui.label('ATLSApp').classes('text-xl font-semibold pb-4 text-slate-900 dark:text-white')
             for text, link, icon in SIDEBAR_LINKS:
                 with ui.row().classes('items-center gap-2'):
-                    ui.icon(icon).classes('text-slate-700')
-                    ui.link(text, link).classes('text-slate-800 hover:underline')
+                    ui.icon(icon).classes('text-slate-700 dark:text-slate-100')
+                    ui.link(text, link).classes('text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white')
         # main area
-        with ui.column().classes('flex-1 h-full'):
+        with ui.column().classes('flex-1 h-full overflow-x-auto'):
             # header
-            with ui.row().classes('w-full items-center justify-between px-6 py-4 bg-white border-b'):
-                ui.label(title).classes('text-2xl font-semibold')
+            with ui.row().classes("w-full justify-between items-center px-6 py-4 bg-white text-slate-900 border-b border-slate-200 shadow-sm sticky top-0 z-10 dark:bg-slate-900 dark:text-white dark:border-slate-700"):
+                ui.label(title).classes('text-2xl font-semibold text-slate-900 dark:text-white')
                 with ui.row().classes('items-center gap-3'):
-                    ui.label('DEV').classes('text-sm text-slate-500')
+                    ui.label('DEV').classes('text-sm text-slate-500 dark:text-slate-200')
+                    toggle_btn = ui.button(on_click=dark_mode.toggle).classes('px-4 py-1 rounded bg-slate-200 text-slate-900 hover:bg-slate-300 dark:bg-slate-700 dark:text-white dark:hover:bg-slate-600')
+                    toggle_btn.bind_text_from(dark_mode, 'value', lambda v: "Switch to Light" if v else "Switch to Dark")
                     ui.avatar('JA').classes('bg-blue-500 text-white')
             # page content
-            with ui.column().classes('flex-1 overflow-y-auto px-6 py-4 gap-4'):
-                content_callable()
+            with ui.column().classes('flex-1 overflow-y-auto px-6 py-4 gap-4 bg-white dark:bg-slate-900'):
+                with ui.element('div').classes('w-full max-w-[1600px] mx-auto'):
+                    content_callable()
+            api_url('/')  # prime API client base for background tasks
+
+    ui.run_javascript(
+        """
+        const saved = localStorage.getItem('atls_theme');
+        if (saved === 'dark') {
+            document.body.classList.add('dark');
+        }
+        new MutationObserver(() => {
+            const isDark = document.body.classList.contains('dark');
+            localStorage.setItem('atls_theme', isDark ? 'dark' : 'light');
+        }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        """
+    )

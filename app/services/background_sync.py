@@ -33,6 +33,20 @@ _last_status: Dict[str, Any] = {
     "message": "Sync not started",
 }
 
+PRODUCTION_PROP_ABBREVIATION = "Abbreviation"
+PRODUCTION_PROP_NICKNAME = "Nickname"
+PRODUCTION_PROP_STATUS = "ProdStatus"
+PRODUCTION_PROP_STATUS_MAIN = "Status"
+PRODUCTION_PROP_CLIENT = "Client / Platform"
+PRODUCTION_PROP_STUDIO = "Studio"
+PRODUCTION_PROP_TYPE = "Production Type"
+PRODUCTION_PROP_PP_FIRST = "PPFirstDate"
+PRODUCTION_PROP_PP_LAST = "PPLastDay"
+PRODUCTION_PROP_NAME = "Name"
+PRODUCTION_PROP_LOCATIONS_TABLE = "Locations Table"
+PRODUCTION_PROP_CREATED = "Created time"
+PRODUCTION_PROP_LAST_EDITED = "Last edited time"
+
 
 def _interval_minutes() -> int:
     try:
@@ -47,17 +61,27 @@ def map_production(page: Dict[str, Any]) -> Dict[str, Any]:
 
     props = page.get("properties", {})
     title = _extract_title(props)
-    status = _extract_status(props)
-    start_date_iso, end_date_iso = _extract_date_range(props)
     last_updated_iso = page.get("last_edited_time")
+    created_iso = page.get("created_time")
 
     return {
         "id": page.get("id"),
-        "title": title,
-        "status": status,
-        "start_date": start_date_iso,
-        "end_date": end_date_iso,
-        "last_updated": last_updated_iso,
+        "url": page.get("url"),
+        "ProductionID": title,
+        "Name": _extract_rich_text(props, PRODUCTION_PROP_NAME),
+        "Abbreviation": _extract_rich_text(props, PRODUCTION_PROP_ABBREVIATION),
+        "Nickname": _extract_rich_text(props, PRODUCTION_PROP_NICKNAME),
+        "ProdStatus": _extract_status(props, PRODUCTION_PROP_STATUS),
+        "Status": _extract_status(props, PRODUCTION_PROP_STATUS_MAIN),
+        "ClientPlatform": _extract_rich_text(props, PRODUCTION_PROP_CLIENT),
+        "Studio": _extract_rich_text(props, PRODUCTION_PROP_STUDIO),
+        "ProductionType": _extract_rich_text(props, PRODUCTION_PROP_TYPE),
+        "PPFirstDate": _extract_single_date(props, PRODUCTION_PROP_PP_FIRST),
+        "PPLastDay": _extract_single_date(props, PRODUCTION_PROP_PP_LAST),
+        "LocationsTable": _extract_url(props, PRODUCTION_PROP_LOCATIONS_TABLE),
+        "CreatedTime": created_iso,
+        "LastUpdated": last_updated_iso,
+        "LastEditedTime": last_updated_iso,
     }
 
 
@@ -70,7 +94,14 @@ def _extract_title(props: Dict[str, Any]) -> str:
     return "Untitled"
 
 
-def _extract_status(props: Dict[str, Any]) -> str:
+def _extract_status(props: Dict[str, Any], name: Optional[str] = None) -> str:
+    if name and name in props:
+        value = props.get(name)
+        if value and value.get("type") == "status":
+            option = value.get("status") or {}
+            return option.get("name") or ""
+        return ""
+
     for value in props.values():
         if value.get("type") == "status":
             option = value.get("status") or {}
@@ -84,6 +115,38 @@ def _extract_date_range(props: Dict[str, Any]) -> tuple[str | None, str | None]:
             date_obj = value.get("date") or {}
             return date_obj.get("start"), date_obj.get("end")
     return None, None
+
+
+def _extract_rich_text(props: Dict[str, Any], name: str) -> str:
+    value = props.get(name)
+    if not value:
+        return ""
+    value_type = value.get("type")
+    if value_type not in {"rich_text", "title"}:
+        return ""
+    items = value.get(value_type) or []
+    parts: List[str] = []
+    for item in items:
+        text = item.get("plain_text") or item.get("text", {}).get("content")
+        if text:
+            parts.append(text)
+    return "".join(parts).strip()
+
+
+def _extract_single_date(props: Dict[str, Any], name: str) -> str | None:
+    value = props.get(name)
+    if value and value.get("type") == "date":
+        date_obj = value.get("date") or {}
+        return date_obj.get("start")
+    return None
+
+
+def _extract_url(props: Dict[str, Any], name: str) -> str:
+    """Return URL string for the given property name (Notion url type)."""
+    value = props.get(name)
+    if not value or value.get("type") != "url":
+        return ""
+    return value.get("url") or ""
 
 
 async def fetch_from_notion() -> List[Dict[str, Any]]:

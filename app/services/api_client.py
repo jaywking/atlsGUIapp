@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 import os
+
+_cached_origin: str | None = None
 
 from nicegui import ui
 
@@ -19,9 +21,22 @@ def api_url(path: str) -> str:
     try:
         client = ui.context.client  # requires UI context
         base_url = str(client.request.base_url)
-        return urljoin(base_url, normalized_path.lstrip("/"))
+        origin = _extract_origin(base_url)
+        global _cached_origin  # noqa: PLW0603
+        _cached_origin = origin
+        return urljoin(origin, normalized_path.lstrip("/"))
     except Exception:
-        port = int(os.getenv("APP_PORT", "8000"))
-        base_url = f"http://127.0.0.1:{port}/"
-        return urljoin(base_url, normalized_path.lstrip("/"))
+        origin = _cached_origin
+        if origin is None:
+            port = int(os.getenv("APP_PORT", "8080"))
+            origin = f"http://127.0.0.1:{port}/"
+        return urljoin(origin, normalized_path.lstrip("/"))
 
+
+def _extract_origin(url: str) -> str:
+    parsed = urlsplit(url)
+    scheme = parsed.scheme or "http"
+    netloc = parsed.hostname or "127.0.0.1"
+    if parsed.port:
+        netloc = f"{netloc}:{parsed.port}"
+    return f"{scheme}://{netloc}/"

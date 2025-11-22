@@ -1,0 +1,30 @@
+**********************
+PowerShell transcript start
+Start time: 20251120215421
+Username: JAYSASUS\jaywk
+RunAs User: JAYSASUS\jaywk
+Configuration Name: 
+Machine: JAYSASUS (Microsoft Windows NT 10.0.26200.0)
+Host Application: C:\Program Files\PowerShell\7\pwsh.dll
+Process ID: 15928
+PSVersion: 7.5.4
+PSEdition: Core
+GitCommitId: 7.5.4
+OS: Microsoft Windows 10.0.26200
+Platform: Win32NT
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1, 6.0, 7.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+WSManStackVersion: 3.0
+**********************
+Transcript started, output file is terminal_log.txt
+PS C:\Utils\atlsGUIapp> uvicorn app.main:fastapi_app --host 0.0.0.0 --port 8000 --reload
+
+PS C:\Utils\atlsGUIapp> TerminatingError(): "The pipeline has been stopped."
+>> TerminatingError(): "The pipeline has been stopped."
+PS C:\Utils\atlsGUIapp> Stop-Transcript
+
+**********************
+PowerShell transcript end
+End time: 20251120215441
+**********************

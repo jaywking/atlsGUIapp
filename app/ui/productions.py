@@ -1,32 +1,21 @@
 from __future__ import annotations
 
-import math
-from datetime import datetime, timezone
-from typing import Any, Dict, List
+import asyncio
+import logging
+from typing import Any, Dict, List, Optional
 
 import httpx
 from nicegui import ui
 
 from app.services.api_client import api_url
 
+logger = logging.getLogger(__name__)
 
 ROWS_PER_PAGE = 10
 AUTO_REFRESH_SECONDS = 60
 
-STATUS_STYLES = {
-    "complete": "bg-green-100 text-green-800",
-    "ready": "bg-green-100 text-green-800",
-    "active": "bg-green-100 text-green-800",
-    "pending": "bg-amber-100 text-amber-700",
-    "planned": "bg-amber-100 text-amber-700",
-    "on hold": "bg-amber-100 text-amber-700",
-}
-
 
 def page_content() -> None:
-    ui.label('Productions').classes('text-xl font-semibold')
-    ui.label('Live view of productions stored in Notion.').classes('text-slate-500 mb-4')
-
     state: Dict[str, Any] = {
         "rows": [],
         "filtered": [],
@@ -35,208 +24,174 @@ def page_content() -> None:
         "auto_refresh": False,
     }
 
-    with ui.row().classes('items-center gap-3 w-full flex-wrap'):
-        refresh_button = ui.button('Refresh').classes('bg-blue-500 text-white')
-        sync_button = ui.button('Sync Now').classes('bg-slate-800 text-white')
-        auto_switch = ui.switch('Auto-refresh (60s)').classes('text-sm text-slate-600')
-        spinner = ui.spinner(size='md').style('display: none;')
-        status_label = ui.label('No data loaded yet.').classes('text-sm text-slate-500 ml-auto')
+    ui.label("Productions").classes("text-xl font-semibold")
+    ui.label("Finalized view of Notion productions").classes("text-slate-500 mb-4")
 
-    with ui.row().classes('items-center gap-3 w-full flex-wrap'):
-        search_input = ui.input(label='Search title or status...').props('dense clearable debounce=300').classes('w-72')
-        page_info = ui.label('Page 1 of 1').classes('text-sm text-slate-500 ml-auto')
-        prev_button = ui.button('Prev').classes('bg-slate-200 text-slate-700')
-        next_button = ui.button('Next').classes('bg-slate-200 text-slate-700')
+    with ui.row().classes("items-center gap-3 w-full flex-wrap"):
+        refresh_button = ui.button("Refresh").classes("bg-blue-500 text-white")
+        sync_button = ui.button("Sync to Notion").classes("bg-slate-800 text-white")
+        auto_switch = ui.switch("Auto-refresh (60s)").classes("text-sm text-slate-600")
+        spinner = ui.spinner(size="md").style("display: none;")
+        status_label = ui.label("No data loaded yet.").classes("text-sm text-slate-500 ml-auto")
+        dirty_label = ui.label("").classes("text-xs text-amber-600")
+
+    with ui.row().classes("items-center gap-3 w-full flex-wrap"):
+        search_input = ui.input(label="Search productions...").props("dense clearable debounce=300").classes("w-72")
+        page_info = ui.label("Page 1 of 1").classes("text-sm text-slate-500 ml-auto")
+        prev_button = ui.button("Prev").classes("bg-slate-200 text-slate-700")
+        next_button = ui.button("Next").classes("bg-slate-200 text-slate-700")
 
     columns = [
-        {'name': 'title', 'label': 'Title', 'field': 'title', 'sortable': True},
-        {'name': 'status', 'label': 'Status', 'field': 'status', 'sortable': True},
-        {'name': 'start_date', 'label': 'Start Date', 'field': 'start_date', 'sortable': True},
-        {'name': 'last_updated', 'label': 'Last Updated', 'field': 'last_updated', 'sortable': True},
+        {"name": "ProductionID", "label": "ProductionID", "field": "ProductionID", "sortable": True},
+        {"name": "Name", "label": "Name", "field": "Name", "sortable": True},
+        {"name": "Abbreviation", "label": "Abbreviation", "field": "Abbreviation", "sortable": True},
+        {"name": "Nickname", "label": "Nickname", "field": "Nickname", "sortable": True},
+        {"name": "ProdStatus", "label": "ProdStatus", "field": "ProdStatus", "sortable": True},
+        {"name": "ClientPlatform", "label": "Client / Platform", "field": "ClientPlatform", "sortable": True},
+        {"name": "ProductionType", "label": "Production Type", "field": "ProductionType", "sortable": True},
+        {"name": "Status", "label": "Status", "field": "Status", "sortable": True},
+        {"name": "Studio", "label": "Studio", "field": "Studio", "sortable": True},
+        {"name": "PPFirstDate", "label": "PPFirstDate", "field": "PPFirstDate", "sortable": True},
+        {"name": "PPLastDay", "label": "PPLastDay", "field": "PPLastDay", "sortable": True},
+        {"name": "LocationsTable", "label": "Locations Table", "field": "LocationsTable", "sortable": False},
+        {"name": "CreatedTime", "label": "Created", "field": "CreatedTime", "sortable": True},
+        {"name": "LastEditedTime", "label": "Last Edited", "field": "LastEditedTime", "sortable": True},
     ]
 
-    table = (
-        ui.table(columns=columns, rows=[], row_key='row_id')
-        .classes('w-full text-sm q-table--striped')
-        .props('flat wrap-cells square separator="horizontal"')
-    )
+    with ui.element("div").classes("overflow-x-auto w-full"):
+        table = (
+            ui.table(columns=columns, rows=[], row_key="row_id")
+            .classes("w-full text-sm q-table--striped min-w-[1600px]")
+            .props('flat wrap-cells square separator="horizontal"')
+        )
 
-    @table.add_slot('body-cell-status')
-    def _(row: Dict[str, Any]) -> None:
-        label = row.get('status') or '--'
-        normalized = label.lower()
-        style = 'bg-slate-100 text-slate-700'
-        for key, val in STATUS_STYLES.items():
-            if key in normalized:
-                style = val
-                break
-        ui.label(label or '--').classes(f'{style} px-2 py-1 rounded text-xs font-semibold uppercase')
+        # Custom cell for LocationsTable (short link).
+        table.add_slot(
+            "body-cell-LocationsTable",
+            """
+            <q-td :props="props">
+              <a v-if="props.row.LocationsTable" :href="props.row.LocationsTable" target="_blank">Link</a>
+              <span v-else></span>
+            </q-td>
+            """,
+        )
+
+        # Custom cell for ProductionID linking to Notion when available.
+        table.add_slot(
+            "body-cell-ProductionID",
+            """
+            <q-td :props="props">
+              <a v-if="props.row.NotionURL" :href="props.row.NotionURL" target="_blank">{{ props.row.ProductionID || '' }}</a>
+              <span v-else>{{ props.row.ProductionID || '' }}</span>
+            </q-td>
+            """,
+        )
 
     def set_loading(is_loading: bool) -> None:
-        spinner.style('display: inline-block;' if is_loading else 'display: none;')
+        spinner.style("display: inline-block;" if is_loading else "display: none;")
         refresh_button.set_enabled(not is_loading)
         sync_button.set_enabled(not is_loading)
 
     def update_table_rows(rows: List[Dict[str, Any]]) -> None:
-        table_rows = []
-        for idx, row in enumerate(rows):
-            table_rows.append(
-                {
-                    'row_id': row.get('id') or f'row-{idx}',
-                    'title': row.get('title') or 'Untitled',
-                    'status': row.get('status') or '--',
-                    'start_date': row.get('start_date_display') or '--',
-                    'last_updated': row.get('last_updated_display') or '--',
-                }
-            )
-        table.rows = table_rows
+        table.rows = rows
+        table.update()
 
     def apply_filters() -> None:
-        search_term = state['search'].lower()
-        filtered = []
-        for row in state['rows']:
-            haystack = f"{row.get('title', '')} {row.get('status', '')}".lower()
+        search_term = state["search"].lower()
+        filtered: List[Dict[str, Any]] = []
+        for row in state["rows"]:
+            haystack = " ".join(str(v) for v in row.values()).lower()
             if search_term and search_term not in haystack:
                 continue
             filtered.append(row)
-
-        state['filtered'] = filtered
-        total_pages = max(1, math.ceil(len(filtered) / ROWS_PER_PAGE)) if filtered else 1
-        if state['page'] >= total_pages:
-            state['page'] = total_pages - 1
-
-        start = state['page'] * ROWS_PER_PAGE
+        state["filtered"] = filtered
+        total_pages = max(1, (len(filtered) + ROWS_PER_PAGE - 1) // ROWS_PER_PAGE) if filtered else 1
+        if state["page"] >= total_pages:
+            state["page"] = total_pages - 1
+        start = state["page"] * ROWS_PER_PAGE
         end = start + ROWS_PER_PAGE
-        current_slice = filtered[start:end]
-        update_table_rows(current_slice)
+        update_table_rows(filtered[start:end])
+        page_info.set_text(f"Page {state['page'] + 1} of {total_pages} ({len(filtered)} rows)")
 
-        page_info.text = f"Page {state['page'] + 1} of {total_pages} ({len(filtered)} rows)"
+    def go_prev(_=None) -> None:
+        if state["page"] > 0:
+            state["page"] -= 1
+            apply_filters()
 
-    async def fetch_data(show_toast: bool = False, auto_trigger: bool = False) -> None:
+    def go_next(_=None) -> None:
+        total_pages = max(1, (len(state["filtered"]) + ROWS_PER_PAGE - 1) // ROWS_PER_PAGE) if state["filtered"] else 1
+        if state["page"] < total_pages - 1:
+            state["page"] += 1
+            apply_filters()
+
+    def normalize_row(row: Dict[str, Any]) -> Dict[str, Any]:
+        row_id = row.get("row_id") or row.get("id") or row.get("ProductionID")
+        return {
+            "row_id": row_id or "",
+            "ProductionID": row.get("ProductionID") or "",
+            "NotionURL": row.get("url") or "",
+            "Name": row.get("Name") or "",
+            "Abbreviation": row.get("Abbreviation") or "",
+            "Nickname": row.get("Nickname") or "",
+            "ProdStatus": row.get("ProdStatus") or "",
+            "ClientPlatform": row.get("ClientPlatform") or "",
+            "ProductionType": row.get("ProductionType") or "",
+            "Status": row.get("Status") or "",
+            "Studio": row.get("Studio") or "",
+            "PPFirstDate": row.get("PPFirstDate") or "",
+            "PPLastDay": row.get("PPLastDay") or "",
+            "LocationsTable": row.get("LocationsTable") or "",
+            "CreatedTime": row.get("CreatedTime") or "",
+            "LastEditedTime": row.get("LastEditedTime") or "",
+        }
+
+    async def fetch_data(show_toast: bool = False, auto_trigger: bool = False, force: bool = False) -> None:
         set_loading(True)
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=15.0) as client:
                 response = await client.get(api_url("/api/productions/fetch"))
             response.raise_for_status()
             payload = response.json()
-            if payload.get('status') != 'success':
-                raise ValueError(payload.get('message', 'Unable to fetch productions'))
-            raw_rows = payload.get('data', [])
-            state['rows'] = [_decorate_row(row) for row in raw_rows]
-            state['page'] = 0
+            if not isinstance(payload, dict) or payload.get("status") != "success":
+                raise ValueError(payload.get("message", "Unable to fetch productions"))
+            raw_rows = payload.get("data", []) or []
+            state["rows"] = [normalize_row(r) for r in raw_rows]
+            state["page"] = 0
             apply_filters()
-            message = payload.get('message', f'Loaded {len(state["rows"])} productions')
-            if payload.get('source') == 'cache':
-                message += ' (from cache)'
-            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            status_label.text = f"{message} @ {timestamp}"
-            status_label.classes('text-sm text-slate-500')
-            if show_toast and not auto_trigger:
-                ui.notify(message, type='positive')
-        except Exception as exc:  # noqa: BLE001
-            status_label.text = f'Error: {exc}'
-            status_label.classes('text-sm text-red-600')
-            ui.notify(f'Failed to load productions: {exc}', type='negative')
+            message = payload.get("message") or f"Loaded {len(state['rows'])} productions"
+            status_label.set_text(message)
+            if show_toast:
+                ui.notify(message, type="positive")
+        except Exception as exc:
+            logger.exception("Productions fetch failed: %s", exc)
+            status_label.set_text(f"Error: {exc}")
+            ui.notify(f"Fetch error: {exc}", type="negative")
         finally:
             set_loading(False)
+
+    async def handle_refresh_click(_=None) -> None:
+        await fetch_data(show_toast=True, force=True)
 
     async def sync_now() -> None:
-        if not state['rows']:
-            ui.notify('Nothing to sync yet. Please refresh first.', type='warning')
-            return
-        set_loading(True)
-        try:
-            payload = {
-                'updates': [
-                    {
-                        'id': row.get('id'),
-                        'status': row.get('status'),
-                        'start_date': row.get('start_date'),
-                    }
-                    for row in state['rows']
-                    if row.get('id')
-                ]
-            }
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(
-                    api_url("/api/productions/sync"),
-                    json=payload,
-                )
-            response.raise_for_status()
-            data = response.json()
-            if data.get('status') != 'success':
-                raise ValueError(data.get('message', 'Sync failed'))
-            ui.notify(data.get('message', 'Sync completed'), type='positive')
-            await fetch_data()
-        except Exception as exc:  # noqa: BLE001
-            status_label.text = f'Sync failed: {exc}'
-            status_label.classes('text-sm text-red-600')
-            ui.notify(f'Sync failed: {exc}', type='negative')
-        finally:
-            set_loading(False)
+        ui.notify("Sync not implemented in this minimal restore.", type="warning")
 
-    def _decorate_row(row: Dict[str, Any]) -> Dict[str, Any]:
-        start_iso = row.get('start_date')
-        last_iso = row.get('last_updated')
-        return {
-            **row,
-            'start_date_display': _format_local_date(start_iso),
-            'last_updated_display': _format_local_timestamp(last_iso),
-        }
-
-    def on_search(event) -> None:
-        state['search'] = (event.value or '').strip()
-        state['page'] = 0
+    def on_search(value: Optional[str]) -> None:
+        state["search"] = (value or "").strip()
+        state["page"] = 0
         apply_filters()
 
-    def go_prev() -> None:
-        if state['page'] > 0:
-            state['page'] -= 1
-            apply_filters()
+    refresh_button.on("click", handle_refresh_click)
+    sync_button.on("click", sync_now)
+    prev_button.on("click", go_prev)
+    next_button.on("click", go_next)
+    search_input.on("update:model-value", lambda e: on_search(e.value))
+    auto_switch.bind_value(state, "auto_refresh")
 
-    def go_next() -> None:
-        total_pages = max(1, math.ceil(len(state['filtered']) / ROWS_PER_PAGE)) if state['filtered'] else 1
-        if state['page'] < total_pages - 1:
-            state['page'] += 1
-            apply_filters()
+    async def do_periodic_fetch():
+        await fetch_data(auto_trigger=True)
 
-    refresh_button.on('click', lambda _: ui.run_task(fetch_data(show_toast=True)))
-    sync_button.on('click', lambda _: ui.run_task(sync_now()))
-    search_input.on('update:model-value', on_search)
-    prev_button.on('click', lambda _: go_prev())
-    next_button.on('click', lambda _: go_next())
-    auto_switch.on('update:model-value', lambda e: state.__setitem__('auto_refresh', bool(e.value)))
+    async def initial_fetch():
+        await fetch_data(show_toast=True)
 
-    async def auto_refresh_task() -> None:
-        if state['auto_refresh']:
-            await fetch_data(auto_trigger=True)
-
-    ui.timer(AUTO_REFRESH_SECONDS, lambda: ui.run_task(auto_refresh_task()))
-
-    ui.run_task(fetch_data())
-
-
-def _format_local_date(raw: Any) -> str:
-    if not raw:
-        return '--'
-    try:
-        if isinstance(raw, str) and len(raw) == 10:
-            dt = datetime.strptime(raw, "%Y-%m-%d")
-        else:
-            dt = datetime.fromisoformat(str(raw).replace('Z', '+00:00'))
-        return dt.strftime('%Y-%m-%d')
-    except ValueError:
-        return str(raw)
-
-
-def _format_local_timestamp(raw: Any) -> str:
-    if not raw:
-        return '--'
-    try:
-        dt = datetime.fromisoformat(str(raw).replace('Z', '+00:00'))
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        local_dt = dt.astimezone()
-        return local_dt.strftime('%Y-%m-%d - %H:%M:%S')
-    except ValueError:
-        return str(raw)
+    ui.timer(AUTO_REFRESH_SECONDS, do_periodic_fetch)
+    ui.timer(0.1, initial_fetch, once=True)

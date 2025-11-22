@@ -4,7 +4,7 @@ Refer to README.md and PROJECT_HANDBOOK.md for architecture and workflow rules.
 
 # Source: DEV_NOTES_COMPLETE.md
 
-# DEV_TOOLS.md – ATLSApp Developer Tools & Guardrails
+# DEV_TOOLS.md — ATLSApp Developer Tools & Guardrails
 
 ## Purpose
 
@@ -43,10 +43,33 @@ Authoritative reference for Codex 5.1 rules, NiceGUI guardrails, and the human w
 * Avoid decorator-style slots; use `with table.add_slot(...)` or column `body` lambdas.
 * Keep browser JS snippets minimal (no leading newlines); prefer shared constants and the 8s timeout wrapper.
 * Do not rely on `ui.get_client()` in async tasks; prefer server-side calls and relative URLs.
-* In NiceGUI 3.2.x, `add_slot` is a context manager (or template string), not a callable; define slot content inside `with table.add_slot('body-cell-...'):` and bind loop variables via default args. Do not put Python callables in `columns` (functions are not JSON-serializable at render time).
 
-### Common Pitfalls to Avoid
-- If the table goes blank or throws slot TypeErrors, remove custom slots and confirm the default table renders, then reintroduce slots one by one using the context-manager pattern above.
+### PowerShell CLI Rules (Cross-Platform Guardrail)
+
+Codex must not generate Unix-only tools (`sed`, `awk`, `grep`, `cut`, etc.) in any PowerShell command. These tools are not available by default on Windows and will fail under `pwsh`.
+
+When extracting line ranges, searching, or transforming text in PowerShell,
+always use native PowerShell commands:
+
+- Use `Get-Content` with array slicing:
+    (Get-Content <file>)[<start_index>..<end_index>]
+
+- For safer range handling:
+    Get-Content <file> | Select-Object -Index (<start-1>)..(<end-1>)
+
+- For searching:
+    Select-String -Path <file> -Pattern <pattern>
+
+Codex must never emit calls like:
+
+    sed -n '115,190p' file.md
+
+Instead, use:
+
+    (Get-Content 'file.md')[114..189]
+
+This rule applies to all PowerShell contexts, including calls executed via
+`pwsh -Command`.
 
 ## API Development Rules
 
@@ -883,7 +906,6 @@ Authoritative reference for Codex 5.1 rules, NiceGUI guardrails, and the human w
 - Never mutate DOM outside the page slot; timers/tasks must route through page context.
 - After setting `table.rows`, call `table.update()` so changes propagate.
 - Avoid decorator-style slots; use `with table.add_slot(...)` or column `body` lambdas.
-- In NiceGUI 3.2.x, `add_slot` is a context manager (or template string), not a callable; define slot content inside `with table.add_slot('body-cell-...'):` and bind loop variables via default args. Do not put Python callables in `columns` (functions are not JSON-serializable at render time).
 - Keep browser JS snippets minimal (no leading newlines); prefer shared constants and the 8s timeout wrapper.
 - Do not rely on `ui.get_client()` in async tasks; prefer server-side calls and relative URLs.
 
@@ -944,149 +966,3 @@ Testing
 
 Notes
 - Follow NiceGUI 3.2.x slot guidance (lambda/context slots only). Editing remains paused per requirements.
-
-Date: 2025-11-21 18:00 -0500 (Session 28)
-Author: Codex 5 (Developer)
-Milestone: v0.4.9 - Productions Page Notion Link Integration
-
-Summary
-- Added `NotionURL` (Notion page `url`) during row normalization.
-- ProductionID now hyperlinks to the Notion page when `NotionURL` is present; falls back to text otherwise.
-- No changes to fetch, filters, pagination, auto-refresh, or other UX refinements.
-
-Changes
-- `app/ui/productions.py`: normalize_row includes `NotionURL`; ProductionID column uses a slot/template to link to Notion.
-- Docs updated to v0.4.9: README (Productions note), PROJECT_HANDBOOK (authoritative link convention), DEV_NOTES (this entry).
-
-Testing
-- `python -m compileall app`
-- Manual: `/productions` (ProductionID hyperlinks to Notion; horizontal scroll; left alignment; LocationsTable "Link"; no editing controls; no slot/JS errors)
-- Smoke: `/dashboard`, `/settings`, `/jobs`
-
-Notes
-- Notion’s built-in `url` is stable; no API changes required (UI-only enhancement).
-
----
-
-Date: 2025-11-21 19:15 -0500 (Session 29)
-Author: Codex 5 (Developer)
-Milestone: v0.4.10 - Global Layout Improvements
-
-Summary
-- Added `no-wrap` root container and `shrink-0` sidebar to prevent wrapping beneath the sidebar.
-- Main content now uses `overflow-x-auto`; header made sticky (`sticky top-0 z-10`).
-- Optional `max-w-[1600px]` wrapper for readability on very wide screens; overall layout consistency improved.
-
-Changes
-- `app/ui/layout.py`: root row `no-wrap items-start`, sidebar `shrink-0`, main content `overflow-x-auto`, sticky header, max-width wrapper around page content.
-- Docs updated to v0.4.10: README (layout enhancements), PROJECT_HANDBOOK (layout conventions), DEV_NOTES (this entry).
-
-Testing
-- `python -m compileall app`
-- Manual: `/dashboard`, `/productions`, `/locations`, `/facilities`, `/jobs`, `/settings`; verify sidebar stays left, no wrapping, productions table stays right of sidebar, horizontal scroll works, sticky header visible, no slot/JS errors.
-
-Notes
-- UI-only layout adjustment; no API or page content changes. Layout complies with NiceGUI flex rules.
-
----
-
-Date: 2025-11-21 20:00 -0500 (Session 30)
-Author: Codex 5 (Developer)
-Milestone: v0.4.11 - Global Theme System + Material Table Styles
-
-Summary
-- Added global Light/Dark mode toggle in the header and unified Material-style table styling (light + dark variants) via a single global CSS block.
-- Removed per-page table CSS; styling now applies everywhere.
-
-Changes
-- `app/ui/layout.py`: introduced `ui.dark_mode()`, header toggle button/label, global table CSS, retained sticky header and layout; other pages unchanged.
-- `app/ui/productions.py` (and other UI pages): removed per-page CSS injection (global styling handles tables).
-- Docs: README, PROJECT_HANDBOOK, DEV_NOTES updated to v0.4.11 with theme/table styling notes.
-
-Testing
-- `python -m compileall app`
-- Manual: toggle theme on `/dashboard`, `/productions`, `/locations`, `/facilities`, `/jobs`, `/settings`; confirm table headers styled, dark mode applies to headers/body, sticky header and sidebar unchanged, no slot/JS errors.
-
-Notes
-- UI-only; no API changes. Theme is managed globally via NiceGUI `ui.dark_mode()`.
-
----
-
-Date: 2025-11-21 21:00 -0500 (Session 31)
-Author: Codex 5 (Developer)
-Milestone: v0.4.11 - Theme & Table Style Fixes
-
-Summary
-- Fixed dark mode coverage by adding dark backgrounds to page containers; refined header dark styles.
-- Improved table header alignment/vertical centering: left justification, nowrap headers/cells, and consistent spacing in dark and light themes.
-
-Changes
-- `app/ui/layout.py`: extended global CSS with dark page backgrounds, left/centered header content (`.q-table__th-content`), nowrap headers/cells, and dark header border/background; header row gets dark classes.
-- No per-page overrides added; styling remains global.
-
-Testing
-- `python -m compileall app`
-- Manual: toggle theme on `/productions` and other pages; verify full dark background, left-aligned headers/cells, consistent vertical centering, no slot/JS errors.
-
-Notes
-- UI-only styling tweaks; no API or page content changes.
-
-Date: 2025-11-21 21:45 -0500 (Session 32)
-Author: Codex 5 (Developer)
-Milestone: v0.4.12 - Final Table Header Alignment Fix + CSS Simplification
-
-Summary
-- Finalized table header alignment by targeting Quasar utility classes (`.text-right`, `.text-center`, `justify-*`) and aligning sort icons left.
-- Simplified and consolidated the global table CSS in `layout.py` into organized sections (light, dark, alignment overrides).
-- No functional changes; styling only.
-
-Changes
-- `app/ui/layout.py`: cleaned global CSS, added final header alignment override block, retained Material header styling and dark mode support.
-- Docs bumped to v0.4.12: README, PROJECT_HANDBOOK, DEV_NOTES updated with alignment/CSS consolidation notes.
-
-Testing
-- `python -m compileall app`
-- Manual: `/dashboard`, `/productions`, `/locations`, `/facilities`, `/jobs`, `/settings`; verify all headers left-aligned, sort icons left, dark mode alignment intact, no slot/JS errors, sticky header and sidebar unchanged.
-
-Notes
-- Alignment is now governed centrally in `layout.py`; no per-page alignment CSS should be added.
-
-Date: 2025-11-22 10:00 -0500 (Session 33)
-Author: Codex 5 (Developer)
-Milestone: v0.4.13 - Dark Mode Polish, Persistent Theme, Typography
-
-Summary
-- Made header and sidebar fully reactive to theme with lambda-based classes; refined content background switching.
-- Theme toggle button now reactive; removed Light/Dark label; added theme persistence via localStorage with `dark_mode_on`.
-- Consolidated global CSS with typography (Inter/Segoe UI/Arial @15px) and kept alignment overrides.
-
-Changes
-- `app/ui/layout.py`: reactive header/sidebar/content classes, reactive toggle styling, theme persistence JS + `dark_mode_on` expose, consolidated CSS sections (base, light/dark, alignment, typography).
-- Docs: README, PROJECT_HANDBOOK, DEV_NOTES updated to v0.4.13 and new styling/persistence rules.
-
-Testing
-- `python -m compileall app`
-- Manual: toggle light/dark; verify header, sidebar, content backgrounds switch; theme persists on reload; table alignment unchanged; no slot/JS errors.
-
-Notes
-- UI-only changes; no API updates. Theme and styling are centralized in `layout.py`.
-
-Date: 2025-11-21 19:15 -0500 (Session 29)
-Author: Codex 5 (Developer)
-Milestone: v0.4.10 - Global Layout Improvements
-
-Summary
-- Added `no-wrap` root container and `shrink-0` sidebar to prevent wrapping beneath the sidebar.
-- Main content now uses `overflow-x-auto`; header made sticky (`sticky top-0 z-10`).
-- Optional `max-w-[1600px]` wrapper for readability on very wide screens; overall layout consistency improved.
-
-Changes
-- `app/ui/layout.py`: root row `no-wrap items-start`, sidebar `shrink-0`, main content `overflow-x-auto`, sticky header, max-width wrapper around page content.
-- Docs updated to v0.4.10: README (layout enhancements), PROJECT_HANDBOOK (layout conventions), DEV_NOTES (this entry).
-
-Testing
-- `python -m compileall app`
-- Manual: `/dashboard`, `/productions`, `/locations`, `/facilities`, `/jobs`, `/settings`; verify sidebar stays left, no wrapping, productions table stays right of sidebar, horizontal scroll works, sticky header visible, no slot/JS errors.
-
-Notes
-- UI-only layout adjustment; no API or page content changes. Layout complies with NiceGUI flex rules.
