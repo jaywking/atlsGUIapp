@@ -48,7 +48,7 @@ def map_production(page: Dict[str, Any]) -> Dict[str, Any]:
     props = page.get("properties", {})
     title = _extract_title(props)
     status = _extract_status(props)
-    start_date_iso = _extract_start_date(props)
+    start_date_iso, end_date_iso = _extract_date_range(props)
     last_updated_iso = page.get("last_edited_time")
 
     return {
@@ -56,6 +56,7 @@ def map_production(page: Dict[str, Any]) -> Dict[str, Any]:
         "title": title,
         "status": status,
         "start_date": start_date_iso,
+        "end_date": end_date_iso,
         "last_updated": last_updated_iso,
     }
 
@@ -77,12 +78,12 @@ def _extract_status(props: Dict[str, Any]) -> str:
     return ""
 
 
-def _extract_start_date(props: Dict[str, Any]) -> str | None:
+def _extract_date_range(props: Dict[str, Any]) -> tuple[str | None, str | None]:
     for value in props.values():
         if value.get("type") == "date":
             date_obj = value.get("date") or {}
-            return date_obj.get("start")
-    return None
+            return date_obj.get("start"), date_obj.get("end")
+    return None, None
 
 
 async def fetch_from_notion() -> List[Dict[str, Any]]:

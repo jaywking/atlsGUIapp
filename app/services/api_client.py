@@ -21,7 +21,7 @@ def api_url(path: str) -> str:
         base_url = str(client.request.base_url)
         return urljoin(base_url, normalized_path.lstrip("/"))
     except Exception:
-        # No UI context (e.g., background task) — use local server URL
-        port = int(os.getenv("APP_PORT", "8080"))
+        port = int(os.getenv("APP_PORT", "8000"))
         base_url = f"http://127.0.0.1:{port}/"
         return urljoin(base_url, normalized_path.lstrip("/"))
+

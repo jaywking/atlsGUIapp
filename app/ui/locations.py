@@ -1,3 +1,4 @@
+import asyncio
 import httpx
 from nicegui import ui
 
@@ -55,7 +56,7 @@ def page_content():
     ).classes('w-full')
 
     # Link the process button to backend trigger
-    process_button.on('click', lambda _: ui.run_task(trigger_process(process_button, spinner)))
+    process_button.on('click', lambda _: asyncio.create_task(trigger_process(process_button, spinner)))
 
 
 # ----------------------------------------------------------------------

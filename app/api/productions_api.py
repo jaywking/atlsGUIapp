@@ -57,7 +57,8 @@ async def sync_productions(payload: Dict[str, Any] | None = None) -> Dict[str, A
     """Handle manual auto-sync or push updates to Notion."""
 
     payload = payload or {}
-    if payload.get("operation") == "auto_sync":
+    operation = payload.get("operation")
+    if operation == "auto_sync":
         result = await background_sync.trigger_manual_sync()
         status = "success" if result.get("ok") else "error"
         message = result.get("message", "")
@@ -81,7 +82,10 @@ async def sync_productions(payload: Dict[str, Any] | None = None) -> Dict[str, A
         logger.warning(message)
         return {"status": "error", "message": message}
 
-    updates = payload.get("updates") or []
+    if operation == "ui_sync":
+        updates = payload.get("modified_rows") or []
+    else:
+        updates = payload.get("updates") or []
     if not isinstance(updates, list):
         updates = []
 
@@ -100,8 +104,14 @@ async def sync_productions(payload: Dict[str, Any] | None = None) -> Dict[str, A
                 properties["Status"] = {"status": {"name": status_val}}
 
             start_date = item.get("start_date")
-            if start_date:
-                properties["Start Date"] = {"date": {"start": start_date}}
+            end_date = item.get("end_date")
+            if start_date or end_date:
+                date_payload: Dict[str, Any] = {}
+                if start_date:
+                    date_payload["start"] = start_date
+                if end_date:
+                    date_payload["end"] = end_date
+                properties["Start Date"] = {"date": date_payload}
 
             if not properties:
                 skipped += 1

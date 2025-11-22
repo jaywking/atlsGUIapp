@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+import asyncio
 import httpx
 from nicegui import ui
 
@@ -180,16 +181,16 @@ def page_content() -> None:
     status_select.on('update:model-value', lambda e: on_status_change(e.value))
     search_input.on('update:model-value', lambda e: on_search_change(e.value))
 
-    refresh_button.on('click', lambda _: ui.run_task(load_logs(show_toast=True, auto_scroll=True)))
-    archive_button.on('click', lambda _: ui.run_task(run_archive()))
+    refresh_button.on('click', lambda _: asyncio.create_task(load_logs(show_toast=True, auto_scroll=True)))
+    archive_button.on('click', lambda _: asyncio.create_task(run_archive()))
 
     async def auto_refresh_task() -> None:
         if state.get('auto_refresh'):
             await load_logs(auto_scroll=True)
 
-    ui.timer(10.0, lambda: ui.run_task(auto_refresh_task()))
+    ui.timer(10.0, lambda: asyncio.create_task(auto_refresh_task()))
 
-    ui.run_task(load_logs(auto_scroll=True))
+    asyncio.create_task(load_logs(auto_scroll=True))
 
 
 def _timestamp_key(entry: Dict[str, Any]) -> datetime:

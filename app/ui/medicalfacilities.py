@@ -1,3 +1,4 @@
+import asyncio
 import httpx
 from nicegui import ui
 
@@ -56,7 +57,7 @@ def page_content():
         ui.label('Map container')
 
     # Link the fetch button to backend trigger
-    fetch_button.on('click', lambda _: ui.run_task(trigger_fetch(fetch_button, spinner)))
+    fetch_button.on('click', lambda _: asyncio.create_task(trigger_fetch(fetch_button, spinner)))
 
 
 # ----------------------------------------------------------------------
