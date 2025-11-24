@@ -7,7 +7,13 @@ from app.services import background_sync
 
 
 def page_content():
-    ui.label('Settings').classes('text-xl font-semibold')
+    with ui.row().classes(
+        "atls-page-header w-full items-center flex-wrap gap-3 mb-4 "
+        "px-4 py-2.5 bg-white text-slate-900 "
+        "dark:bg-slate-900 dark:text-slate-200 "
+        "border-b border-slate-200 dark:border-slate-700"
+    ):
+        ui.space()
 
     with ui.card().classes('w-full max-w-2xl mt-4'):
         ui.label('Connection Tests').classes('text-lg font-semibold')

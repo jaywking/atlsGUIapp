@@ -1,5 +1,7 @@
 Refer to README.md and PROJECT_HANDBOOK.md for architecture and workflow rules.
 
+Current Version: v0.4.17
+
 
 
 # Source: DEV_NOTES_COMPLETE.md
@@ -966,3 +968,121 @@ Testing
 
 Notes
 - Follow NiceGUI 3.2.x slot guidance (lambda/context slots only). Editing remains paused per requirements.
+
+---
+
+Date: 2025-11-22 10:15 -0500 (Session 34)
+Author: Codex 5 (Developer)
+Milestone: v0.4.14 - Content Wrapper & Header Dark Mode Completion
+
+Summary
+- Extended the global content wrapper styling so every page inherits correct light/dark backgrounds and text colors.
+- Documented the new requirement for page-level header sections to use the shared class set.
+
+Changes
+- `app/ui/layout.py`: added explicit light/dark classes to the page content column to cover all routes.
+- `README.md`, `docs/PROJECT_HANDBOOK.md`, `docs/DEV_NOTES.md`: bumped version references to v0.4.14, added the new UI convention, and logged this session.
+
+Testing
+- `python -m compileall app`
+
+Notes
+- After deploying, manually verify dark-mode toggling on each route to ensure header blocks follow the updated styling.
+
+---
+
+Date: 2025-11-22 12:05 -0500 (Session 34b)
+Author: Codex 5 (Developer)
+Milestone: v0.4.14b - Header Dark Mode Override & Unified Page Header Blocks
+
+Summary
+- Applied dark-mode override for the global header bar to ensure Quasar wrappers cannot override the theme.
+- Standardized all page-level header blocks with the Option A solid section style and removed page titles/subtitles across every page.
+
+Changes
+- `app/ui/layout.py`: added targeted dark-mode CSS overrides for the global header.
+- `app/ui/dashboard.py`, `app/ui/productions.py`, `app/ui/locations.py`, `app/ui/medicalfacilities.py`, `app/ui/jobs.py`, `app/ui/settings.py`: removed page titles/subtitles and wrapped top controls in the unified header block with light/dark classes and borders.
+- `README.md`, `docs/PROJECT_HANDBOOK.md`, `docs/DEV_NOTES.md`: bumped version to v0.4.14b, documented the unified header style, and logged this session.
+
+Testing
+- `python -m compileall app`
+
+Notes
+- Verify light/dark toggling on all routes to confirm header blocks and the global header respect the unified styling without regressions.
+
+---
+
+Date: 2025-11-23 09:40 -0500 (Session 35)
+Author: Codex 5 (Developer)
+Milestone: v0.4.15b - Dark-Mode Wiring Fix
+
+Summary
+- Unified dark-mode wiring so Quasar’s `body--dark`, Tailwind `dark:` utilities, and theme persistence stay in sync. Ensured global header and page header blocks respond correctly.
+
+Changes
+- `app/ui/layout.py`: synchronized `body--dark` with a `dark` class for Tailwind, updated persistence to watch `body--dark`, and added targeted overrides for `atls-global-header` and `atls-page-header`.
+- `app/ui/dashboard.py`, `app/ui/productions.py`, `app/ui/locations.py`, `app/ui/medicalfacilities.py`, `app/ui/jobs.py`, `app/ui/settings.py`: applied the standardized header block class with spacing/border updates.
+- `README.md`, `docs/PROJECT_HANDBOOK.md`, `docs/DEV_NOTES.md`: documented the unified dark-mode approach and version bump.
+
+Testing
+- `python -m compileall app`
+
+Notes
+- Validate light/dark toggling across all routes to ensure headers and wrappers switch cleanly without flicker.
+
+---
+
+Date: 2025-11-23 19:05 -0500 (Session 35.1)
+Author: Codex 5 (Developer)
+Milestone: v0.4.15c - Guarded Dark-Mode Wiring for SPA Navigation
+
+Summary
+- Added a one-time guard around the theme observers to prevent duplicate MutationObservers during SPA-style navigation while keeping Quasar `body--dark`, Tailwind `dark:`, and localStorage persistence aligned.
+
+Changes
+- `app/ui/layout.py`: wrapped theme init in a global guard to avoid repeated observer attachment and potential client slowdown.
+- `README.md`, `docs/PROJECT_HANDBOOK.md`, `docs/DEV_NOTES.md`: bumped version to v0.4.15c and recorded this guard fix.
+
+Testing
+- `python -m compileall app`
+
+Notes
+- After restart, verify light/dark toggling across routes and monitor load time to confirm the guard eliminates observer buildup and hanging.
+
+---
+
+Date: 2025-11-24 09:20 -0500 (Session 38)
+Author: Codex 5 (Developer)
+Milestone: v0.4.16 - Dark-Mode Stabilization
+
+Summary
+- Removed all custom theme MutationObservers and Tailwind bridging to rely solely on Quasar’s `body--dark`.
+- Simplified dark-mode CSS to cover global header, page headers, and tables without JS side effects.
+
+Changes
+- `app/ui/layout.py`: deleted theme JS observers/persistence, pruned Tailwind bridge rules, and consolidated `body--dark` CSS for layout, headers, and tables.
+- `README.md`, `docs/PROJECT_HANDBOOK.md`, `docs/DEV_NOTES.md`: updated versioning and documented the dark-mode stabilization approach.
+
+Testing
+- `python -m compileall app`
+
+Notes
+- Restart the server and verify light/dark toggling on all routes; the UI should mount promptly with no freezes or console errors.
+
+---
+
+Date: 2025-11-24 10:05 -0500 (Session 39)
+Author: Codex 5 (Developer)
+Milestone: v0.4.17 - Dark Mode Follow-up Note
+
+Summary
+- Documented that dark mode remains inconsistent and will be revisited in a future release while keeping the UI responsive.
+
+Changes
+- `README.md`, `docs/PROJECT_HANDBOOK.md`, `docs/DEV_NOTES.md`: updated to v0.4.17 and added a note that dark mode needs a future fix.
+
+Testing
+- Documentation-only change.
+
+Notes
+- Dark mode remains a known issue; defer fixes to a future milestone.

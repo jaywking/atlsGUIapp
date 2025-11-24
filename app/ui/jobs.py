@@ -26,8 +26,6 @@ async def fetch_logs() -> List[Dict[str, Any]]:
 
 
 def page_content() -> None:
-    ui.label('Job History').classes('text-xl font-semibold')
-
     state: Dict[str, Any] = {
         "auto_refresh": False,
         "logs": [],
@@ -36,22 +34,27 @@ def page_content() -> None:
         "search": "",
     }
 
-    with ui.row().classes('items-center gap-3 mb-3 w-full'):
-        refresh_button = ui.button('Refresh').classes('bg-blue-500 text-white px-4')
-        ui.switch('Auto-refresh (10s)').bind_value(state, 'auto_refresh')
-        spinner = ui.spinner(size='md').props('color=primary').style('display: none;')
-        last_updated = ui.label('Last updated: --').classes('text-sm text-slate-500 ml-auto')
-
-    with ui.row().classes('gap-3 items-end w-full mb-2 flex-wrap'):
-        category_select = ui.select(['all'], value='all', label='Category').classes('w-52')
-        status_select = ui.select(['all', 'success', 'error'], value='all', label='Status').classes('w-52')
-        search_input = ui.input(label='Search message...').props('clearable dense debounce=300').classes('w-64')
-        result_count = ui.label('0 logs shown').classes('text-sm text-slate-500 mt-3')
-
-    with ui.row().classes('items-center gap-3 mt-2'):
-        archive_button = ui.button('Archive Now').classes('bg-slate-800 text-white')
-        archive_spinner = ui.spinner(size='sm').style('display: none;')
-        archive_summary = ui.label('No archive run yet.').classes('text-sm text-slate-500')
+    with ui.row().classes(
+        "atls-page-header w-full items-center flex-wrap gap-3 mb-4 "
+        "px-4 py-2.5 bg-white text-slate-900 "
+        "dark:bg-slate-900 dark:text-slate-200 "
+        "border-b border-slate-200 dark:border-slate-700"
+    ):
+        with ui.column().classes('gap-2 w-full'):
+            with ui.row().classes('items-center gap-3 w-full flex-wrap'):
+                refresh_button = ui.button('Refresh').classes('bg-blue-500 text-white px-4')
+                ui.switch('Auto-refresh (10s)').bind_value(state, 'auto_refresh')
+                spinner = ui.spinner(size='md').props('color=primary').style('display: none;')
+                last_updated = ui.label('Last updated: --').classes('text-sm text-slate-500 ml-auto')
+            with ui.row().classes('gap-3 items-end w-full flex-wrap'):
+                category_select = ui.select(['all'], value='all', label='Category').classes('w-52')
+                status_select = ui.select(['all', 'success', 'error'], value='all', label='Status').classes('w-52')
+                search_input = ui.input(label='Search message...').props('clearable dense debounce=300').classes('w-64')
+                result_count = ui.label('0 logs shown').classes('text-sm text-slate-500 mt-3')
+            with ui.row().classes('items-center gap-3 w-full flex-wrap'):
+                archive_button = ui.button('Archive Now').classes('bg-slate-800 text-white')
+                archive_spinner = ui.spinner(size='sm').style('display: none;')
+                archive_summary = ui.label('No archive run yet.').classes('text-sm text-slate-500')
 
     columns = [
         {'name': 'timestamp', 'label': 'Timestamp', 'field': 'timestamp', 'sortable': True},

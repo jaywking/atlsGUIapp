@@ -205,6 +205,14 @@ Short milestone summary posted back to ChatGPT to align PM + Dev agent context.
 - All tables share a unified Material-style header row; theme toggling is global via `ui.dark_mode()`. Avoid per-page table CSS; use the global theme block to adjust header background, borders, and text for light/dark modes.
 - All table styling and alignment overrides live in `app/ui/layout.py`; target Quasar utility classes (e.g., `.text-right`, `.text-center`, `justify-*`) there. Do not add per-table or per-page alignment CSS.
 - Header and sidebar classes must be reactive (lambda-based) for light/dark mode; the theme toggle is reactive; theme preference must persist via localStorage; typography standard is Inter/Segoe UI/Arial at 15px.
+- The page content wrapper and any page-level header sections must declare `bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-200`.
+- All page-level header blocks must use the unified section header style: `bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-200 py-2.5 px-1 border-b border-slate-200 dark:border-slate-700`. Page titles/subtitles are omitted; only controls live in this block.
+- Dark Mode Source of Truth: Quasar/NiceGUI’s `body--dark` class is authoritative. Page header blocks must include the `atls-page-header` class so shared CSS can target them. Tailwind `dark:` variants are allowed but must rely on `body--dark`, and theme persistence is handled by monitoring this class.
+- Dark Mode Architecture:
+  - Quasar controls dark mode using `body--dark`.
+  - Dark-mode visuals (layout, global header, page headers, tables) are handled via CSS keyed on `body--dark`; no Tailwind `.dark` class or JS toggles are used.
+  - Page Header Blocks and Global Header use `atls-page-header` and `atls-global-header` for reliable dark-mode overrides.
+- Dark Mode Status (v0.4.17): current dark-mode visuals remain inconsistent; feature will be revisited in a future release.
 
 ---
 
@@ -258,6 +266,11 @@ v0.4.10 - Global Layout Improvements
 v0.4.11 - Global Theme + Material Table Styles
 v0.4.12 - Final Table Header Alignment & CSS Consolidation
 v0.4.13 - Dark Mode Polish, Persistent Theme, Typography
+v0.4.14 - Content Wrapper & Header Dark Mode Completion
+v0.4.14b - Header Dark Mode Override & Unified Page Header Blocks
+v0.4.15b - Unified Dark-Mode Alignment & Theme Persistence Fix
+v0.4.16 - Dark-Mode Stabilization
+v0.4.17 - Dark Mode Follow-up Needed
 v1.0.0 - Production release
 ```
 

@@ -18,12 +18,14 @@ SUMMARY_ENDPOINT = "/api/dashboard/summary"
 def page_content() -> None:
     """Render the dashboard shell with async data loading."""
 
-    with ui.row().classes('items-center gap-3'):
-        ui.label('Operations Dashboard').classes('text-xl font-semibold')
+    with ui.row().classes(
+        "atls-page-header w-full items-center flex-wrap gap-3 mb-4 "
+        "px-4 py-2.5 bg-white text-slate-900 "
+        "dark:bg-slate-900 dark:text-slate-200 "
+        "border-b border-slate-200 dark:border-slate-700"
+    ):
         status_spinner = ui.spinner(size='sm').style('display: none;')
-    ui.label('Snapshot of productions, locations, and system health.').classes(
-        'text-slate-500 mb-4'
-    )
+        header_refresh = ui.button('Refresh Overview').classes('bg-slate-800 text-white')
 
     with ui.row().classes('gap-4 w-full flex-wrap'):
         production_card = _metric_card('Productions', '0')
@@ -57,9 +59,7 @@ def page_content() -> None:
         ui.button('Go to Jobs', on_click=lambda: ui.navigate.to('/jobs')).classes(
             'bg-slate-800 text-white'
         )
-        ui.button('Go to Settings', on_click=lambda: ui.navigate.to('/settings')).classes(
-            'bg-slate-800 text-white'
-        )
+        ui.button('Go to Settings', on_click=lambda: ui.navigate.to('/settings')).classes('bg-slate-800 text-white')
 
     async def refresh() -> None:
         await _load_summary(
@@ -74,6 +74,7 @@ def page_content() -> None:
         )
 
     refresh_button.on('click', lambda: asyncio.create_task(refresh()))
+    header_refresh.on('click', lambda: asyncio.create_task(refresh()))
     ui.timer(0.2, lambda: asyncio.create_task(refresh()), once=True)
 
 

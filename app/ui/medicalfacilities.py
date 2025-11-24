@@ -7,12 +7,15 @@ from app.services.api_client import api_url
 def page_content():
     """Medical Facilities page for selected Master Location."""
 
-    ui.label('Facilities near selected location').classes('text-xl font-semibold')
-
     # ------------------------------------------------------------------
     # Toolbar
     # ------------------------------------------------------------------
-    with ui.row().classes('gap-3 mb-4'):
+    with ui.row().classes(
+        "atls-page-header w-full items-center flex-wrap gap-3 mb-4 "
+        "px-4 py-2.5 bg-white text-slate-900 "
+        "dark:bg-slate-900 dark:text-slate-200 "
+        "border-b border-slate-200 dark:border-slate-700"
+    ):
         fetch_button = ui.button('Fetch Facilities').classes('bg-blue-500 text-white')
         spinner = ui.spinner(size='lg').props('color=primary').style('display: none;')
 

@@ -13,7 +13,9 @@ This app modernizes your LocationSync and Medical Facility automation scripts in
 
 ---
 
-## Features (v0.4.13)
+## Features (v0.4.17)
+
+v0.4.17 — Documentation update: dark mode remains inconsistent and will be revisited in a future release; current focus is keeping the UI responsive.
 
 ### Dashboard
 - Enhanced per-service diagnostic timings (v0.4.5)
@@ -132,9 +134,14 @@ uvicorn app.main:fastapi_app --reload
 - v0.4.11 - Global Theme + Material Table Styles
 - v0.4.12 - Final Table Header Alignment & CSS Consolidation
 - v0.4.13 - Dark Mode Polish, Persistent Theme, Typography
+- v0.4.14 - Content Wrapper & Header Dark Mode Completion
+- v0.4.14b - Header Dark Mode Override & Unified Page Header Blocks
+- v0.4.15b - Unified Dark-Mode Alignment & Theme Persistence Fix
+- v0.4.16 - Dark-Mode Stabilization
+- v0.4.17 - Dark Mode Follow-up Needed
 
 
-## Next Steps (v0.4.14 planning)
+## Next Steps (v0.4.17 planning)
 
 - Extend Locations & Medical Facilities full UI
 - Add cache rotation utilities

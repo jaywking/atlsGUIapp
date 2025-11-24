@@ -58,33 +58,49 @@ h1, h2, h3, h4 {
 /* ========================================================= */
 /*  Section C - Dark Mode Table & Layout Styles              */
 /* ========================================================= */
+.body--dark,
+.body--dark .q-layout,
+.body--dark .q-page,
+.body--dark .q-page-container,
+.body--dark .q-page-container > div,
+.body--dark .nicegui-content,
+.body--dark .q-page-sticky,
+.body--dark .q-page-scroller {
+    background-color: #020617 !important;
+    color: #e5e7eb !important;
+}
+.body--dark .q-header,
+.body--dark .q-header > div,
+.body--dark .q-header .q-toolbar {
+    background-color: #0f172a !important; /* slate-900 */
+    color: #e5e7eb !important;            /* slate-200 */
+    border-color: #334155 !important;     /* slate-700 */
+}
+.body--dark .q-drawer {
+    background-color: #0f172a !important;
+    color: #e5e7eb !important;
+    border-right: 1px solid #1f2937 !important;
+}
+.body--dark .atls-page-header {
+    background-color: #0f172a !important; /* slate-900 */
+    color: #e5e7eb !important;            /* slate-200 */
+    border-color: #334155 !important;     /* slate-700 */
+}
+.body--dark .atls-page-header * {
+    color: inherit !important;
+}
 .body--dark .q-table thead th {
-    background-color: #1f2937 !important;
+    background-color: #0f172a !important;
     color: #e5e7eb !important;
     border-color: #374151 !important;
     text-align: left !important;
 }
 .body--dark .q-table tbody td {
+    background-color: #020617 !important;
     color: #e5e7eb !important;
     border-color: #374151 !important;
     text-align: left !important;
     border-bottom: 1px solid #4b5563 !important;
-}
-.body--dark,
-.body--dark .q-page,
-.body--dark .q-layout,
-.body--dark .q-page-container,
-.body--dark .nicegui-content,
-.body--dark .q-header,
-.body--dark .q-drawer,
-.body--dark .q-page-sticky,
-.body--dark .q-page-scroller,
-.body--dark .q-page-container > div {
-    background-color: #0f172a !important;
-    color: #e5e7eb !important;
-}
-.body--dark .q-drawer {
-    border-right: 1px solid #1f2937 !important;
 }
 
 /* ========================================================= */
@@ -154,6 +170,20 @@ h1, h2, h3, h4 {
     float: none !important;
 }
 
+/* Ensure Page Header Blocks respond to dark mode correctly */
+.body--dark .atls-page-header {
+    background-color: #0f172a !important;   /* slate-900 */
+    color: #e5e7eb !important;              /* slate-200 */
+    border-color: #334155 !important;       /* slate-700 */
+}
+
+/* Ensure Global Header Bar respects dark mode */
+.body--dark .atls-global-header {
+    background-color: #0f172a !important;
+    color: #f8fafc !important;              /* slate-50 */
+    border-color: #334155 !important;
+}
+
 </style>
 """
     )
@@ -169,7 +199,7 @@ h1, h2, h3, h4 {
         # main area
         with ui.column().classes('flex-1 h-full overflow-x-auto'):
             # header
-            with ui.row().classes("w-full justify-between items-center px-6 py-4 bg-white text-slate-900 border-b border-slate-200 shadow-sm sticky top-0 z-10 dark:bg-slate-900 dark:text-white dark:border-slate-700"):
+            with ui.row().classes("atls-global-header w-full justify-between items-center px-6 py-4 bg-white text-slate-900 border-b border-slate-200 shadow-sm sticky top-0 z-10 dark:bg-slate-900 dark:text-white dark:border-slate-700"):
                 ui.label(title).classes('text-2xl font-semibold text-slate-900 dark:text-white')
                 with ui.row().classes('items-center gap-3'):
                     ui.label('DEV').classes('text-sm text-slate-500 dark:text-slate-200')
@@ -177,20 +207,11 @@ h1, h2, h3, h4 {
                     toggle_btn.bind_text_from(dark_mode, 'value', lambda v: "Switch to Light" if v else "Switch to Dark")
                     ui.avatar('JA').classes('bg-blue-500 text-white')
             # page content
-            with ui.column().classes('flex-1 overflow-y-auto px-6 py-4 gap-4 bg-white dark:bg-slate-900'):
+            with ui.column().classes(
+                'flex-1 overflow-y-auto px-6 py-4 gap-4 '
+                'bg-white text-slate-900 '
+                'dark:bg-slate-900 dark:text-slate-200'
+            ):
                 with ui.element('div').classes('w-full max-w-[1600px] mx-auto'):
                     content_callable()
             api_url('/')  # prime API client base for background tasks
-
-    ui.run_javascript(
-        """
-        const saved = localStorage.getItem('atls_theme');
-        if (saved === 'dark') {
-            document.body.classList.add('dark');
-        }
-        new MutationObserver(() => {
-            const isDark = document.body.classList.contains('dark');
-            localStorage.setItem('atls_theme', isDark ? 'dark' : 'light');
-        }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
-        """
-    )

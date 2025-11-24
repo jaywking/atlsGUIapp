@@ -24,18 +24,18 @@ def page_content() -> None:
         "auto_refresh": False,
     }
 
-    ui.label("Productions").classes("text-xl font-semibold")
-    ui.label("Finalized view of Notion productions").classes("text-slate-500 mb-4")
-
-    with ui.row().classes("items-center gap-3 w-full flex-wrap"):
+    with ui.row().classes(
+        "atls-page-header w-full items-center flex-wrap gap-3 mb-4 "
+        "px-4 py-2.5 bg-white text-slate-900 "
+        "dark:bg-slate-900 dark:text-slate-200 "
+        "border-b border-slate-200 dark:border-slate-700"
+    ):
         refresh_button = ui.button("Refresh").classes("bg-blue-500 text-white")
         sync_button = ui.button("Sync to Notion").classes("bg-slate-800 text-white")
         auto_switch = ui.switch("Auto-refresh (60s)").classes("text-sm text-slate-600")
         spinner = ui.spinner(size="md").style("display: none;")
         status_label = ui.label("No data loaded yet.").classes("text-sm text-slate-500 ml-auto")
         dirty_label = ui.label("").classes("text-xs text-amber-600")
-
-    with ui.row().classes("items-center gap-3 w-full flex-wrap"):
         search_input = ui.input(label="Search productions...").props("dense clearable debounce=300").classes("w-72")
         page_info = ui.label("Page 1 of 1").classes("text-sm text-slate-500 ml-auto")
         prev_button = ui.button("Prev").classes("bg-slate-200 text-slate-700")

@@ -7,12 +7,15 @@ from app.services.api_client import api_url
 def page_content():
     """Locations page for selected Production."""
 
-    ui.label('Locations for: Sample Production').classes('text-xl font-semibold')
-
     # ------------------------------------------------------------------
     # Toolbar
     # ------------------------------------------------------------------
-    with ui.row().classes('gap-3 mb-4'):
+    with ui.row().classes(
+        "atls-page-header w-full items-center flex-wrap gap-3 mb-4 "
+        "px-4 py-2.5 bg-white text-slate-900 "
+        "dark:bg-slate-900 dark:text-slate-200 "
+        "border-b border-slate-200 dark:border-slate-700"
+    ):
         ui.input('Search').props('outlined dense').classes('w-64')
 
         # Create the Process button and spinner
