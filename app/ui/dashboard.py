@@ -10,6 +10,7 @@ import httpx
 from nicegui import ui
 
 from app.services.api_client import api_url
+from app.ui.layout import PAGE_HEADER_CLASSES
 
 
 SUMMARY_ENDPOINT = "/api/dashboard/summary"
@@ -18,14 +19,11 @@ SUMMARY_ENDPOINT = "/api/dashboard/summary"
 def page_content() -> None:
     """Render the dashboard shell with async data loading."""
 
-    with ui.row().classes(
-        "atls-page-header w-full items-center flex-wrap gap-3 mb-4 "
-        "px-4 py-2.5 bg-white text-slate-900 "
-        "dark:bg-slate-900 dark:text-slate-200 "
-        "border-b border-slate-200 dark:border-slate-700"
-    ):
-        status_spinner = ui.spinner(size='sm').style('display: none;')
-        header_refresh = ui.button('Refresh Overview').classes('bg-slate-800 text-white')
+    with ui.row().classes(f"{PAGE_HEADER_CLASSES} min-h-[52px] justify-between items-center"):
+        with ui.row().classes('items-center gap-2 flex-wrap'):
+            status_spinner = ui.spinner(size='sm').style('display: none;')
+            header_refresh = ui.button('Refresh Overview').classes('bg-slate-800 text-white hover:bg-slate-900 dark:hover:bg-slate-800')
+        ui.space()
 
     with ui.row().classes('gap-4 w-full flex-wrap'):
         production_card = _metric_card('Productions', '0')
@@ -36,30 +34,33 @@ def page_content() -> None:
     with ui.card().classes('w-full shadow-sm border border-slate-200 mt-4'):
         with ui.row().classes('items-center justify-between w-full mb-3'):
             ui.label('Recent Jobs (last 24h)').classes('text-lg font-semibold')
-            refresh_button = ui.button('Refresh').classes('bg-blue-500 text-white px-4')
+            refresh_button = ui.button('Refresh').classes('bg-blue-500 text-white px-4 hover:bg-slate-100 dark:hover:bg-slate-800')
         error_label = ui.label('').classes('text-sm text-red-600').style('display: none;')
         jobs_spinner = ui.spinner(size='md').style('display: none; margin-bottom: 12px;')
-        jobs_table = ui.table(
-            columns=[
-                {'name': 'timestamp', 'label': 'Timestamp', 'field': 'timestamp', 'sortable': True},
-                {'name': 'category', 'label': 'Category', 'field': 'category', 'sortable': True},
-                {'name': 'status', 'label': 'Status', 'field': 'status', 'sortable': True},
-                {'name': 'message', 'label': 'Message', 'field': 'message'},
-            ],
-            rows=[],
-        ).classes('w-full text-sm').props('flat square wrap-cells dense')
+        with ui.element('div').classes('w-full overflow-x-auto py-2'):
+            jobs_table = ui.table(
+                columns=[
+                    {'name': 'timestamp', 'label': 'Timestamp', 'field': 'timestamp', 'sortable': True},
+                    {'name': 'category', 'label': 'Category', 'field': 'category', 'sortable': True},
+                    {'name': 'status', 'label': 'Status', 'field': 'status', 'sortable': True},
+                    {'name': 'message', 'label': 'Message', 'field': 'message'},
+                ],
+                rows=[],
+            ).classes('w-full text-sm').props('flat square wrap-cells dense')
 
     with ui.row().classes('gap-3 mt-4 flex-wrap'):
         ui.button(
             'Go to Productions', on_click=lambda: ui.navigate.to('/productions')
-        ).classes('bg-slate-800 text-white')
+        ).classes('bg-slate-800 text-white hover:bg-slate-900 dark:hover:bg-slate-800')
         ui.button(
             'Go to Locations', on_click=lambda: ui.navigate.to('/locations')
-        ).classes('bg-slate-800 text-white')
+        ).classes('bg-slate-800 text-white hover:bg-slate-900 dark:hover:bg-slate-800')
         ui.button('Go to Jobs', on_click=lambda: ui.navigate.to('/jobs')).classes(
-            'bg-slate-800 text-white'
+            'bg-slate-800 text-white hover:bg-slate-900 dark:hover:bg-slate-800'
         )
-        ui.button('Go to Settings', on_click=lambda: ui.navigate.to('/settings')).classes('bg-slate-800 text-white')
+        ui.button('Go to Settings', on_click=lambda: ui.navigate.to('/settings')).classes(
+            'bg-slate-800 text-white hover:bg-slate-900 dark:hover:bg-slate-800'
+        )
 
     async def refresh() -> None:
         await _load_summary(

@@ -1,6 +1,6 @@
 Refer to README.md and PROJECT_HANDBOOK.md for architecture and workflow rules.
 
-Current Version: v0.4.17
+Current Version: v0.5.2
 
 
 
@@ -72,6 +72,31 @@ Instead, use:
 
 This rule applies to all PowerShell contexts, including calls executed via
 `pwsh -Command`.
+
+#### ripgrep (`rg`) Usage in PowerShell 7
+
+When using `rg` from PowerShell 7 (`pwsh.exe`), directory paths must be written explicitly. PowerShell may otherwise treat paths like `app/services` as literal file names instead of directories.
+
+Correct patterns:
+
+```powershell
+rg "<pattern>" app/services/
+rg "<pattern>" app/services/*
+rg "<pattern>" app/services --glob "*"
+Avoid this pattern:
+
+powershell
+Copy code
+rg "<pattern>" app/services
+This may fail or return no results due to the path being interpreted as a file.
+
+ripgrep (rg) is installed system-wide at:
+
+makefile
+Copy code
+C:\ProgramData\chocolatey\bin\rg.exe
+It is available to all PowerShell 7 sessions invoked by Codex.
+```
 
 ## API Development Rules
 
@@ -910,6 +935,8 @@ Authoritative reference for Codex 5.1 rules, NiceGUI guardrails, and the human w
 - Avoid decorator-style slots; use `with table.add_slot(...)` or column `body` lambdas.
 - Keep browser JS snippets minimal (no leading newlines); prefer shared constants and the 8s timeout wrapper.
 - Do not rely on `ui.get_client()` in async tasks; prefer server-side calls and relative URLs.
+- Use only documented NiceGUI component kwargs; avoid Quasar-only props (e.g., use `side="right", overlay=True` for drawers instead of `right=True`).
+- After UI layout or slot changes on a route, smoke-load that route (e.g., `/facilities`) to catch prop/slot errors early.
 
 ## API Development Rules
 - Always return `{status, message, ...}`.
@@ -1086,3 +1113,364 @@ Testing
 
 Notes
 - Dark mode remains a known issue; defer fixes to a future milestone.
+- Dark-mode work from earlier sessions is now paused and will be revisited under a later milestone.
+
+---
+
+Date: 2025-11-25 09:42 -0500 (Session 40)
+Author: Codex 5 (Developer)
+Milestone: v0.5.0 - Refactor Release
+
+Summary
+- Refactored UI headers to use a shared constant and converted jobs table slots to template-style definitions that comply with NiceGUI v0.4.x rules.
+- Standardized API job endpoints with helper functions and reduced redundant CSS in the shared layout.
+- Updated documentation for the v0.5.0 refactor release and refreshed version markers.
+
+Changes
+- `app/ui/layout.py`, `app/ui/*.py`: centralized the page header classes, removed redundant dark-mode CSS, and standardized table slot usage on Jobs.
+- `app/api/locations_api.py`, `app/api/facilities_api.py`, `app/api/jobs_api.py`: aligned logging/error handling helpers without changing responses.
+- Documentation: bumped README, PROJECT_HANDBOOK.md, and DEV_NOTES.md to v0.5.0 with the new refactor entry.
+
+Testing
+- `python -m compileall app`
+
+Notes
+- No functional changes; focus was readability, consistency, and guardrail compliance ahead of new feature work.
+
+---
+
+Date: 2025-11-25 20:15 -0500 (Session 41)
+Author: Codex 5 (Developer)
+Milestone: v0.5.1 - UI Polish
+
+Summary
+- Applied small visual polish across all UI modules to align header alignment, control spacing, and table padding.
+- Added consistent hover/focus styling for buttons and links (including ProductionID/Link cells) and tuned sidebar hover spacing.
+
+Changes
+- `app/ui/layout.py`, `app/ui/dashboard.py`, `app/ui/productions.py`, `app/ui/locations.py`, `app/ui/medicalfacilities.py`, `app/ui/jobs.py`, `app/ui/settings.py`: standardized control bar spacing/height, added hover styles, ensured table containers have overflow wrappers with padding, and tightened sidebar spacing.
+- `README.md`, `docs/PROJECT_HANDBOOK.md`, `docs/DEV_NOTES.md`: documented v0.5.1 UI polish and updated version history/standards.
+
+Testing
+- `python -m compileall app`
+
+Notes
+- UI-only polish; no functional behavior changes introduced.
+
+---
+
+Date: 2025-11-26 09:10 -0500 (Session 42)
+Author: Codex 5 (Developer)
+Milestone: v0.5.2 - Productions Search Fix
+
+Summary
+- Restored client-side filtering for the Productions table with a cached master row list and case-insensitive matching across key fields.
+- Kept layout, routing, and backend logic unchanged while ensuring search input alignment and existing polish remain intact.
+
+Changes
+- `app/ui/productions.py`: added master row cache, client-side filter pipeline, and routed all table updates through `table.update_rows` without altering slots or layout.
+- Docs: `README.md`, `docs/PROJECT_HANDBOOK.md`, `docs/DEV_NOTES.md` updated for v0.5.2.
+
+Testing
+- `python -m compileall app`
+
+Notes
+- UI-only repair; pagination/sorting still rely on the client dataset.
+
+---
+
+Date: 2025-11-24 20:20 -0500 (Session 25)
+Author: Codex 5 (Developer)
+Milestone: v0.6.0 – Medical Facilities UI Foundation
+
+Summary
+- Rebuilt the medical facilities table with read-only slots, badge-style facility type, and the new column order.
+- Added a placeholder right-side details drawer and browser-based fetch with timeout, spinner, and toasts.
+
+Changes
+- `app/ui/medicalfacilities.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app/ui`
+- Manual smoke test: table loads, drawer opens, no slot errors
+
+Notes
+- Facility fetch now runs in the browser with an 8s abort guard; data payloads remain backend-defined.
+
+---
+
+Date: 2025-11-24 20:40 -0500 (Session 43)
+Author: Codex 5 (Developer)
+Milestone: Documentation Update – ripgrep Usage
+
+Summary
+- Added ripgrep usage guidance to DEV_TOOLS.md and AGENTS.md.
+
+Changes
+- `docs/DEV_TOOLS.md`
+- `docs/AGENTS.md`
+- `docs/DEV_NOTES.md`
+
+Testing
+- N/A (documentation-only)
+
+Notes
+- Ensures Codex avoids PowerShell directory path misinterpretation when using ripgrep.
+
+---
+
+Date: 2025-11-24 20:40 -0500 (Session 44)
+Author: Codex 5 (Developer)
+Milestone: Documentation Correction – ripgrep Placement
+
+Summary
+- Removed incorrectly created DEV_TOOLS.md and added ripgrep usage guidance to the correct documents.
+
+Changes
+- `docs/DEV_NOTES.md`
+- `docs/AGENTS.md`
+- Removed `docs/DEV_TOOLS.md`
+
+Testing
+- N/A (documentation-only)
+
+Notes
+- Ensures correct placement of ripgrep usage rules and avoids future misrouting of documentation.
+
+---
+
+Date: 2025-11-24 21:07 -0500 (Session 45)
+Author: Codex 5 (Developer)
+Milestone: v0.6.1 - Pagination & Details Panel
+
+Summary
+- Added lightweight medical facilities list endpoint with pagination and decoupled the heavy fill job.
+- Updated Facilities UI to use the new paginated list, add Prev/Next page controls, and wire the details dialog with real data fields.
+
+Changes
+- `app/api/medicalfacilities_api.py`
+- `app/ui/medicalfacilities.py`
+- `app/main.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual test: pagination, details panel, timeout handling
+
+Notes
+- Heavy fill/backfill now lives behind a separate `/api/medicalfacilities/fill` endpoint and no longer blocks list fetches.
+Date: 2025-11-24 21:35 -0500 (Session 46)
+Author: Codex 5 (Developer)
+Milestone: v0.6.1 - Facilities Details Alignment
+
+Summary
+- Aligned medical facilities mapping to the actual Notion schema so details (name/title, Type, Phone, Website, Maps URL, Address, hours) populate in the UI dialog.
+
+Changes
+- `app/api/medicalfacilities_api.py`
+- `app/ui/medicalfacilities.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+
+Notes
+- Drawer now reflects Notion fields: MedicalFacilityID/Name, Type, Address, Phone, Website, Google Maps URL, and hours.
+Date: 2025-11-24 21:50 -0500 (Session 47)
+Author: Codex 5 (Developer)
+Milestone: Documentation Update – Parking Lot Added
+
+Summary
+- Added a Deferred Items / Parking Lot section to PROJECT_HANDBOOK.md with current architectural issues identified during v0.6.0 and v0.6.1 planning.
+
+Changes
+- `docs/PROJECT_HANDBOOK.md`
+- `docs/DEV_NOTES.md`
+
+Testing
+- N/A (documentation-only)
+
+Notes
+- Provides a canonical location for tracking deferred issues and technical debt.
+
+Date: 2025-11-24 21:50 -0500 (Session 48)
+Author: Codex 5 (Developer)
+Milestone: v0.6.1 – Details Dialog Row Binding Fix
+
+Summary
+- Implemented state-based row lookup for the Medical Facilities details dialog. Event payload now only provides the row_id, and full row data is retrieved from state["facility_rows"].
+
+Changes
+- `app/ui/medicalfacilities.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual: verify that clicking any facility row shows correct details in the right-side dialog.
+
+Notes
+- Replaces event.args-based lookup with stable state-backed row binding.
+Date: 2025-11-24 21:50 -0500 (Session 49)
+Author: Codex 5 (Developer)
+Milestone: v0.6.1 – Details Dialog Layout Cleanup
+
+Summary
+- Cleaned up the facilities details dialog: removed duplicate name line, placed website/maps after phone, formatted hours per line, and dropped extra type/distance placeholders.
+
+Changes
+- `app/ui/medicalfacilities.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+
+Notes
+- Dialog now shows Name once, Type chip, Address, Phone with copy, Website/Maps, and per-day hours on separate lines.
+
+Date: 2025-11-24 21:50 -0500 (Session 50)
+Author: Codex 5 (Developer)
+Milestone: v0.6.1 – Details Dialog Link Fix
+
+Summary
+- Restored Website and Map links to use actual targets so they remain clickable (fallback to '#' when missing).
+
+Changes
+- `app/ui/medicalfacilities.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+
+Notes
+- Links now open when URLs are present; labels remain Website/Map with external targets.
+
+Date: 2025-11-24 21:50 -0500 (Session 51)
+Author: Codex 5 (Developer)
+Milestone: v0.6.1 – Facilities Chip Colors
+
+Summary
+- Updated facility type chips: ER now uses red (bg-red-100 text-red-700), Urgent Care uses green (bg-green-100 text-green-700), fallback stays neutral.
+
+Changes
+- `app/ui/medicalfacilities.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+
+Notes
+- Improves visual clarity between ER and Urgent Care types.
+Date: 2025-11-24 22:13 -0500 (Session 52)
+Author: Codex 5 (Developer)
+Milestone: Documentation Update – Responsive Layout Redesign (Parking Lot)
+
+Summary
+- Added a new deferred item to the Parking Lot describing the planned migration from a fixed max-width layout to a responsive grid-based design.
+
+Changes
+- `docs/PROJECT_HANDBOOK.md`
+- `docs/DEV_NOTES.md`
+
+Testing
+- N/A (documentation-only)
+
+Notes
+- Captures the long-term layout direction for future UI/UX milestones.
+Date: 2025-11-24 22:13 -0500 (Session 53)
+Author: Codex 5 (Developer)
+Milestone: v0.6.2 – Global Layout Width Expansion
+
+Summary
+- Replaced the fixed max-width container (max-w-[1600px]) with full-width (max-w-none) while keeping horizontal padding.
+
+Changes
+- `app/ui/layout.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual: verify all pages render full width with correct padding and no horizontal scrollbars.
+
+Notes
+- Temporary width expansion; full responsive grid redesign remains in the Parking Lot.
+Date: 2025-11-24 22:13 -0500 (Session 54)
+Author: Codex 5 (Developer)
+Milestone: v0.6.2 – Padding Simplification
+
+Summary
+- Kept only one layer of horizontal padding by removing the inner px-6 on the full-width wrapper; outer px-6 remains.
+
+Changes
+- `app/ui/layout.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+
+Notes
+- Aligns tables/control bars closer to the sidebar while keeping a single horizontal gutter.
+Date: 2025-11-24 22:13 -0500 (Session 55)
+Author: Codex 5 (Developer)
+Milestone: v0.6.2 – Padding Removal
+
+Summary
+- Removed outer horizontal padding on the main content column (px-0); inner wrapper remains full-width with no extra padding.
+
+Changes
+- `app/ui/layout.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+
+Notes
+- Eliminates remaining horizontal gutter; content now spans the available width alongside the sidebar.
+Date: 2025-11-24 22:13 -0500 (Session 56)
+Author: Codex 5 (Developer)
+Milestone: v0.6.2 – Sidebar Height Fix
+
+Summary
+- Extended the sidebar to full viewport height (min-h-screen) so its background covers the left rail below the nav links.
+
+Changes
+- `app/ui/layout.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+
+Notes
+- Sidebar background now spans the full height instead of stopping after the links.
+Date: 2025-11-24 22:13 -0500 (Session 57)
+Author: Codex 5 (Developer)
+Milestone: v0.6.2 – Header Alignment
+
+Summary
+- Reduced global header padding (px-1) and removed extra label margin so page titles align with page content/table edges.
+
+Changes
+- `app/ui/layout.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+
+Notes
+- Header titles now align with content after padding simplification.
+Date: 2025-11-24 22:52 -0500 (Session 58)
+Author: Codex 5 (Developer)
+Milestone: Documentation Update – Backend Search Endpoint (Parking Lot)
+
+Summary
+- Added a new Parking Lot item describing the future backend search endpoint for Medical Facilities, to be implemented after the background worker architecture is introduced.
+
+Changes
+- `docs/PROJECT_HANDBOOK.md`
+- `docs/DEV_NOTES.md`
+
+Testing
+- N/A (documentation-only)
+
+Notes
+- Captures future server-side filtering requirements without affecting the current v0.6.x UI-only search milestone.

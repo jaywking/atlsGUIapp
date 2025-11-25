@@ -1,0 +1,109 @@
+{"timestamp": "2025-11-21T04:52:54Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T04:53:05Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T04:53:53Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T04:54:05Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T04:54:54Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T04:55:10Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T04:55:14Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T04:55:25Z", "category": "Productions Sync", "action": "auto_sync", "status": "success", "message": "Cached 8 productions at 2025-11-21T04:55:25Z"}
+{"timestamp": "2025-11-21T04:55:26Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T04:55:27Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T04:55:27Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T04:55:27Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T04:55:39Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T04:55:39Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T04:56:26Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T04:56:40Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T04:57:27Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T04:57:39Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T04:58:26Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T04:58:39Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T04:58:50Z", "category": "Productions Sync", "action": "auto_sync", "status": "error", "message": "Productions sync failed: name '_extract_url' is not defined"}
+{"timestamp": "2025-11-21T04:58:51Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Served 8 cached productions (Notion unavailable)"}
+{"timestamp": "2025-11-21T04:58:52Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Served 8 cached productions (Notion unavailable)"}
+{"timestamp": "2025-11-21T04:58:52Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Served 8 cached productions (Notion unavailable)"}
+{"timestamp": "2025-11-21T04:58:53Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Served 8 cached productions (Notion unavailable)"}
+{"timestamp": "2025-11-21T04:59:42Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T04:59:43Z", "category": "Productions Sync", "action": "auto_sync", "status": "success", "message": "Cached 8 productions at 2025-11-21T04:59:43Z"}
+{"timestamp": "2025-11-21T04:59:43Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T04:59:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T04:59:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:00:43Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:00:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:01:43Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:01:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:01:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:01:56Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:02:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:02:56Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:03:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:03:56Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:04:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:04:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:05:11Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:05:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:05:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:06:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:06:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:07:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:07:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:08:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:08:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:09:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:09:44Z", "category": "Productions Sync", "action": "auto_sync", "status": "success", "message": "Cached 8 productions at 2025-11-21T05:09:44Z"}
+{"timestamp": "2025-11-21T05:09:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:10:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:10:56Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:11:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:11:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:12:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:12:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:13:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:13:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:14:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:14:56Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:15:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:15:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:16:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:16:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:17:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:17:56Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:18:45Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:18:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:19:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:19:45Z", "category": "Productions Sync", "action": "auto_sync", "status": "success", "message": "Cached 8 productions at 2025-11-21T05:19:45Z"}
+{"timestamp": "2025-11-21T05:19:56Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:20:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:20:56Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:21:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:21:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:22:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:22:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:23:45Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:23:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:24:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:24:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:25:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:25:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:26:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:26:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:27:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:27:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:28:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:28:56Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:29:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:29:46Z", "category": "Productions Sync", "action": "auto_sync", "status": "success", "message": "Cached 8 productions at 2025-11-21T05:29:46Z"}
+{"timestamp": "2025-11-21T05:29:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:30:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:30:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:31:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:31:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:32:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:32:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:33:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:33:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:34:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:34:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:35:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:35:55Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}
+{"timestamp": "2025-11-21T05:36:44Z", "category": "Productions Sync", "action": "fetch", "status": "success", "message": "Fetched 8 productions"}

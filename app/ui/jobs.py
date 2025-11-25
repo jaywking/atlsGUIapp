@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import asyncio
@@ -6,6 +6,7 @@ import httpx
 from nicegui import ui
 
 from app.services.api_client import api_url
+from app.ui.layout import PAGE_HEADER_CLASSES
 TABLE_DOM_ID = "jobs-log-table"
 HIGHLIGHT_COUNT = 5
 
@@ -34,25 +35,20 @@ def page_content() -> None:
         "search": "",
     }
 
-    with ui.row().classes(
-        "atls-page-header w-full items-center flex-wrap gap-3 mb-4 "
-        "px-4 py-2.5 bg-white text-slate-900 "
-        "dark:bg-slate-900 dark:text-slate-200 "
-        "border-b border-slate-200 dark:border-slate-700"
-    ):
+    with ui.row().classes(f"{PAGE_HEADER_CLASSES} min-h-[52px]"):
         with ui.column().classes('gap-2 w-full'):
-            with ui.row().classes('items-center gap-3 w-full flex-wrap'):
-                refresh_button = ui.button('Refresh').classes('bg-blue-500 text-white px-4')
+            with ui.row().classes('items-center gap-2 w-full flex-wrap'):
+                refresh_button = ui.button('Refresh').classes('bg-blue-500 text-white px-4 hover:bg-slate-100 dark:hover:bg-slate-800')
                 ui.switch('Auto-refresh (10s)').bind_value(state, 'auto_refresh')
                 spinner = ui.spinner(size='md').props('color=primary').style('display: none;')
                 last_updated = ui.label('Last updated: --').classes('text-sm text-slate-500 ml-auto')
-            with ui.row().classes('gap-3 items-end w-full flex-wrap'):
+            with ui.row().classes('gap-2 items-end w-full flex-wrap'):
                 category_select = ui.select(['all'], value='all', label='Category').classes('w-52')
                 status_select = ui.select(['all', 'success', 'error'], value='all', label='Status').classes('w-52')
                 search_input = ui.input(label='Search message...').props('clearable dense debounce=300').classes('w-64')
                 result_count = ui.label('0 logs shown').classes('text-sm text-slate-500 mt-3')
-            with ui.row().classes('items-center gap-3 w-full flex-wrap'):
-                archive_button = ui.button('Archive Now').classes('bg-slate-800 text-white')
+            with ui.row().classes('items-center gap-2 w-full flex-wrap'):
+                archive_button = ui.button('Archive Now').classes('bg-slate-800 text-white hover:bg-slate-900 dark:hover:bg-slate-800')
                 archive_spinner = ui.spinner(size='sm').style('display: none;')
                 archive_summary = ui.label('No archive run yet.').classes('text-sm text-slate-500')
 
@@ -64,26 +60,37 @@ def page_content() -> None:
         {'name': 'message', 'label': 'Message', 'field': 'message'},
     ]
 
-    table = (
-        ui.table(columns=columns, rows=[], row_key='row_id')
-        .classes('w-full text-sm')
-        .props(f'id={TABLE_DOM_ID} wrap-cells flat density="comfortable" sort-by="timestamp" sort-order="desc"')
+    with ui.element('div').classes('w-full overflow-x-auto py-2'):
+        table = (
+            ui.table(columns=columns, rows=[], row_key='row_id')
+            .classes('w-full text-sm')
+            .props(f'id={TABLE_DOM_ID} wrap-cells flat density="comfortable" sort-by="timestamp" sort-order="desc"')
+        )
+    table.add_slot(
+        'body-cell-status',
+        """
+        <q-td :props="props">
+          <div
+            :class="[
+              'px-2 py-1 rounded text-xs font-semibold uppercase',
+              (props.row.status === 'success') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+            ]"
+          >
+            {{ props.row.status ? props.row.status.charAt(0).toUpperCase() + props.row.status.slice(1) : '-' }}
+          </div>
+        </q-td>
+        """,
     )
-
-    @table.add_slot('body-cell-status')
-    def _(row: Dict[str, Any]) -> None:
-        status_value = row.get('status', 'unknown')
-        is_success = status_value == 'success'
-        color_cls = 'bg-green-100 text-green-700' if is_success else 'bg-red-100 text-red-700'
-        label = status_value.capitalize() if status_value else '-'
-        ui.label(label).classes(f'{color_cls} px-2 py-1 rounded text-xs font-semibold uppercase')
-
-    @table.add_slot('body-cell-message')
-    def _(row: Dict[str, Any]) -> None:
-        classes = 'px-2 py-1 rounded block'
-        if row.get('recent'):
-            classes += ' bg-slate-50'
-        ui.label(row.get('message', '') or '-').classes(classes)
+    table.add_slot(
+        'body-cell-message',
+        """
+        <q-td :props="props">
+          <span :class="['px-2 py-1 rounded block', props.row.recent ? 'bg-slate-50' : '']">
+            {{ props.row.message || '-' }}
+          </span>
+        </q-td>
+        """,
+    )
 
     def set_loading(is_loading: bool) -> None:
         refresh_button.set_enabled(not is_loading)
@@ -209,11 +216,9 @@ def _timestamp_key(entry: Dict[str, Any]) -> datetime:
 
 def _scroll_to_latest() -> None:
     ui.run_javascript(
-        f"""
-        const tbl = document.getElementById('{TABLE_DOM_ID}');
-        const body = tbl?.querySelector('.q-table__middle tbody');
-        body?.lastElementChild?.scrollIntoView({{behavior: 'smooth', block: 'end'}});
-        """
+        f"const tbl = document.getElementById('{TABLE_DOM_ID}');"
+        "const body = tbl?.querySelector('.q-table__middle tbody');"
+        "body?.lastElementChild?.scrollIntoView({behavior: 'smooth', block: 'end'});"
     )
 
 

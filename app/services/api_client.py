@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from urllib.parse import urljoin, urlsplit
 import os
-
-_cached_origin: str | None = None
+from urllib.parse import urljoin, urlsplit
 
 from nicegui import ui
+
+_cached_origin: str | None = None
 
 
 def api_url(path: str) -> str:

@@ -109,14 +109,6 @@ def _extract_status(props: Dict[str, Any], name: Optional[str] = None) -> str:
     return ""
 
 
-def _extract_date_range(props: Dict[str, Any]) -> tuple[str | None, str | None]:
-    for value in props.values():
-        if value.get("type") == "date":
-            date_obj = value.get("date") or {}
-            return date_obj.get("start"), date_obj.get("end")
-    return None, None
-
-
 def _extract_rich_text(props: Dict[str, Any], name: str) -> str:
     value = props.get(name)
     if not value:

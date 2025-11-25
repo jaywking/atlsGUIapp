@@ -2,6 +2,13 @@ from nicegui import ui
 
 from app.services.api_client import api_url
 
+PAGE_HEADER_CLASSES = (
+    "atls-page-header w-full items-center flex-wrap gap-3 mb-4 "
+    "px-4 py-2.5 bg-white text-slate-900 "
+    "dark:bg-slate-900 dark:text-slate-200 "
+    "border-b border-slate-200 dark:border-slate-700"
+)
+
 SIDEBAR_LINKS = [
     ('Dashboard', '/', 'dashboard'),
     ('Productions', '/productions', 'folder'),
@@ -170,13 +177,6 @@ h1, h2, h3, h4 {
     float: none !important;
 }
 
-/* Ensure Page Header Blocks respond to dark mode correctly */
-.body--dark .atls-page-header {
-    background-color: #0f172a !important;   /* slate-900 */
-    color: #e5e7eb !important;              /* slate-200 */
-    border-color: #334155 !important;       /* slate-700 */
-}
-
 /* Ensure Global Header Bar respects dark mode */
 .body--dark .atls-global-header {
     background-color: #0f172a !important;
@@ -188,18 +188,18 @@ h1, h2, h3, h4 {
 """
     )
 
-    with ui.row().classes('w-full h-screen no-wrap items-start'):
+    with ui.row().classes('w-full min-h-screen no-wrap items-start'):
         # sidebar
-        with ui.column().classes('w-56 h-full bg-slate-100 text-slate-900 gap-1 py-4 px-3 dark:bg-slate-800 dark:text-white'):
-            ui.label('ATLSApp').classes('text-xl font-semibold pb-4 text-slate-900 dark:text-white')
+        with ui.column().classes('w-56 min-h-screen bg-slate-100 text-slate-900 gap-1.5 py-3 px-3 dark:bg-slate-800 dark:text-white'):
+            ui.label('ATLSApp').classes('text-xl font-semibold pb-3 text-slate-900 dark:text-white')
             for text, link, icon in SIDEBAR_LINKS:
-                with ui.row().classes('items-center gap-2'):
+                with ui.row().classes('items-center gap-2 w-full rounded px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800'):
                     ui.icon(icon).classes('text-slate-700 dark:text-slate-100')
-                    ui.link(text, link).classes('text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white')
+                    ui.link(text, link).classes('flex-1 text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white')
         # main area
-        with ui.column().classes('flex-1 h-full overflow-x-auto'):
+        with ui.column().classes('flex-1 min-h-screen overflow-x-auto'):
             # header
-            with ui.row().classes("atls-global-header w-full justify-between items-center px-6 py-4 bg-white text-slate-900 border-b border-slate-200 shadow-sm sticky top-0 z-10 dark:bg-slate-900 dark:text-white dark:border-slate-700"):
+            with ui.row().classes("atls-global-header w-full justify-between items-center px-1 py-4 bg-white text-slate-900 border-b border-slate-200 shadow-sm sticky top-0 z-10 dark:bg-slate-900 dark:text-white dark:border-slate-700"):
                 ui.label(title).classes('text-2xl font-semibold text-slate-900 dark:text-white')
                 with ui.row().classes('items-center gap-3'):
                     ui.label('DEV').classes('text-sm text-slate-500 dark:text-slate-200')
@@ -208,10 +208,10 @@ h1, h2, h3, h4 {
                     ui.avatar('JA').classes('bg-blue-500 text-white')
             # page content
             with ui.column().classes(
-                'flex-1 overflow-y-auto px-6 py-4 gap-4 '
+                'flex-1 overflow-y-visible px-1 py-4 gap-4 '
                 'bg-white text-slate-900 '
                 'dark:bg-slate-900 dark:text-slate-200'
             ):
-                with ui.element('div').classes('w-full max-w-[1600px] mx-auto'):
+                with ui.element('div').classes('w-full max-w-none px-0'):
                     content_callable()
             api_url('/')  # prime API client base for background tasks

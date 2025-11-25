@@ -41,15 +41,18 @@ ATLSApp uses a hybrid human/AI development model. This file establishes:
 - Preserve existing behavior.
 - Log changes and run compile checks.
 - Follow NiceGUI 3.2.x slot rules: `add_slot` is a context manager/template string, not a callable; define slot content inside `with table.add_slot('body-cell-...'):` (bind loop vars via default args). Do not put Python callables in `columns` because they are not JSON-serializable during initial render.
+- At the start of every new session, Codex must recursively scan the full project folder structure using PowerShell commands (e.g., `Get-ChildItem -Recurse`). Codex must identify all relevant files, modules, and configurations before performing any task. Codex must never assume file locations; it must discover them.
 
 ### Restrictions
 - No schema changes without approval.
 - No hard-coded URLs or secrets.
 - No adding dependencies.
+- When using ripgrep (rg) inside PowerShell 7 (pwsh.exe), always specify directories explicitly (e.g., app/services/ or app/services/*). Avoid bare directory names like app/services, which PowerShell may interpret as literal files.
+- Codex may not ask the user where files, modules, or configuration values are located unless they truly do not exist in the repository. Codex must determine project structure by scanning the filesystem at session start.
 
 ### PowerShell Command Behavior (Reminder)
 
-When generating PowerShell commands, Agents must not use Unix utilities such as `sed`, `awk`, `grep`, or `cut`. Use native PowerShell equivalents only. Refer to DEV_TOOLS.md for the full rule and correct command patterns.
+When generating PowerShell commands, Agents must not use Unix utilities such as `sed`, `awk`, `grep`, or `cut`. Use native PowerShell equivalents only. Refer to DEV_NOTES.md for the full rule and correct command patterns.
 
 ## 6. Collaboration Workflow
 1. Jay provides a request.

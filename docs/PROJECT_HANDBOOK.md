@@ -1,5 +1,5 @@
 # Project Handbook - ATLS GUI App  
-Last Updated: 2025-11-21
+Last Updated: 2025-11-25
 
 This handbook defines how ATLSApp is developed using NiceGUI, FastAPI, and a structured workflow.
 
@@ -207,12 +207,17 @@ Short milestone summary posted back to ChatGPT to align PM + Dev agent context.
 - Header and sidebar classes must be reactive (lambda-based) for light/dark mode; the theme toggle is reactive; theme preference must persist via localStorage; typography standard is Inter/Segoe UI/Arial at 15px.
 - The page content wrapper and any page-level header sections must declare `bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-200`.
 - All page-level header blocks must use the unified section header style: `bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-200 py-2.5 px-1 border-b border-slate-200 dark:border-slate-700`. Page titles/subtitles are omitted; only controls live in this block.
-- Dark Mode Source of Truth: Quasar/NiceGUI’s `body--dark` class is authoritative. Page header blocks must include the `atls-page-header` class so shared CSS can target them. Tailwind `dark:` variants are allowed but must rely on `body--dark`, and theme persistence is handled by monitoring this class.
+- Control bars: keep controls left-aligned with consistent gaps (gap-2), minimum height around 52px, and keep controls on one line until the viewport forces wrap.
+- Table containers: wrap each table in an `overflow-x-auto` block with light vertical padding to keep spacing consistent.
+- Hover/focus: use `hover:bg-slate-100 dark:hover:bg-slate-800` on buttons and links (including ProductionID/Link cells) for consistent feedback.
+- Productions Search (v0.5.2): search is client-side only, applied against the locally cached rows; must not trigger backend fetches or modify background sync logic.
+- Dark Mode Source of Truth: Quasar/NiceGUI's `body--dark` class is authoritative. Page header blocks must include the `atls-page-header` class so shared CSS can target them. Tailwind `dark:` variants are allowed but must rely on `body--dark`, and theme persistence is handled by monitoring this class.
 - Dark Mode Architecture:
   - Quasar controls dark mode using `body--dark`.
   - Dark-mode visuals (layout, global header, page headers, tables) are handled via CSS keyed on `body--dark`; no Tailwind `.dark` class or JS toggles are used.
   - Page Header Blocks and Global Header use `atls-page-header` and `atls-global-header` for reliable dark-mode overrides.
 - Dark Mode Status (v0.4.17): current dark-mode visuals remain inconsistent; feature will be revisited in a future release.
+- Dark mode is currently unstable and deferred for a later milestone; it should not be modified unless explicitly instructed.
 
 ---
 
@@ -271,20 +276,63 @@ v0.4.14b - Header Dark Mode Override & Unified Page Header Blocks
 v0.4.15b - Unified Dark-Mode Alignment & Theme Persistence Fix
 v0.4.16 - Dark-Mode Stabilization
 v0.4.17 - Dark Mode Follow-up Needed
+v0.5.0 - Refactor Release: codebase cleaned and reorganized for clarity and maintainability; UI modules standardized; API and service modules consolidated and de-duplicated; no functional changes (structural quality improvements only)
+v0.5.1 - UI Polish: standardized header alignment, control spacing, table padding, and hover/focus styling; no functional changes
+v0.5.2 - Productions Search Fix: restored client-side search on /productions with case-insensitive filtering; no layout or backend changes
 v1.0.0 - Production release
 ```
 
 ---
 
-# 12. Collaboration Roles
+## 12. Deferred Items / Parking Lot
 
-- Jay — Owner  
-- ChatGPT — Project Manager  
-- Codex 5 — Developer  
+This section tracks known issues, architectural concerns, or improvements that must be revisited in future milestones. Items here are not part of the current milestone but require planned review.
+
+### 12.1 Current Deferred Items
+
+1. **Architectural redesign needed for long-running Medical Facilities fill/backfill job**  
+   - v0.6.1 removes the heavy job from the GET endpoint, fixing the immediate UI timeout.  
+   - However, the underlying fill/backfill process is still a synchronous, long-running operation tied to the main FastAPI worker.  
+   - A future milestone should migrate this to a proper background job system (task queue, async worker, or scheduled service) with progress reporting and non-blocking execution.
+
+2. **Argparse exit mitigation (API invoking CLI script)**  
+   - The backend currently calls a CLI-style script, requiring temporary modification of `sys.argv`.  
+   - Long-term fix: replace with a proper async service module and remove CLI/argparse dependencies from API flows.
+
+3. **config.py inconsistencies and missing Notion ID handling**  
+   - Some Notion database IDs required by facility scripts were missing or mismatched.  
+   - A full review and alignment of config.py with the other ATLSApp config modules is needed.
+
+4. **Drawer → Dialog fallback due to NiceGUI prop limitations**  
+   - NiceGUI’s drawer props (e.g., `right=True`) were not stable, requiring fallback to a right-side dialog.  
+   - Revisit once NiceGUI stabilizes drawer parameters in future releases.
+
+5. **Scaling of Facility Sync (full data pull may exceed current architecture)**  
+   - As Medical Facilities grow, the heavy fill/backfill job may need to be moved to a dedicated process with caching or incremental updates.  
+   - Evaluate in a backend-focused milestone (v0.7.x or later).
+
+6. **Responsive Layout Redesign (Replace Global max-width with Grid-Based Layout)**  
+   - The current layout uses a fixed `max-w-[1600px]` container, centered with `mx-auto`, which limits width on large displays.  
+   - In a future milestone, replace this with a responsive grid-based shell (e.g., `max-w-6xl md:max-w-7xl xl-max-w-none` or equivalent) to allow tables and data-heavy pages to use more screen width while preserving readability on smaller viewports.  
+   - This requires a coordinated UI/UX redesign across all pages and should be scheduled once broader styling and layout updates are planned (beyond the v0.6.x cycle).
+
+7. **Medical Facilities – Backend Search Endpoint (Server-Side Filtering)**  
+   - The v0.6.x implementation uses client-side filtering after a single bulk fetch, which is appropriate for the current dataset size (~300–400 facilities).  
+   - A future milestone (v0.7.x or later) should introduce a dedicated backend search endpoint (e.g., `/api/medicalfacilities/find`) supporting parameters such as `name_contains`, `address_contains`, `state`, and `facility_type`.  
+   - This endpoint should use Notion `filter` and `sorts` blocks, support multi-parameter AND conditions, and may incorporate caching or background worker support for performance.  
+   - This work should occur after the background job system and sync service architecture are introduced.
 
 ---
 
-# 13. Notes for Codex 5
+# 13. Collaboration Roles
+
+- Jay - Owner  
+- ChatGPT - Project Manager  
+- Codex 5 - Developer  
+
+---
+
+# 14. Notes for Codex 5
 
 - Avoid blocking the UI event loop  
 - Use async httpx for network calls  

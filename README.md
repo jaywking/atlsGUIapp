@@ -13,9 +13,15 @@ This app modernizes your LocationSync and Medical Facility automation scripts in
 
 ---
 
-## Features (v0.4.17)
+## Release Notes (v0.5.2 - Productions Search Fix)
 
-v0.4.17 — Documentation update: dark mode remains inconsistent and will be revisited in a future release; current focus is keeping the UI responsive.
+- Restored client-side search on /productions.
+- Case-insensitive filtering across core fields.
+- No changes to layout, routing, or backend logic.
+
+### Previous Feature Highlights (v0.4.17)
+
+v0.4.17 - Documentation update: dark mode remains inconsistent and will be revisited in a future release; current focus is keeping the UI responsive.
 
 ### Dashboard
 - Enhanced per-service diagnostic timings (v0.4.5)
@@ -31,10 +37,9 @@ v0.4.17 — Documentation update: dark mode remains inconsistent and will be rev
 ### UI Layout / v0.4.x Enhancements
 - Improved global layout: fixed sidebar wrapping issues, added sticky headers, better overflow behavior, and stabilized main content width.
 ### UI/UX Features
-- Global Light/Dark theme toggle (header, top right)
-- Consistent Material-style table styling across all pages (light + dark variants) with finalized header alignment
-- Multi-table theming is applied automatically via the global theme block
-- Full dark-mode coverage with reactive header/sidebar/toggle and persistent theme selection
+- Dark-mode toggle remains available (header, top right), but visuals are inconsistent and deferred for a later milestone.
+- Consistent Material-style table styling across all pages with finalized header alignment.
+- Multi-table theming is applied automatically via the global theme block.
 
 ### Settings
 - Async diagnostics with refined timing metrics
@@ -139,9 +144,12 @@ uvicorn app.main:fastapi_app --reload
 - v0.4.15b - Unified Dark-Mode Alignment & Theme Persistence Fix
 - v0.4.16 - Dark-Mode Stabilization
 - v0.4.17 - Dark Mode Follow-up Needed
+- v0.5.0 - Refactor Release (codebase cleaned and reorganized; UI modules standardized; API/services consolidated; no functional changes)
+- v0.5.1 - UI Polish (header alignment, control spacing, table padding, hover/focus styling; no functional changes)
+- v0.5.2 - Productions Search Fix (restored client-side search on /productions; case-insensitive filtering across core fields; no layout or backend changes)
 
 
-## Next Steps (v0.4.17 planning)
+## Next Steps (v0.5.2 planning)
 
 - Extend Locations & Medical Facilities full UI
 - Add cache rotation utilities

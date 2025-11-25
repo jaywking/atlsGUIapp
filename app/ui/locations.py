@@ -3,27 +3,22 @@ import httpx
 from nicegui import ui
 
 from app.services.api_client import api_url
+from app.ui.layout import PAGE_HEADER_CLASSES
 
-def page_content():
+
+def page_content() -> None:
     """Locations page for selected Production."""
 
     # ------------------------------------------------------------------
     # Toolbar
     # ------------------------------------------------------------------
-    with ui.row().classes(
-        "atls-page-header w-full items-center flex-wrap gap-3 mb-4 "
-        "px-4 py-2.5 bg-white text-slate-900 "
-        "dark:bg-slate-900 dark:text-slate-200 "
-        "border-b border-slate-200 dark:border-slate-700"
-    ):
-        ui.input('Search').props('outlined dense').classes('w-64')
-
-        # Create the Process button and spinner
-        process_button = ui.button('Process Selected').classes('bg-blue-500 text-white')
-        spinner = ui.spinner(size='lg').props('color=primary').style('display: none;')
-
-        ui.button('Reprocess All', on_click=lambda: ui.notify('Would reprocess all locations'))
-        ui.button('View Details', on_click=lambda: ui.notify('Would open detail drawer'))
+    with ui.row().classes(f"{PAGE_HEADER_CLASSES} min-h-[52px] items-center"):
+        with ui.row().classes('items-center gap-2 flex-wrap'):
+            ui.input('Search').props('outlined dense').classes('w-64')
+            process_button = ui.button('Process Selected').classes('bg-blue-500 text-white hover:bg-slate-100 dark:hover:bg-slate-800')
+            spinner = ui.spinner(size='lg').props('color=primary').style('display: none;')
+            ui.button('Reprocess All', on_click=lambda: ui.notify('Would reprocess all locations')).classes('bg-slate-200 text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800')
+            ui.button('View Details', on_click=lambda: ui.notify('Would open detail drawer')).classes('bg-slate-200 text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800')
 
     # ------------------------------------------------------------------
     # Locations Table (Placeholder Data)
@@ -46,17 +41,18 @@ def page_content():
     ]
 
     ui.label('Locations').classes('text-lg font-semibold')
-    ui.table(
-        columns=[
-            {'name': 'ProdLocID', 'label': 'ProdLocID', 'field': 'ProdLocID'},
-            {'name': 'Location Name', 'label': 'Location Name', 'field': 'Location Name'},
-            {'name': 'Address', 'label': 'Address', 'field': 'Address'},
-            {'name': 'Status', 'label': 'Status', 'field': 'Status'},
-            {'name': 'Linked Master', 'label': 'Linked Master', 'field': 'Linked Master'},
-        ],
-        rows=rows,
-        row_key='ProdLocID',
-    ).classes('w-full')
+    with ui.element('div').classes('w-full overflow-x-auto py-2'):
+        ui.table(
+            columns=[
+                {'name': 'ProdLocID', 'label': 'ProdLocID', 'field': 'ProdLocID'},
+                {'name': 'Location Name', 'label': 'Location Name', 'field': 'Location Name'},
+                {'name': 'Address', 'label': 'Address', 'field': 'Address'},
+                {'name': 'Status', 'label': 'Status', 'field': 'Status'},
+                {'name': 'Linked Master', 'label': 'Linked Master', 'field': 'Linked Master'},
+            ],
+            rows=rows,
+            row_key='ProdLocID',
+        ).classes('w-full')
 
     # Link the process button to backend trigger
     process_button.on('click', lambda _: asyncio.create_task(trigger_process(process_button, spinner)))

@@ -8,6 +8,7 @@ import httpx
 from nicegui import ui
 
 from app.services.api_client import api_url
+from app.ui.layout import PAGE_HEADER_CLASSES
 
 logger = logging.getLogger(__name__)
 
@@ -24,22 +25,19 @@ def page_content() -> None:
         "auto_refresh": False,
     }
 
-    with ui.row().classes(
-        "atls-page-header w-full items-center flex-wrap gap-3 mb-4 "
-        "px-4 py-2.5 bg-white text-slate-900 "
-        "dark:bg-slate-900 dark:text-slate-200 "
-        "border-b border-slate-200 dark:border-slate-700"
-    ):
-        refresh_button = ui.button("Refresh").classes("bg-blue-500 text-white")
-        sync_button = ui.button("Sync to Notion").classes("bg-slate-800 text-white")
-        auto_switch = ui.switch("Auto-refresh (60s)").classes("text-sm text-slate-600")
-        spinner = ui.spinner(size="md").style("display: none;")
-        status_label = ui.label("No data loaded yet.").classes("text-sm text-slate-500 ml-auto")
-        dirty_label = ui.label("").classes("text-xs text-amber-600")
-        search_input = ui.input(label="Search productions...").props("dense clearable debounce=300").classes("w-72")
-        page_info = ui.label("Page 1 of 1").classes("text-sm text-slate-500 ml-auto")
-        prev_button = ui.button("Prev").classes("bg-slate-200 text-slate-700")
-        next_button = ui.button("Next").classes("bg-slate-200 text-slate-700")
+    with ui.row().classes(f"{PAGE_HEADER_CLASSES} min-h-[52px]"):
+        with ui.row().classes("items-center gap-2 flex-wrap"):
+            refresh_button = ui.button("Refresh").classes("bg-blue-500 text-white hover:bg-slate-100 dark:hover:bg-slate-800")
+            sync_button = ui.button("Sync to Notion").classes("bg-slate-800 text-white hover:bg-slate-900 dark:hover:bg-slate-800")
+            auto_switch = ui.switch("Auto-refresh (60s)").classes("text-sm text-slate-600")
+            spinner = ui.spinner(size="md").style("display: none;")
+            dirty_label = ui.label("").classes("text-xs text-amber-600")
+        with ui.row().classes("items-center gap-2 flex-wrap ml-auto"):
+            search_input = ui.input(label="Search productions...").props("dense clearable debounce=300").classes("w-72")
+            page_info = ui.label("Page 1 of 1").classes("text-sm text-slate-500")
+            prev_button = ui.button("Prev").classes("bg-slate-200 text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800")
+            next_button = ui.button("Next").classes("bg-slate-200 text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800")
+            status_label = ui.label("No data loaded yet.").classes("text-sm text-slate-500")
 
     columns = [
         {"name": "ProductionID", "label": "ProductionID", "field": "ProductionID", "sortable": True},
@@ -58,19 +56,30 @@ def page_content() -> None:
         {"name": "LastEditedTime", "label": "Last Edited", "field": "LastEditedTime", "sortable": True},
     ]
 
-    with ui.element("div").classes("overflow-x-auto w-full"):
+    with ui.element("div").classes("overflow-x-auto w-full py-2"):
         table = (
             ui.table(columns=columns, rows=[], row_key="row_id")
             .classes("w-full text-sm q-table--striped min-w-[1600px]")
             .props('flat wrap-cells square separator="horizontal"')
         )
 
+        def update_table_rows(rows: List[Dict[str, Any]]) -> None:
+            table.rows = rows
+            table.update()
+
+        table.update_rows = update_table_rows  # type: ignore[attr-defined]
+
         # Custom cell for LocationsTable (short link).
         table.add_slot(
             "body-cell-LocationsTable",
             """
             <q-td :props="props">
-              <a v-if="props.row.LocationsTable" :href="props.row.LocationsTable" target="_blank">Link</a>
+              <a
+                v-if="props.row.LocationsTable"
+                :href="props.row.LocationsTable"
+                target="_blank"
+                class="px-2 py-1 rounded inline-block hover:bg-slate-100 dark:hover:bg-slate-800"
+              >Link</a>
               <span v-else></span>
             </q-td>
             """,
@@ -81,7 +90,14 @@ def page_content() -> None:
             "body-cell-ProductionID",
             """
             <q-td :props="props">
-              <a v-if="props.row.NotionURL" :href="props.row.NotionURL" target="_blank">{{ props.row.ProductionID || '' }}</a>
+              <a
+                v-if="props.row.NotionURL"
+                :href="props.row.NotionURL"
+                target="_blank"
+                class="px-2 py-1 rounded inline-block hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                {{ props.row.ProductionID || '' }}
+              </a>
               <span v-else>{{ props.row.ProductionID || '' }}</span>
             </q-td>
             """,
@@ -92,37 +108,51 @@ def page_content() -> None:
         refresh_button.set_enabled(not is_loading)
         sync_button.set_enabled(not is_loading)
 
-    def update_table_rows(rows: List[Dict[str, Any]]) -> None:
-        table.rows = rows
-        table.update()
+    def _lower(value: Any) -> str:
+        try:
+            return str(value or "").lower()
+        except Exception:
+            return ""
 
-    def apply_filters() -> None:
-        search_term = state["search"].lower()
-        filtered: List[Dict[str, Any]] = []
-        for row in state["rows"]:
-            haystack = " ".join(str(v) for v in row.values()).lower()
-            if search_term and search_term not in haystack:
-                continue
-            filtered.append(row)
-        state["filtered"] = filtered
-        total_pages = max(1, (len(filtered) + ROWS_PER_PAGE - 1) // ROWS_PER_PAGE) if filtered else 1
+    def apply_filter() -> None:
+        rows = list(state.get("rows") or [])
+        search_term = _lower(state.get("search"))
+        if search_term:
+            rows = [
+                r for r in rows
+                if search_term in _lower(r.get("ProductionName") or r.get("Name"))
+                or search_term in _lower(r.get("Abbreviation"))
+                or search_term in _lower(r.get("Nickname"))
+                or search_term in _lower(r.get("ClientPlatform"))
+                or search_term in _lower(r.get("Studio"))
+                or search_term in _lower(r.get("ProdStatus"))
+            ]
+        state["filtered"] = rows
+
+        total_pages = max(1, (len(rows) + ROWS_PER_PAGE - 1) // ROWS_PER_PAGE) if rows else 1
         if state["page"] >= total_pages:
             state["page"] = total_pages - 1
         start = state["page"] * ROWS_PER_PAGE
         end = start + ROWS_PER_PAGE
-        update_table_rows(filtered[start:end])
-        page_info.set_text(f"Page {state['page'] + 1} of {total_pages} ({len(filtered)} rows)")
+        visible = rows[start:end]
+        table.update_rows(visible)  # type: ignore[attr-defined]
+        table.update()
+        page_info.set_text(f"Page {state['page'] + 1} of {total_pages} ({len(rows)} rows)")
+
+    def apply_filters() -> None:
+        """Alias for apply_filter to align with expected handler naming."""
+        apply_filter()
 
     def go_prev(_=None) -> None:
         if state["page"] > 0:
             state["page"] -= 1
-            apply_filters()
+            apply_filter()
 
     def go_next(_=None) -> None:
         total_pages = max(1, (len(state["filtered"]) + ROWS_PER_PAGE - 1) // ROWS_PER_PAGE) if state["filtered"] else 1
         if state["page"] < total_pages - 1:
             state["page"] += 1
-            apply_filters()
+            apply_filter()
 
     def normalize_row(row: Dict[str, Any]) -> Dict[str, Any]:
         row_id = row.get("row_id") or row.get("id") or row.get("ProductionID")
@@ -155,7 +185,8 @@ def page_content() -> None:
             if not isinstance(payload, dict) or payload.get("status") != "success":
                 raise ValueError(payload.get("message", "Unable to fetch productions"))
             raw_rows = payload.get("data", []) or []
-            state["rows"] = [normalize_row(r) for r in raw_rows]
+            normalized = [normalize_row(r) for r in raw_rows]
+            state["rows"] = normalized
             state["page"] = 0
             apply_filters()
             message = payload.get("message") or f"Loaded {len(state['rows'])} productions"
@@ -184,7 +215,7 @@ def page_content() -> None:
     sync_button.on("click", sync_now)
     prev_button.on("click", go_prev)
     next_button.on("click", go_next)
-    search_input.on("update:model-value", lambda e: on_search(e.value))
+    search_input.on_value_change(lambda e: on_search(getattr(e, "value", None)))
     auto_switch.bind_value(state, "auto_refresh")
 
     async def do_periodic_fetch():
