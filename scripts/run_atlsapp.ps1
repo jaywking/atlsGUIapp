@@ -114,11 +114,6 @@ function Get-AvailablePort {
     return $null
 }
 
-trap [System.Management.Automation.PipelineStoppedException] {
-    Write-Host "`nCtrl+C detected. Stopping the server..." -ForegroundColor Yellow
-    break
-}
-
 Set-Location -Path $repoRoot
 Show-Banner
 
