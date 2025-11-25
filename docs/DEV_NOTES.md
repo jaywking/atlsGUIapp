@@ -1474,3 +1474,153 @@ Testing
 
 Notes
 - Captures future server-side filtering requirements without affecting the current v0.6.x UI-only search milestone.
+Date: 2025-11-24 22:52 -0500 (Session 59)
+Author: Codex 5 (Developer)
+Milestone: v0.6.3 – Medical Facilities Search, Filters & Sorting (UI-Only)
+
+Summary
+- Added search-first workflow: no initial load; search panel collects filters (name/address/state/type) and triggers a full fetch, then client-side filters, sorts, and paginates. Sorting via dropdown; pagination reuses existing controls. Table and details dialog remain intact, now backed by filtered/sorted state caches.
+
+Changes
+- `app/ui/medicalfacilities.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual: verify search, filters, sorting, pagination, and details dialog all work client-side.
+
+Notes
+- Backend unchanged; server-side search deferred per Parking Lot.
+Date: 2025-11-24 22:52 -0500 (Session 60)
+Author: Codex 5 (Developer)
+Milestone: v0.6.3 – Search Trigger Fix
+
+Summary
+- Fixed the Medical Facilities search button to run the async fetch correctly (awaits load, then filters/sorts/paginates client-side).
+
+Changes
+- `app/ui/medicalfacilities.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual: search now triggers fetch and displays results with filters/sorting.
+
+Notes
+- Backend unchanged; client-side search remains per v0.6.3 scope.
+Date: 2025-11-24 22:52 -0500 (Session 61)
+Author: Codex 5 (Developer)
+Milestone: v0.6.3 – State Filter Fix
+
+Summary
+- Improved state detection in client-side filters: now scans comma- and space-delimited address parts to find the first 2-letter alpha token (e.g., GA), enabling proper state filtering for addresses ending with ZIP codes.
+
+Changes
+- `app/ui/medicalfacilities.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual: state filter (e.g., GA) returns matching facilities.
+
+Notes
+- Backend remains unchanged; client-side search/sort flow intact.
+Date: 2025-11-24 22:52 -0500 (Session 62)
+Author: Codex 5 (Developer)
+Milestone: v0.6.3 – State Filter Regex Fix
+
+Summary
+- Hardened state detection for facilities search using a regex to capture the last 2-letter token (e.g., GA) anywhere in the address, improving matches for Georgia and similar cases.
+
+Changes
+- `app/ui/medicalfacilities.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual: state filter (e.g., GA) should now return matching facilities even with varied address formats.
+
+Notes
+- Client-side search/sort remains unchanged otherwise.
+Date: 2025-11-24 22:52 -0500 (Session 63)
+Author: Codex 5 (Developer)
+Milestone: v0.6.3 – Full Fetch Pagination Fix
+
+Summary
+- Fetches all facilities client-side by paging through `/api/medicalfacilities/list` in 100-row batches until the reported total is reached, then filters/sorts/paginates locally.
+
+Changes
+- `app/ui/medicalfacilities.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual: search now loads the full dataset (beyond 100 rows) before applying filters/sorting.
+
+Notes
+- Backend unchanged; client-side search remains per v0.6.3 scope.
+Date: 2025-11-24 22:52 -0500 (Session 64)
+Author: Codex 5 (Developer)
+Milestone: Documentation Update – Structured Address Fields (Parking Lot)
+
+Summary
+- Added a Parking Lot item describing the future plan to split Medical Facility and Location addresses into structured fields for improved server-side filtering, sorting, validation, and geospatial support.
+
+Changes
+- `docs/PROJECT_HANDBOOK.md`
+- `docs/DEV_NOTES.md`
+
+Testing
+- N/A (documentation-only)
+
+Notes
+- This work will be part of a backend-focused milestone once the background worker and search endpoint infrastructure are in place.
+Date: 2025-11-24 22:52 -0500 (Session 65)
+Author: Codex 5 (Developer)
+Milestone: Documentation Update – Backend Search & Caching (Parking Lot)
+
+Summary
+- Added a Parking Lot item describing the long-term backend plan for server-side Medical Facility search, API-level caching, and larger/bulk retrieval endpoints tied to future background worker and Facility Sync architecture.
+
+Changes
+- `docs/PROJECT_HANDBOOK.md`
+- `docs/DEV_NOTES.md`
+
+Testing
+- N/A (documentation-only)
+
+Notes
+- Deferred to a backend-focused milestone (v0.7.x or later).
+Date: 2025-11-24 22:52 -0500 (Session 66)
+Author: Codex 5 (Developer)
+Milestone: v0.6.4 – UI Polish (Heroicons, Hover Highlight, State Auto-Suggest)
+
+Summary
+- Added outline-style iconography to search panel, chips, and details dialog; tweaked spacing, bolded Name, enabled address wrapping, added row hover highlight, and aligned title/controls. Implemented state auto-suggest from dataset.
+
+Changes
+- `app/ui/medicalfacilities.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual: verify icons, hover effect, state auto-suggest, and existing search/sort/pagination behavior remain intact.
+
+Notes
+- Pure UI polish; backend unchanged.
+Date: 2025-11-24 23:30 -0500 (Session 67)
+Author: Codex 5 (Developer)
+Milestone: v0.6.4 – State Select Init Fix
+
+Summary
+- Fixed the State auto-suggest select initialization by removing the invalid default value so the Facilities page loads without ValueError.
+
+Changes
+- `app/ui/medicalfacilities.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+
+Notes
+- UI-only fix; search/filter behavior unchanged.

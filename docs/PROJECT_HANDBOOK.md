@@ -322,6 +322,18 @@ This section tracks known issues, architectural concerns, or improvements that m
    - This endpoint should use Notion `filter` and `sorts` blocks, support multi-parameter AND conditions, and may incorporate caching or background worker support for performance.  
    - This work should occur after the background job system and sync service architecture are introduced.
 
+8. **Structured Address Fields (Split Address Into Components)**  
+   - Currently, all addresses for Medical Facilities and Locations are stored in a single text field (e.g., “123 Main St, City, ST 12345”).  
+   - A future milestone (v0.7.x or later) should split addresses into structured components such as Address Line 1, Address Line 2, City, State, ZIP, and optionally additional Google Place Details components.  
+   - This will enable precise server-side filtering, sorting, data validation, geospatial queries, and clean integration with the planned Facility Sync service and background worker architecture.  
+   - This work should occur after the backend refactor that introduces background jobs, caching, and the new search endpoint.
+
+9. **Medical Facilities – Server-Side Search, Caching & Bulk Retrieval**  
+   - A future milestone (v0.7.x or later) should introduce a dedicated backend search endpoint (e.g., `/api/medicalfacilities/find`) supporting query parameters such as `name_contains`, `address_contains`, `state`, and `facility_type` using Notion `filter` and `sorts` blocks.  
+   - Implement API-level caching so the server maintains a refreshed copy of the full Medical Facilities dataset, reducing Notion round-trips and improving response times.  
+   - Add support for larger page sizes or a bulk endpoint (e.g., `/api/medicalfacilities/all`) to reduce client fetches and improve bootstrap performance.  
+   - These changes depend on the future background worker architecture, caching layer, and Facility Sync service, and should occur after those systems are introduced.
+
 ---
 
 # 13. Collaboration Roles
