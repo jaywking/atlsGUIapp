@@ -13,15 +13,13 @@ This app modernizes your LocationSync and Medical Facility automation scripts in
 
 ---
 
-## Release Notes (v0.5.2 - Productions Search Fix)
+## Release Notes (v0.8.x Highlights)
 
-- Restored client-side search on /productions.
-- Case-insensitive filtering across core fields.
-- No changes to layout, routing, or backend logic.
-
-### Previous Feature Highlights (v0.4.17)
-
-v0.4.17 - Documentation update: dark mode remains inconsistent and will be revisited in a future release; current focus is keeping the UI responsive.
+- v0.8.2 - Master Matching Logic: match production locations to Locations Master via Place_ID first, then hierarchical address fallback; set LocationsMasterID relations and Status=Matched when unique; logs matching outcomes; `/api/locations/match_all`.
+- v0.8.1.2 - Status Enforcement: centralized status defaults for all location writes (Unresolved without Place_ID, Ready with Place_ID, Matched when linked); applies to import, backfill, and API helpers.
+- v0.8.1.1 - Schema Update: on-demand admin endpoint to add structured address fields to all `_Locations` tables plus master/facilities DBs; Status option updates remain manual per Notion constraints.
+- v0.8.1.0 - Batch Location Import: async import job per production with duplicate handling, cache refresh, and logging.
+- v0.7.x - Hybrid caches, background jobs, structured address parsing, and server-side search for Locations/Facilities.
 
 ### Dashboard
 - Enhanced per-service diagnostic timings (v0.4.5)
@@ -127,7 +125,7 @@ uvicorn app.main:fastapi_app --reload
 
 ## Version History (summary)
 
-- v0.4.0 – Dashboard  
+- v0.4.0 - Dashboard  
 - v0.4.1 – Hardening & Env Autoload  
 - v0.4.2 – Productions + Sync  
 - v0.4.3 – UI Enhancements + Background Sync  
@@ -149,15 +147,16 @@ uvicorn app.main:fastapi_app --reload
 - v0.5.0 - Refactor Release (codebase cleaned and reorganized; UI modules standardized; API/services consolidated; no functional changes)
 - v0.5.1 - UI Polish (header alignment, control spacing, table padding, hover/focus styling; no functional changes)
 - v0.5.2 - Productions Search Fix (restored client-side search on /productions; case-insensitive filtering across core fields; no layout or backend changes)
+- v0.7.x - Hybrid cache layer, background jobs, structured address parsing, server-side search
+- v0.8.1.x - Structured address schema/backfill and status enforcement
+- v0.8.2 - Master matching (Place_ID/address fallback) with relation updates and match_all endpoint
 
 
-## Next Steps (v0.5.2 planning)
+## Current Focus (v0.8.x)
 
-- Extend Locations & Medical Facilities full UI
-- Add cache rotation utilities
-- Add dashboard UI configuration options
-- Introduce error-handling standards across API/UI/services
-- Improve documentation governance and consolidate DEV_NOTES variants
+- Continue matching/duplicates hardening (auto/manual review flows).
+- Ensure Location creation paths always carry structured addresses and enforced Status defaults.
+- Prepare deduplication and future UI hooks without altering schemas automatically (Status options remain manual when missing).
 
 
 ## Development Guardrails

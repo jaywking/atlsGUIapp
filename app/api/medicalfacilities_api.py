@@ -3,117 +3,72 @@ from __future__ import annotations
 import asyncio
 import math
 import sys
+import time
 from typing import Any, Dict, List
 
-import httpx
 from fastapi import APIRouter
 
+from app.services.cache_utils import DEFAULT_MAX_AGE_SECONDS, is_cache_stale
 from app.services.logger import log_job
-from config import Config
+from app.services.notion_medical_facilities import (
+    fetch_all_medical_facilities,
+    fetch_and_cache_medical_facilities,
+    get_cached_medical_facilities,
+)
 from scripts import fetch_medical_facilities as run_fetch_medical_facilities
-
-NOTION_VERSION = "2022-06-28"
 
 router = APIRouter(prefix="/api/medicalfacilities", tags=["medical facilities"])
 
 
-def _rich_text(props: Dict[str, Any], key: str) -> str:
-    arr = props.get(key, {}).get("rich_text", [])
-    return " ".join([a.get("plain_text", "") for a in arr if isinstance(a, dict)]) if arr else ""
+async def _load_facilities(max_age_seconds: int = DEFAULT_MAX_AGE_SECONDS) -> tuple[List[Dict[str, Any]], str]:
+    cache = await get_cached_medical_facilities(max_age_seconds=max_age_seconds)
+    normalized = cache.get("normalized") if isinstance(cache, dict) else None
+    if isinstance(normalized, list) and not is_cache_stale(cache, max_age_seconds=max_age_seconds):
+        return normalized, "cache"
+
+    log_job("facilities", "cache_refresh", "start", "operation=facilities_cache_refresh reason=stale_or_missing")
+    facilities = await fetch_and_cache_medical_facilities()
+    return facilities, "refreshed"
 
 
-def _title(props: Dict[str, Any], key: str) -> str:
-    arr = props.get(key, {}).get("title", [])
-    return " ".join([a.get("plain_text", "") for a in arr if isinstance(a, dict)]) if arr else ""
+def _apply_filters(records: List[Dict[str, Any]], filters: Dict[str, str], sort: str | None) -> List[Dict[str, Any]]:
+    name_term = (filters.get("name_contains") or "").strip().lower()
+    address_term = (filters.get("address_contains") or "").strip().lower()
+    state_term = (filters.get("state") or "").strip().upper()
+    facility_type = (filters.get("facility_type") or "").strip()
 
+    valid_sorts = {"", "name_asc", "name_desc", "type", "state"}
+    if sort and sort not in valid_sorts:
+        raise ValueError(f"Unsupported sort value: {sort}")
 
-def _url(props: Dict[str, Any], key: str) -> str:
-    return props.get(key, {}).get("url") or ""
+    filtered: List[Dict[str, Any]] = []
+    for row in records:
+        name_val = (row.get("name") or "").lower()
+        addr_val = (row.get("address") or "").lower()
+        state_val = (row.get("state") or "").upper()
+        type_val = (row.get("facility_type") or "").strip()
 
+        if name_term and name_term not in name_val:
+            continue
+        if address_term and address_term not in addr_val:
+            continue
+        if state_term and (not state_val or state_val != state_term):
+            continue
+        if facility_type and type_val != facility_type:
+            continue
+        filtered.append(row)
 
-def _select(props: Dict[str, Any], key: str) -> str:
-    sel = props.get(key, {}).get("select") or {}
-    return sel.get("name") or ""
+    sort_key = sort or ""
+    if sort_key == "name_asc":
+        filtered.sort(key=lambda x: (x.get("name") or "").lower())
+    elif sort_key == "name_desc":
+        filtered.sort(key=lambda x: (x.get("name") or "").lower(), reverse=True)
+    elif sort_key == "type":
+        filtered.sort(key=lambda x: (x.get("facility_type") or "").lower())
+    elif sort_key == "state":
+        filtered.sort(key=lambda x: (x.get("state") or "").upper())
 
-
-def _multi(props: Dict[str, Any], key: str) -> List[str]:
-    return [m.get("name", "") for m in props.get(key, {}).get("multi_select", []) if m.get("name")]
-
-
-def _number(props: Dict[str, Any], *keys: str) -> float | None:
-    for key in keys:
-        num = props.get(key, {}).get("number")
-        if num is not None:
-            return float(num)
-    return None
-
-
-def _build_hours(props: Dict[str, Any]) -> str:
-    days = [
-        ("Monday Hours", "Mon"),
-        ("Tuesday Hours", "Tue"),
-        ("Wednesday Hours", "Wed"),
-        ("Thursday Hours", "Thu"),
-        ("Friday Hours", "Fri"),
-        ("Saturday Hours", "Sat"),
-        ("Sunday Hours", "Sun"),
-    ]
-    parts = []
-    for prop_name, label in days:
-        val = _rich_text(props, prop_name)
-        if val:
-            parts.append(f"{label}: {val}")
-    return "; ".join(parts)
-
-
-def _normalize_facility(page: Dict[str, Any]) -> Dict[str, Any]:
-    props = page.get("properties") or {}
-    facility_id = _title(props, "MedicalFacilityID") or _rich_text(props, "MedicalFacilityID")
-    name = _rich_text(props, "Name") or facility_id
-    facility_type = _select(props, "Type")
-    distance_val = _number(props, "Distance", "Distance (mi)")
-    phone_val = _rich_text(props, "Phone") or _rich_text(props, "International Phone")
-
-    return {
-        "row_id": page.get("id") or "",
-        "id": page.get("id") or "",
-        "medical_facility_id": facility_id or "",
-        "name": name or facility_id or "Unnamed Facility",
-        "facility_type": facility_type,
-        "address": _rich_text(props, "Address"),
-        "phone": phone_val,
-        "hours": _build_hours(props),
-        "website": _url(props, "Website"),
-        "google_maps_url": _url(props, "Google Maps URL"),
-        "distance": distance_val,
-        "place_types": [facility_type] if facility_type else [],
-        "place_id": _rich_text(props, "Place_ID"),
-    }
-
-
-async def _fetch_facilities(db_id: str, token: str) -> List[Dict[str, Any]]:
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Notion-Version": NOTION_VERSION,
-        "Content-Type": "application/json",
-    }
-    url = f"https://api.notion.com/v1/databases/{db_id}/query"
-    items: List[Dict[str, Any]] = []
-    start_cursor: str | None = None
-
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        while True:
-            payload: Dict[str, Any] = {"page_size": 100}
-            if start_cursor:
-                payload["start_cursor"] = start_cursor
-            response = await client.post(url, headers=headers, json=payload)
-            response.raise_for_status()
-            data = response.json()
-            items.extend(data.get("results", []))
-            if not data.get("has_more"):
-                break
-            start_cursor = data.get("next_cursor")
-    return items
+    return filtered
 
 
 @router.get("/list")
@@ -121,32 +76,26 @@ async def list_medical_facilities(page: int = 1, limit: int = 25) -> Dict[str, A
     page = max(1, page)
     limit = min(100, max(1, limit))
 
-    db_id = Config.MEDICAL_FACILITIES_DB
-    token = Config.NOTION_TOKEN
-    if not token or not db_id:
-        return {"status": "error", "message": "Missing NOTION_TOKEN or MEDICAL_FACILITIES_DB"}
-
     try:
-        pages = await _fetch_facilities(db_id, token)
+        facilities, source = await _load_facilities()
     except Exception as exc:  # noqa: BLE001
         err = f"Unable to load medical facilities: {exc}"
         log_job("facilities", "list", "error", err)
         return {"status": "error", "message": err}
 
-    total = len(pages)
+    total = len(facilities)
     total_pages = max(1, math.ceil(total / limit)) if total else 1
     start = (page - 1) * limit
     end = start + limit
-    sliced = pages[start:end]
-    items = [_normalize_facility(p) for p in sliced]
+    sliced = facilities[start:end]
 
-    message = f"Returned page {page} of {total_pages} ({total} total)"
+    message = f"Returned page {page} of {total_pages} ({total} total) source={source}"
     log_job("facilities", "list", "success", message)
     return {
         "status": "success",
         "message": message,
         "data": {
-            "items": items,
+            "items": sliced,
             "total": total,
             "page": page,
             "limit": limit,
@@ -175,3 +124,74 @@ async def fill_facilities() -> Dict[str, Any]:
     loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(None, _run_facility_job)
     return result
+
+
+@router.get("/find")
+async def find_medical_facilities(
+    name_contains: str | None = None,
+    address_contains: str | None = None,
+    state: str | None = None,
+    facility_type: str | None = None,
+    sort: str | None = None,
+) -> Dict[str, Any]:
+    filters = {
+        "name_contains": name_contains or "",
+        "address_contains": address_contains or "",
+        "state": state or "",
+        "facility_type": facility_type or "",
+    }
+    sorts = [sort] if sort else []
+
+    search_started = time.perf_counter()
+    log_job("facilities", "find", "start", f"Medical facilities search params={filters}, sort={sorts}")
+
+    try:
+        facilities, source = await _load_facilities()
+        records = _apply_filters(facilities, filters, sort if sort else None)
+    except ValueError as exc:
+        err = f"Invalid search parameter: {exc}"
+        log_job("facilities", "find", "error", err)
+        return {"status": "error", "message": err, "data": []}
+    except Exception as exc:  # noqa: BLE001
+        err = "Unable to search medical facilities"
+        log_job("facilities", "find", "error", f"{err}: {exc}")
+        return {"status": "error", "message": err, "data": []}
+
+    duration_ms = int((time.perf_counter() - search_started) * 1000)
+    message = f"Found {len(records)} facilities in {duration_ms} ms source={source}"
+    log_job("facilities", "find", "success", f"{message}; params={filters}, sort={sorts}")
+
+    return {"status": "success", "message": message, "data": records}
+
+
+def _validate_limit(limit: int, default: int = 1000, max_limit: int = 10_000) -> int:
+    if limit is None:
+        return default
+    if limit < 1 or limit > max_limit:
+        raise ValueError(f"limit must be between 1 and {max_limit}")
+    return limit
+
+
+@router.get("/all")
+async def all_medical_facilities(limit: int = 1000) -> Dict[str, Any]:
+    try:
+        validated_limit = _validate_limit(limit)
+    except ValueError as exc:
+        err = f"Invalid limit: {exc}"
+        log_job("facilities", "all", "error", err)
+        return {"status": "error", "message": err, "data": []}
+
+    started = time.perf_counter()
+    log_job("facilities", "all", "start", f"operation=facilities_bulk_retrieval limit={validated_limit}")
+
+    try:
+        records = await fetch_all_medical_facilities(limit=validated_limit)
+    except Exception as exc:  # noqa: BLE001
+        err = f"Unable to load medical facilities: {exc}"
+        log_job("facilities", "all", "error", f"{err}; limit={validated_limit}")
+        return {"status": "error", "message": err, "data": []}
+
+    duration_ms = int((time.perf_counter() - started) * 1000)
+    message = f"Returned {len(records)} facilities in {duration_ms} ms (limit {validated_limit})"
+    log_job("facilities", "all", "success", message)
+    return {"status": "success", "message": message, "data": records}

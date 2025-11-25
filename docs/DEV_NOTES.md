@@ -1642,3 +1642,274 @@ Testing
 
 Notes
 - No changes to app/main.py, API, or UI modules; relies on repo-local venvs only and avoids global path modifications.
+
+Date: 2025-11-25 11:33 -0500 (Session 69)
+Author: Codex 5 (Developer)
+Milestone: v0.7.1 - Hybrid Cache Layer
+
+Summary
+- Added async cache utilities plus cache files for Medical Facilities and Locations (normalized + raw with timestamps).
+- Implemented Notion fetch-and-cache services for facilities and locations with logging and staleness handling.
+- Updated facilities and locations APIs to use cache-first logic with refresh on stale/missing data.
+
+Changes
+- `app/services/cache_utils.py`
+- `app/services/notion_medical_facilities.py`
+- `app/services/notion_locations.py`
+- `app/api/medicalfacilities_api.py`
+- `app/api/locations_api.py`
+- `app/data/medical_facilities_cache.json`
+- `app/data/locations_cache.json`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+
+Notes
+- Manual verification needed: cache hits/misses for facilities and locations, stale cache fallback, and presence of `raw` data in cache files.
+
+Date: 2025-11-25 11:45 -0500 (Session 70)
+Author: Codex 5 (Developer)
+Milestone: v0.7.2 - Bulk Retrieval Endpoints
+
+Summary
+- Added cache-aware bulk fetch helpers for facilities and locations, respecting staleness and limits.
+- Introduced `/api/medicalfacilities/all` and `/api/locations/all` endpoints with limit validation, logging, and cache-first retrieval.
+- Updated services to enforce limit handling and staleness checks against the hybrid cache.
+
+Changes
+- `app/services/notion_medical_facilities.py`
+- `app/services/notion_locations.py`
+- `app/api/medicalfacilities_api.py`
+- `app/api/locations_api.py`
+- `app/services/cache_utils.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+
+Notes
+- Manual tests recommended: bulk endpoints with default/large/small/invalid limits, cache corruption recovery, and log verification for start/success/error events.
+
+Date: 2025-11-25 12:05 -0500 (Session 71)
+Author: Codex 5 (Developer)
+Milestone: v0.7.3 - Background Worker Foundation
+
+Summary
+- Added a lightweight background job manager with async scheduling, registry, capped history, and structured logging.
+- Implemented facilities and locations backfill job coroutines that refresh caches and log failures.
+- Exposed job scheduling endpoints for facilities and locations backfills plus a jobs listing endpoint; retained log/prune endpoints.
+
+Changes
+- `app/services/job_manager.py`
+- `app/services/backfill_jobs.py`
+- `app/api/jobs_api.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+
+Notes
+- Manual validation needed: call `/api/jobs/facilities/backfill` and `/api/jobs/locations/backfill`, verify immediate job_id responses, success/error logs in `app/data/jobs.log`, and cache refresh behavior when cache files are missing/corrupted. Jobs listing endpoint (`/api/jobs`) returns recent registry entries.
+
+Date: 2025-11-25 11:55 -0500 (Session 72)
+Author: Codex 5 (Developer)
+Milestone: v0.7.4 - Structured Address Parsing (Internal Only)
+
+Summary
+- Added address parsing utility to derive address1/address2/city/state/zip from full addresses (heuristic, US-focused).
+- Extended facilities and locations normalization to include parsed fields and log parse failures without leaking full addresses.
+- Cache refreshes will now persist parsed address components in normalized records while leaving raw payloads untouched.
+
+Changes
+- `app/services/address_parser.py`
+- `app/services/notion_medical_facilities.py`
+- `app/services/notion_locations.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+
+Notes
+- Manual refresh recommended to regenerate caches and verify parsed fields populate normalized records. Parser is heuristic and may not handle international/unusual formats; future work could refine regex rules or add geocoding validation.
+
+Date: 2025-11-25 12:15 -0500 (Session 73)
+Author: Codex 5 (Developer)
+Milestone: v0.7.5 - Locations Server-Side Search
+
+Summary
+- Added a locations search service that builds Notion filter/sort blocks (name/address/city/state/production) and normalizes results with parsed addresses.
+- Exposed `/api/locations/find` to handle search parameters, validate sorts, log start/error/success, and return normalized rows.
+- Normalization now carries production_id (if present) to support filtering.
+
+Changes
+- `app/services/notion_locations.py`
+- `app/api/locations_api.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+
+Notes
+- Manual verification recommended: call `/api/locations/find` with single/multiple filters and valid/invalid sorts; watch `app/data/jobs.log` for start/success/error logs. Fallbacks depend on Notion property availability; production_id filtering assumes a `ProductionID` rich_text property.
+
+Date: 2025-11-25 11:07 -0500 (Session 68)
+Author: Codex 5 (Developer)
+Milestone: v0.7.0 - Medical Facilities Server-Side Search
+
+Summary
+- Added a Notion-backed service layer to build AND-combined filters/sorts and normalize Medical Facility records.
+- Introduced `/api/medicalfacilities/find` using the new service with structured envelope, logging, and error handling.
+- Routed the existing `/list` endpoint through the shared service normalization while preserving pagination semantics.
+
+Changes
+- `app/services/notion_medical_facilities.py`
+- `app/api/medicalfacilities_api.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+
+Notes
+- Manual endpoint permutations pending (requires running the API server).
+
+Date: 2025-11-25 12:45 -0500 (Session 74)
+Author: Codex 5 (Developer)
+Milestone: v0.8.0 - Batch Location Import
+
+Summary
+- Added async batch import job to normalize addresses, detect duplicates (normalized/parsed), optionally flag/update existing records, create Notion Location pages, refresh caches, and log detailed stats.
+- Exposed `POST /api/productions/{production_id}/locations/import` to validate production IDs and payloads, accept duplicate strategies (`skip`|`update`|`flag`), and schedule background jobs via the job manager.
+- Extended locations service with Notion create/update helpers and fixed the Notion query helper to accept filters/sorts (restoring server-side location search reliability).
+
+Changes
+- `app/services/import_jobs.py`
+- `app/api/productions_api.py`
+- `app/services/notion_locations.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+
+Notes
+- Duplicate detection currently uses normalized addresses plus parsed (address1/city/state/zip) keys; geocoding is stubbed for a future milestone.
+- Duplicate flagging writes to a `Notes` property when present; creation retries without that field if the schema rejects it.
+- Production validation checks cached records first and falls back to a Notion fetch when available; ensure caches are refreshed if new productions were added recently.
+
+Date: 2025-11-25 13:30 -0500 (Session 75)
+Author: Codex 5 (Developer)
+Milestone: v0.8.1 - Structured Address Fields
+
+Summary
+- Added structured address normalization for Locations and Medical Facilities including Address1/2/3, City, State/Province, ZIP/Postal, Country (ISO-2), County, and Borough with system-generated Full Address.
+- Implemented practical-name fallback (Places name -> Address1) and status defaulting to Ready when Place ID exists, Unresolved otherwise; Full Address is regenerated on writes.
+- Added structured address backfill job to rewrite existing Location rows with the new fields and refreshed cache; new scheduler endpoint exposed under `/api/jobs/locations/structured_backfill`.
+
+Changes
+- `app/services/address_parser.py`
+- `app/services/notion_locations.py`
+- `app/services/notion_medical_facilities.py`
+- `app/services/import_jobs.py`
+- `app/services/backfill_jobs.py`
+- `app/api/jobs_api.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+
+Notes
+- Address parser now supports US + CA (states/provinces, ZIP/postal) and pulls county/borough when provided by components; default country is `US`.
+- Notion writes rebuild Full Address and structured fields; Status uses “Ready” when a Place ID is present, otherwise “Unresolved”. Practical Name falls back to Address1 when Places name is missing.
+- Structured backfill uses existing Place IDs/fields to rebuild properties; future work can integrate real Places lookups to improve resolution before marking as Unresolved.
+
+Date: 2025-11-25 14:00 -0500 (Session 76)
+Author: Codex 5 (Developer)
+Milestone: v0.8.1.1 - Schema Update Patch
+
+Summary
+- Added manual admin endpoint `/api/notion/update_schema_all` to update schemas for all `_Locations` databases, Locations Master, and Medical Facilities DB by adding structured address fields and ensuring Status includes “Unresolved”.
+- Implemented Notion schema utilities to search databases, detect missing fields, patch schemas idempotently, and log schema updates.
+
+Changes
+- `app/api/notion_admin_api.py`
+- `app/services/notion_schema_utils.py`
+- `app/main.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+
+Notes
+- Endpoint runs on-demand only (not at startup). Returns updated/skipped/failed DB IDs and logs actions under `schema_update` in `app/data/jobs.log`.
+- Uses Notion search for `_Locations` suffix; includes configured LOCATIONS_MASTER_DB and MEDICAL_FACILITIES_DB.
+- Recent run (manual): schema updates succeeded for 8 databases; 1 skipped (already compliant); Status “Unresolved” must still be added manually in Notion if missing, since Notion API rejects status option mutations.
+
+Date: 2025-11-25 14:30 -0500 (Session 77)
+Author: Codex 5 (Developer)
+Milestone: v0.8.1.2 - Status Enforcement Patch
+
+Summary
+- Added centralized status normalization (`normalize_status_for_write`) to force Unresolved when Place_ID is missing, keep Matched when already set, and default to Ready when a Place_ID exists.
+- Applied the helper to location creation/import and structured backfill to ensure every write carries a non-empty Status.
+- Logging: debug-level trace for auto-normalized statuses.
+
+Changes
+- `app/services/location_status_utils.py`
+- `app/services/notion_locations.py`
+- `app/services/import_jobs.py`
+- `app/services/backfill_jobs.py`
+- `docs/DEV_NOTES.md`
+
+Testing (manual plan)
+- Batch import with mixed Place_ID presence → rows without Place_ID get Unresolved; with Place_ID get Ready.
+- Remove Place_ID then run backfill → remains Unresolved.
+- Add Place_ID then run backfill → becomes Ready.
+- Trigger match workflow → sets Matched and should not regress.
+- Create location via API without Place_ID → Unresolved; with Place_ID → Ready.
+- Verify `app/data/jobs.log` shows no Status-related Notion errors.
+
+Date: 2025-11-25 15:00 -0500 (Session 78)
+Author: Codex 5 (Developer)
+Milestone: v0.8.1.2 - Status Enforcement Patch (API default focus)
+
+Summary
+- Added `resolve_status` helper to enforce creation defaults: Unresolved when no Place_ID, Ready when Place_ID is present, Matched when explicitly linked to master; explicit statuses are honored.
+- Wired status enforcement into location creation/import/backfill so Status is always sent and defaults safely without schema changes.
+- Logging uses debug traces for applied statuses; warnings for missing Status options are avoided per Notion API constraints.
+
+Changes
+- `app/services/notion_locations.py`
+- `app/services/import_jobs.py`
+- `app/services/backfill_jobs.py`
+- `app/services/location_status_utils.py`
+- `docs/DEV_NOTES.md`
+
+Testing (manual plan)
+- Batch import rows missing Place_ID → Unresolved; with Place_ID → Ready.
+- Insert matched (LocationsMasterID linked) rows → Matched.
+- Create via API without Place_ID → Unresolved; with Place_ID → Ready.
+- Ensure logs show no Notion status-option errors; if Unresolved option is absent in Notion, add it manually (API cannot).
+
+Date: 2025-11-25 15:30 -0500 (Session 79)
+Author: Codex 5 (Developer)
+Milestone: v0.8.2 - Master Matching Logic
+
+Summary
+- Added matching service to link production locations to Locations Master using Place_ID first, then hierarchical address fallbacks; multiple candidates leave records Unresolved with notes.
+- Integrated matching into batch import, structured backfill, and a new `/api/locations/match_all` endpoint that refreshes cache, matches, and patches relations/status when matches are found.
+- Matching sets LocationsMasterID relation and Status=Matched when a unique candidate is identified; status defaults remain enforced by existing helpers.
+
+Changes
+- `app/services/matching_service.py`
+- `app/services/import_jobs.py`
+- `app/services/backfill_jobs.py`
+- `app/services/notion_locations.py`
+- `app/api/locations_api.py`
+- `docs/DEV_NOTES.md`
+
+Testing (manual plan)
+- Create prod-location rows with/without Place_ID and run `/api/locations/match_all`; verify Place_ID matches first, address fallback matches when unique.
+- Create duplicate address scenarios; confirm multiple candidates are logged and no match is applied (Status stays Unresolved).
+- Run batch import: matched rows become Matched, others Unresolved/Ready per Place_ID.
+- Run structured backfill: matching attempts applied post-resolution.
+- Verify jobs.log shows matching logs and no Notion errors when patching relations/status.

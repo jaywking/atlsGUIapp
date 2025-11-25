@@ -9,6 +9,60 @@ from nicegui import ui
 
 from app.ui.layout import PAGE_HEADER_CLASSES
 
+US_STATE_CODES = {
+    "AL",
+    "AK",
+    "AZ",
+    "AR",
+    "CA",
+    "CO",
+    "CT",
+    "DE",
+    "DC",
+    "FL",
+    "GA",
+    "HI",
+    "ID",
+    "IL",
+    "IN",
+    "IA",
+    "KS",
+    "KY",
+    "LA",
+    "ME",
+    "MD",
+    "MA",
+    "MI",
+    "MN",
+    "MS",
+    "MO",
+    "MT",
+    "NE",
+    "NV",
+    "NH",
+    "NJ",
+    "NM",
+    "NY",
+    "NC",
+    "ND",
+    "OH",
+    "OK",
+    "OR",
+    "PA",
+    "RI",
+    "SC",
+    "SD",
+    "TN",
+    "TX",
+    "UT",
+    "VT",
+    "VA",
+    "WA",
+    "WV",
+    "WI",
+    "WY",
+    "PR",
+}
 
 def page_content() -> None:
     """Medical Facilities page with client-side search, filters, sorting, and pagination."""
@@ -211,19 +265,31 @@ def page_content() -> None:
         except Exception:
             return str(raw)
 
+    def _extract_state_code(address: str | None) -> Optional[str]:
+        if not address:
+            return None
+        tokens = re.findall(r"\b([A-Za-z]{2})\b", address.upper())
+        for token in reversed(tokens):
+            if token in US_STATE_CODES:
+                return token
+        return None
+
     def normalize_row(raw: Dict[str, Any], idx: int) -> Dict[str, Any]:
+        addr = raw.get("address") or ""
+        state_code = _extract_state_code(addr)
         return {
             "row_id": raw.get("row_id") or raw.get("id") or f"facility-{idx}",
             "medical_facility_id": raw.get("medical_facility_id") or raw.get("MedicalFacilityID") or "",
             "name": raw.get("name") or raw.get("Name") or raw.get("MedicalFacilityID") or "Unnamed Facility",
             "facility_type": raw.get("facility_type") or "",
-            "address": raw.get("address") or "",
+            "address": addr,
             "phone": raw.get("phone") or "",
             "hours": raw.get("hours") or "",
             "website": raw.get("website") or "",
             "google_maps_url": raw.get("google_maps_url") or "",
             "distance": format_distance(raw.get("distance")),
             "place_types": raw.get("place_types") or [],
+            "state_code": state_code or "",
         }
 
     def _page_window(total_pages: int, current: int) -> List[int]:
@@ -261,19 +327,11 @@ def page_content() -> None:
         state_term = (filters.get("state") or "").strip().upper()
         type_filter = (filters.get("facility_type") or "All").strip()
 
-        def _match_state(addr: str) -> Optional[str]:
-            if not addr:
-                return None
-            matches = re.findall(r"\b([A-Za-z]{2})\b", addr)
-            if matches:
-                return matches[-1].upper()
-            return None
-
         filtered: List[Dict[str, Any]] = []
         for r in rows:
             name_val = (r.get("name") or "").lower()
             addr_val = (r.get("address") or "").lower()
-            st = _match_state(r.get("address") or "")
+            st = r.get("state_code") or _extract_state_code(r.get("address") or "")
             r_type = r.get("facility_type") or ""
 
             if name_term and name_term not in name_val:
@@ -295,9 +353,9 @@ def page_content() -> None:
             order = {"ER": 0, "Urgent Care": 1}
             filtered.sort(key=lambda x: order.get(x.get("facility_type") or "", 99))
         elif sort_key == "state_asc":
-            filtered.sort(key=lambda x: (x.get("address") or "")[-2:].upper())
+            filtered.sort(key=lambda x: (x.get("state_code") or ""))
         elif sort_key == "state_desc":
-            filtered.sort(key=lambda x: (x.get("address") or "")[-2:].upper(), reverse=True)
+            filtered.sort(key=lambda x: (x.get("state_code") or ""), reverse=True)
 
         state["filtered_rows"] = filtered
         state["total"] = len(filtered)
@@ -379,18 +437,17 @@ def page_content() -> None:
             apply_filters_and_sort()
             paginate_and_render(page=1, show_toast=show_toast)
             table_container.style("display: block;")
-            # populate state options from dataset
+            # populate state options from dataset (valid US codes only); fallback to full list if none found
             states = set()
-            for r in normalized:
-                st = (r.get("address") or "")[-2:].upper()
-                if st.isalpha():
+            for r in state["all_facilities"]:
+                st = r.get("state_code") or _extract_state_code(r.get("address") or "")
+                if st and st in US_STATE_CODES:
                     states.add(st)
-                # regex-based extraction
-                matches = re.findall(r"\b([A-Za-z]{2})\b", r.get("address") or "")
-                if matches:
-                    states.update([m.upper() for m in matches])
+            if not states:
+                states = set(US_STATE_CODES)
             state_options = sorted(states)
             state_input.options = state_options
+            state_input.update()
             if not state["filtered_rows"]:
                 status_label.set_text("No facilities found.")
         except Exception as exc:  # noqa: BLE001

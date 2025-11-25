@@ -6,11 +6,13 @@ import asyncio
 import logging
 import os
 import traceback
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from fastapi import APIRouter
 
 from app.services import background_sync
+from app.services.import_jobs import import_locations_for_production
+from app.services.job_manager import schedule_job
 from app.services.logger import log_job
 
 try:  # pragma: no cover - optional dependency for local dev
@@ -25,6 +27,67 @@ except Exception:  # pragma: no cover - defensive import guard
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/productions", tags=["productions"])
+
+
+async def _production_exists(production_id: str) -> bool:
+    prod_lower = (production_id or "").lower()
+    try:
+        cached = background_sync.get_cached_records()
+        for row in cached.get("records", []):
+            if str(row.get("ProductionID", "")).lower() == prod_lower:
+                return True
+    except Exception:
+        pass
+
+    try:
+        records: List[Dict[str, Any]] = await background_sync.fetch_from_notion()
+        return any(str(row.get("ProductionID", "")).lower() == prod_lower for row in records)
+    except Exception:
+        return False
+
+
+@router.post("/{production_id}/locations/import")
+async def import_locations_for_prod(production_id: str, payload: Dict[str, Any] | None = None) -> Dict[str, Any]:
+    payload = payload or {}
+    addresses_raw = payload.get("addresses")
+    duplicate_strategy = str(payload.get("duplicate_strategy") or "skip").lower()
+
+    if not isinstance(addresses_raw, list) or not addresses_raw:
+        return {"status": "error", "message": "addresses must be a non-empty list of strings"}
+
+    if duplicate_strategy not in {"skip", "update", "flag"}:
+        return {"status": "error", "message": "duplicate_strategy must be one of: skip, update, flag"}
+
+    addresses = [str(addr).strip() for addr in addresses_raw if isinstance(addr, str) and str(addr).strip()]
+    if not addresses:
+        return {"status": "error", "message": "addresses must be a non-empty list of strings"}
+
+    if not await _production_exists(production_id):
+        err = f"Unknown production_id={production_id}"
+        log_job("locations_batch_import", "schedule", "error", err)
+        return {"status": "error", "message": err}
+
+    try:
+        job_id = schedule_job(
+            "locations_batch_import",
+            lambda: import_locations_for_production(production_id=production_id, addresses=addresses, duplicate_strategy=duplicate_strategy),
+        )
+    except Exception as exc:  # noqa: BLE001
+        err = f"Failed to schedule batch import: {exc}"
+        log_job("locations_batch_import", "schedule", "error", err)
+        return {"status": "error", "message": err}
+
+    log_job(
+        "locations_batch_import",
+        "schedule",
+        "success",
+        f"production_id={production_id} job_id={job_id} addresses={len(addresses)} strategy={duplicate_strategy}",
+    )
+    return {
+        "status": "success",
+        "message": "Import job scheduled.",
+        "data": {"job_id": job_id},
+    }
 
 
 @router.get("/fetch")
