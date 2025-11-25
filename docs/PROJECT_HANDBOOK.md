@@ -184,6 +184,13 @@ Add to `DEV_NOTES.md`:
 ## Step 6 - Sync/Share  
 Short milestone summary posted back to ChatGPT to align PM + Dev agent context.
 
+### Starting the Dev Server via run_atlsapp.ps1
+- Double-click `scripts/run_atlsapp.ps1` to launch the dev server with a guided banner.
+- The script auto-detects the repo venv (`.venv`, `venv`, or any sibling directory under the repo containing `Scripts\Activate.ps1`) and activates it.
+- Port 8000 is preferred; if busy, the script auto-selects the next open port up to 8010 and reports the chosen port.
+- If dependencies break, reactivate the venv then run `pip install -r requirements.txt` to reinstall packages.
+- To regenerate the venv, run `python -m venv .venv`, reinstall requirements, and re-run `scripts/run_atlsapp.ps1` (it will reconnect to the new activation path automatically).
+
 ---
 
 # 7. Dashboard Overview

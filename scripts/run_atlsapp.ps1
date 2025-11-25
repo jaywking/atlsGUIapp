@@ -1,0 +1,174 @@
+[CmdletBinding()]
+param()
+
+$ErrorActionPreference = "Stop"
+
+# Determine repo root:
+# If the folder containing the script ALSO contains "app", then that folder IS the repo root.
+# Otherwise, step up one level and use THAT folder as repo root IF it contains "app".
+# If neither location contains "app", fallback to the script folder.
+if (Test-Path (Join-Path $PSScriptRoot 'app')) {
+    $repoRoot = $PSScriptRoot
+}
+else {
+    $parent = Split-Path -Parent $PSScriptRoot
+    if (Test-Path (Join-Path $parent 'app')) {
+        $repoRoot = $parent
+    }
+    else {
+        $repoRoot = $PSScriptRoot
+    }
+}
+
+function Show-Banner {
+    param(
+        [string]$Version = "v0.6"
+    )
+
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host "   ATLSApp Developer Launcher ($Version)" -ForegroundColor Cyan
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host "Repo: $repoRoot"
+    Write-Host "Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    Write-Host ""
+}
+
+function Resolve-VenvPath {
+    param(
+        [string]$RootPath
+    )
+
+    $root = [string]$RootPath
+    $seen = [System.Collections.Generic.HashSet[string]]::new()
+    $candidates = @()
+    $candidates += Join-Path -Path $root -ChildPath ".venv\Scripts\Activate.ps1"
+    $candidates += Join-Path -Path $root -ChildPath "venv\Scripts\Activate.ps1"
+
+    Get-ChildItem -Path $root -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+        $activatePath = Join-Path -Path $_.FullName -ChildPath "Scripts\Activate.ps1"
+        if ($seen.Add($activatePath)) {
+            $candidates += $activatePath
+        }
+    }
+
+    foreach ($candidate in $candidates) {
+        if (Test-Path -Path $candidate) {
+            return $candidate
+        }
+    }
+
+    return $null
+}
+
+function Ensure-Venv {
+    param(
+        [string]$RootPath
+    )
+
+    $venvDir = Join-Path -Path $RootPath -ChildPath ".venv"
+    $activatePath = Join-Path -Path $venvDir -ChildPath "Scripts\Activate.ps1"
+
+    $needsCreate = $false
+    if (-not (Test-Path -Path $venvDir)) {
+        Write-Host "No venv detected. Creating a new .venv and installing requirements..." -ForegroundColor Yellow
+        $needsCreate = $true
+    }
+    elseif (-not (Test-Path -Path $activatePath)) {
+        Write-Host "Venv exists but appears incomplete. Recreating..." -ForegroundColor Yellow
+        Remove-Item -Path $venvDir -Recurse -Force -ErrorAction SilentlyContinue
+        $needsCreate = $true
+    }
+
+    if ($needsCreate) {
+        Set-Location -Path $RootPath
+        & python -m venv ".venv"
+
+        if (-not (Test-Path -Path $activatePath)) {
+            Write-Host "Venv creation failed. Please ensure Python is available and try again." -ForegroundColor Red
+            [void](Read-Host "Press Enter to close this window")
+            exit 1
+        }
+
+        Write-Host "Installing dependencies from requirements.txt..." -ForegroundColor Green
+        & $activatePath
+        & pip install -r "requirements.txt"
+        Write-Host "Venv ready." -ForegroundColor Green
+        Write-Host ""
+    }
+}
+
+function Get-AvailablePort {
+    param(
+        [int]$StartPort = 8000,
+        [int]$EndPort = 8010
+    )
+
+    for ($p = $StartPort; $p -le $EndPort; $p++) {
+        $inUse = Get-NetTCPConnection -State Listen -LocalPort $p -ErrorAction SilentlyContinue
+        if (-not $inUse) {
+            return $p
+        }
+    }
+
+    return $null
+}
+
+trap [System.Management.Automation.PipelineStoppedException] {
+    Write-Host "`nCtrl+C detected. Stopping the server..." -ForegroundColor Yellow
+    break
+}
+
+Set-Location -Path $repoRoot
+Show-Banner
+
+Ensure-Venv -RootPath $repoRoot
+
+$venvActivate = Resolve-VenvPath -RootPath $repoRoot
+if (-not $venvActivate) {
+    Write-Host "Could not find a Python virtual environment in this repository." -ForegroundColor Red
+    Write-Host "Expected one of:"
+    Write-Host "  - $($repoRoot)\.venv\Scripts\Activate.ps1"
+    Write-Host "  - $($repoRoot)\venv\Scripts\Activate.ps1"
+    Write-Host "  - <any directory under repo>\Scripts\Activate.ps1"
+    Write-Host ""
+    Write-Host "Create a venv with: python -m venv .venv"
+    Write-Host "Then reinstall requirements: pip install -r requirements.txt"
+    Write-Host ""
+    [void](Read-Host "Press Enter to close this window")
+    exit 1
+}
+
+Write-Host "Activating virtual environment..." -ForegroundColor Green
+& $venvActivate
+Write-Host "Venv activated at: $venvActivate"
+Write-Host ""
+
+$port = Get-AvailablePort -StartPort 8000 -EndPort 8010
+if (-not $port) {
+    Write-Host "No open ports found between 8000 and 8010." -ForegroundColor Red
+    Write-Host "Please close any running servers and try again."
+    Write-Host ""
+    [void](Read-Host "Press Enter to close this window")
+    exit 1
+}
+
+if ($port -ne 8000) {
+    Write-Host "Port 8000 is busy. Switching to $port." -ForegroundColor Yellow
+} else {
+    Write-Host "Using default port 8000." -ForegroundColor Green
+}
+
+Write-Host "Starting Uvicorn (Ctrl+C to stop)..." -ForegroundColor Green
+$commandArgs = @("app.main:fastapi_app", "--reload", "--port", $port)
+
+Start-Process "http://127.0.0.1:$port"
+& uvicorn @commandArgs
+
+Write-Host ""
+Write-Host "Uvicorn stopped. If you need to recreate the venv, run:" -ForegroundColor Yellow
+Write-Host "  python -m venv .venv"
+Write-Host "  .venv\Scripts\activate"
+Write-Host "  pip install -r requirements.txt"
+Write-Host ""
+[void](Read-Host "Press Enter to close this window")

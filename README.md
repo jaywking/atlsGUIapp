@@ -108,6 +108,8 @@ PRODUCTIONS_SYNC_INTERVAL=900
 
 ### Run the App
 
+- Windows users may start the app via `scripts/run_atlsapp.ps1` for a guided, standardized startup experience.
+
 ```
 uvicorn app.main:fastapi_app --reload
 ```

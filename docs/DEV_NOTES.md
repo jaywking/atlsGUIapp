@@ -1610,7 +1610,7 @@ Notes
 - Pure UI polish; backend unchanged.
 Date: 2025-11-24 23:30 -0500 (Session 67)
 Author: Codex 5 (Developer)
-Milestone: v0.6.4 – State Select Init Fix
+Milestone: v0.6.4 - State Select Init Fix
 
 Summary
 - Fixed the State auto-suggest select initialization by removing the invalid default value so the Facilities page loads without ValueError.
@@ -1624,3 +1624,21 @@ Testing
 
 Notes
 - UI-only fix; search/filter behavior unchanged.
+
+Date: 2025-11-25 10:15 -0500 (Session 0.6.0-Launcher)
+Author: Codex 5 (Developer)
+Milestone: v0.6.0 - Dev Launcher Script
+
+Summary
+- Added a Windows-friendly launcher script with banner output, repo-relative venv detection, and port auto-selection for the NiceGUI/FastAPI dev server.
+- Keeps the console open after exit and handles Ctrl+C to surface shutdown or error details.
+
+Changes
+- Added `scripts/run_atlsapp.ps1` for guided startup with venv activation and Uvicorn launch.
+- Updated `README.md` and `docs/PROJECT_HANDBOOK.md` with the new launcher workflow.
+
+Testing
+- `python -m compileall app`
+
+Notes
+- No changes to app/main.py, API, or UI modules; relies on repo-local venvs only and avoids global path modifications.
