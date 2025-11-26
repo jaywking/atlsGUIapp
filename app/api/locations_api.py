@@ -1,7 +1,7 @@
 import time
 from typing import Any, Dict, List
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from app.services.cache_utils import DEFAULT_MAX_AGE_SECONDS, is_cache_stale
 from app.services.logger import log_job
@@ -10,11 +10,18 @@ from app.services.notion_locations import (
     fetch_all_locations,
     fetch_and_cache_locations,
     get_cached_locations,
+    get_locations_master_cached,
+    load_all_production_locations,
+    load_locations_master,
     search_locations,
     update_location_page,
     resolve_status,
 )
+from app.services.validation_service import validate_links
+from config import Config
 from scripts import process_new_locations
+
+print("DEBUG: locations_api imported successfully")
 
 router = APIRouter(prefix="/api/locations", tags=["locations"])
 
@@ -76,7 +83,7 @@ def _validate_limit(limit: int, default: int = 1000, max_limit: int = 10_000) ->
 
 
 @router.get("/all")
-async def all_locations(limit: int = 1000) -> Dict[str, Any]:
+async def all_locations(limit: int = 1000, refresh: bool = Query(False)) -> Dict[str, Any]:
     try:
         validated_limit = _validate_limit(limit)
     except ValueError as exc:
@@ -84,19 +91,42 @@ async def all_locations(limit: int = 1000) -> Dict[str, Any]:
         log_job("locations", "all", "error", err)
         return {"status": "error", "message": err, "data": []}
 
+    productions_db_id = Config.PRODUCTIONS_MASTER_DB or Config.PRODUCTIONS_DB_ID or Config.NOTION_PRODUCTIONS_DB_ID
+    if not productions_db_id:
+        err = "Missing productions master database id"
+        log_job("locations", "all", "error", err)
+        return {"status": "error", "message": err, "data": []}
+
     started = time.perf_counter()
-    log_job("locations", "all", "start", f"operation=locations_bulk_retrieval limit={validated_limit}")
+    log_job("locations", "all", "start", f"operation=locations_bulk_retrieval limit={validated_limit} refresh={refresh}")
     try:
-        records = await fetch_all_locations(limit=validated_limit)
+        records = await load_all_production_locations(productions_db_id, refresh=refresh)
     except Exception as exc:  # noqa: BLE001
-        err = f"Unable to load locations: {exc}"
+        err = f"Unable to load production locations: {exc}"
         log_job("locations", "all", "error", f"{err}; limit={validated_limit}")
         return {"status": "error", "message": err, "data": []}
 
+    sliced = records[:validated_limit]
     duration_ms = int((time.perf_counter() - started) * 1000)
-    message = f"Returned {len(records)} locations in {duration_ms} ms (limit {validated_limit})"
+    message = f"Returned {len(sliced)} production locations in {duration_ms} ms (limit {validated_limit})"
     log_job("locations", "all", "success", message)
-    return {"status": "success", "message": message, "data": records}
+    return {"status": "success", "message": message, "data": sliced}
+
+
+@router.get("/master")
+async def get_master_locations() -> Dict[str, Any]:
+    try:
+        master = await get_locations_master_cached(refresh=True)
+    except Exception as exc:  # noqa: BLE001
+        err = f"Failed to load master locations: {exc}"
+        log_job("locations", "master", "error", err)
+        return {"status": "error", "message": err}
+
+    return {
+        "status": "success",
+        "message": f"Returned {len(master)} master locations",
+        "data": master,
+    }
 
 
 @router.get("/find")
@@ -138,12 +168,52 @@ async def find_locations(
     return {"status": "success", "message": message, "data": records}
 
 
-@router.post("/match_all")
-async def match_all_locations() -> Dict[str, Any]:
+@router.post("/validate_links")
+async def validate_links_endpoint() -> Dict[str, Any]:
+    productions_db_id = Config.PRODUCTIONS_MASTER_DB or Config.PRODUCTIONS_DB_ID or Config.NOTION_PRODUCTIONS_DB_ID
+    if not productions_db_id:
+        err = "Missing productions master database id"
+        log_job("matching", "validate_links", "error", err)
+        return {"status": "error", "message": err}
+
     try:
-        master_cache = await fetch_and_cache_locations()
+        prod_locations = await load_all_production_locations(productions_db_id)
+        master_cache = await get_locations_master_cached(refresh=True)
+    except Exception as exc:  # noqa: BLE001
+        err = f"Failed to load data: {exc}"
+        log_job("matching", "validate_links", "error", err)
+        return {"status": "error", "message": err}
+
+    result = validate_links(prod_locations, master_cache)
+    log_job(
+        "matching",
+        "validate_links",
+        "success",
+        f"reviewed={result.get('reviewed')} invalid={result.get('invalid')}",
+    )
+    return result
+
+
+@router.post("/match_all")
+async def match_all_locations(force: bool = False, refresh: bool = Query(False)) -> Dict[str, Any]:
+    start = time.perf_counter()
+    try:
+        master_cache = await get_locations_master_cached(refresh=True)
     except Exception as exc:  # noqa: BLE001
         err = f"Failed to load locations cache: {exc}"
+        log_job("matching", "match_all", "error", err)
+        return {"status": "error", "message": err}
+
+    productions_db_id = Config.PRODUCTIONS_MASTER_DB or Config.PRODUCTIONS_DB_ID or Config.NOTION_PRODUCTIONS_DB_ID
+    if not productions_db_id:
+        err = "Missing productions master database id"
+        log_job("matching", "match_all", "error", err)
+        return {"status": "error", "message": err}
+
+    try:
+        prod_locations = await load_all_production_locations(productions_db_id, refresh=refresh)
+    except Exception as exc:  # noqa: BLE001
+        err = f"Failed to load production locations: {exc}"
         log_job("matching", "match_all", "error", err)
         return {"status": "error", "message": err}
 
@@ -151,13 +221,14 @@ async def match_all_locations() -> Dict[str, Any]:
     matched = 0
     conflicts = 0
     unresolved = 0
+    total = len(prod_locations)
 
-    for record in master_cache:
+    for record in prod_locations:
         reviewed += 1
-        if record.get("locations_master_ids"):
+        if not force and record.get("locations_master_ids"):
             continue  # already linked
 
-        match_result = match_to_master(record, master_cache)
+        match_result = match_to_master(record, master_cache, force=force)
         candidate_count = match_result.get("candidate_count", 0)
         matched_id = match_result.get("matched_master_id")
         if candidate_count > 1:
@@ -174,13 +245,33 @@ async def match_all_locations() -> Dict[str, Any]:
             unresolved += 1
             continue
 
+        if reviewed == 1 or reviewed % 20 == 0:
+            pct = round((reviewed / total) * 100) if total else 0
+            print(f"[match_all] {reviewed}/{total} ({pct}%)…")
+
+        existing_ids = record.get("locations_master_ids") or []
+        existing_master_id = existing_ids[0] if existing_ids else None
+        existing_status = record.get("status")
+        new_status_name = resolve_status(record.get("place_id"), matched=True, explicit=match_result.get("status"))
+
+        if existing_master_id == matched_id and existing_status == new_status_name:
+            log_job(
+                "matching",
+                "match_noop",
+                "success",
+                f"record_id={record.get('id')} master_id={matched_id} reason={match_result.get('match_reason')}",
+            )
+            continue
+
         props = {
             "LocationsMasterID": {"relation": [{"id": matched_id}]},
-            "Status": {"status": {"name": resolve_status(record.get("place_id"), matched=True, explicit=match_result.get("status"))}},
+            "Status": {"status": {"name": new_status_name}},
         }
         try:
             await update_location_page(record.get("id") or "", props)
             matched += 1
+            if force and record.get("locations_master_ids") and record.get("locations_master_ids")[0] != matched_id:
+                log_job("matching", "force_rematch_applied", "success", f"record_id={record.get('id')} new_match={matched_id}")
             log_job(
                 "matching",
                 "matched",
@@ -191,10 +282,15 @@ async def match_all_locations() -> Dict[str, Any]:
             conflicts += 1
             log_job("matching", "match_update_failed", "error", f"record_id={record.get('id')} error={exc}")
 
+    duration = time.perf_counter() - start
+    avg_ms = (duration / reviewed * 1000) if reviewed else 0
+
     return {
         "status": "success",
         "reviewed": reviewed,
         "matched": matched,
         "conflicts": conflicts,
         "unresolved": unresolved,
+        "duration_ms": round(duration * 1000),
+        "avg_per_record_ms": round(avg_ms),
     }

@@ -23,7 +23,8 @@ fastapi_app = FastAPI(title='ATLSApp')
 from app.ui import layout, productions, locations, medicalfacilities, jobs, settings, dashboard
 
 # API router imports
-from app.api import locations_api, facilities_api, jobs_api, settings_api, dashboard_api, productions_api, medicalfacilities_api, notion_admin_api
+import app.api.locations_api as locations_api
+from app.api import facilities_api, jobs_api, settings_api, dashboard_api, productions_api, medicalfacilities_api, notion_admin_api
 from app.services import background_sync
 
 # ---------------------------------------------------------------------

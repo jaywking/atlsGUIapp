@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import re
+import time
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -13,6 +16,11 @@ from config import Config
 NOTION_VERSION = "2022-06-28"
 PAGE_SIZE = 100
 DEFAULT_COUNTRY = "US"
+HEX_RE = re.compile(r"[0-9a-fA-F]{32}")
+_cached_master_locations: Optional[Dict[str, Any]] = None
+production_locations_cache: List[Dict[str, Any]] = []
+production_locations_cache_ts: Optional[float] = None
+PROD_CACHE_TTL = 60  # seconds
 
 
 def _rich_text(props: Dict[str, Any], key: str) -> str:
@@ -159,7 +167,13 @@ def build_location_properties(
 
 def normalize_location(page: Dict[str, Any]) -> Dict[str, Any]:
     props = page.get("properties") or {}
-    prod_loc_id = _title(props, "ProdLocID")
+    prod_loc_id = ""
+    prop_prod_loc = props.get("ProdLocID") or {}
+    if prop_prod_loc.get("title"):
+        prod_loc_id = "".join([t.get("plain_text", "") for t in prop_prod_loc.get("title", []) if isinstance(t, dict)])
+    elif prop_prod_loc.get("rich_text"):
+        prod_loc_id = "".join([t.get("plain_text", "") for t in prop_prod_loc.get("rich_text", []) if isinstance(t, dict)])
+
     practical_name = _rich_text(props, "Practical Name")
     name = practical_name or _rich_text(props, "Location Name") or prod_loc_id
     address1 = _rich_text(props, "Address 1")
@@ -201,7 +215,11 @@ def normalize_location(page: Dict[str, Any]) -> Dict[str, Any]:
     )
     if existing_full_address and not full_address:
         full_address = existing_full_address
-    production_id = _rich_text(props, "ProductionID") or _rich_text(props, "Production ID")
+    production_id = ""
+    prop_prod_rel = props.get("ProductionID") or {}
+    rels = prop_prod_rel.get("relation") or []
+    if isinstance(rels, list) and rels:
+        production_id = rels[0].get("id") or ""
 
     return {
         "row_id": page.get("id") or "",
@@ -227,6 +245,123 @@ def normalize_location(page: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _extract_title_generic(props: Dict[str, Any]) -> str:
+    for value in props.values():
+        if isinstance(value, dict) and value.get("type") == "title":
+            items = value.get("title") or []
+            if items:
+                return items[0].get("plain_text") or items[0].get("text", {}).get("content", "") or ""
+    return ""
+
+
+def get_locations_db_id_from_url(url: str) -> str:
+    """
+    Extract 32-character hex DB id from a Notion DB URL.
+    Example: https://www.notion.so/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx?v=yyyyyy
+    """
+    if not url:
+        return ""
+    match = HEX_RE.search(url)
+    return match.group(0) if match else ""
+
+
+async def _query_productions_master(db_id: str) -> List[Dict[str, Any]]:
+    headers = _headers()
+    url = f"https://api.notion.com/v1/databases/{db_id}/query"
+    items: List[Dict[str, Any]] = []
+    start_cursor: str | None = None
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        while True:
+            payload: Dict[str, Any] = {"page_size": PAGE_SIZE}
+            if start_cursor:
+                payload["start_cursor"] = start_cursor
+            response = await client.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            items.extend(data.get("results", []))
+            if not data.get("has_more"):
+                break
+            start_cursor = data.get("next_cursor")
+    return items
+
+
+async def load_all_production_locations(productions_master_db_id: str, refresh: bool = False) -> List[Dict[str, Any]]:
+    """Aggregate all production-specific locations across all productions."""
+    global production_locations_cache, production_locations_cache_ts
+
+    if not productions_master_db_id:
+        raise RuntimeError("Missing productions master DB id")
+
+    cache_valid = (
+        production_locations_cache
+        and production_locations_cache_ts
+        and (time.time() - production_locations_cache_ts) < PROD_CACHE_TTL
+    )
+    print(f"[production_cache] refresh={refresh} using_cache={cache_valid}")
+
+    if (
+        not refresh
+        and production_locations_cache
+        and production_locations_cache_ts
+        and (time.time() - production_locations_cache_ts) < PROD_CACHE_TTL
+    ):
+        return production_locations_cache
+
+    try:
+        productions = await _query_productions_master(productions_master_db_id)
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(f"Failed to load productions master: {exc}") from exc
+
+    all_locations: List[Dict[str, Any]] = []
+    for prod in productions:
+        props = prod.get("properties") or {}
+        locations_table_prop = props.get("Locations Table") or {}
+        locations_url = locations_table_prop.get("url") or ""
+        prod_title = _extract_title_generic(props)
+        db_id = get_locations_db_id_from_url(locations_url)
+        if not db_id:
+            continue
+        try:
+            pages = await _query_notion(filter_block=None, sorts=[], db_id=db_id)
+            normalized_rows = [normalize_location(p) for p in pages]
+            for row in normalized_rows:
+                if not row.get("production_id") and prod_title:
+                    row["production_id"] = prod_title
+            all_locations.extend(normalized_rows)
+        except Exception as exc:  # noqa: BLE001
+            log_job("locations", "load_production_locations", "error", f"db_id={db_id} error={exc}")
+            continue
+
+    production_locations_cache = all_locations
+    production_locations_cache_ts = time.time()
+    return all_locations
+
+
+def clear_production_locations_cache() -> None:
+    global production_locations_cache_ts
+    production_locations_cache.clear()
+    production_locations_cache_ts = None
+
+
+async def load_locations_master() -> List[Dict[str, Any]]:
+    """Load and normalize all rows from the Locations Master Notion DB."""
+    db_id = Config.LOCATIONS_MASTER_DB
+    if not db_id:
+        raise RuntimeError("Missing LOCATIONS_MASTER_DB environment variable")
+    pages = await _query_notion(filter_block=None, sorts=[], db_id=db_id)
+    normalized = [normalize_location(p) for p in pages]
+    return normalized
+
+
+async def get_locations_master_cached(refresh: bool = False) -> List[Dict[str, Any]]:
+    """Return cached Locations Master rows, refreshing when requested or missing."""
+    global _cached_master_locations
+    if refresh or not _cached_master_locations:
+        master_rows = await load_locations_master()
+        _cached_master_locations = {"normalized": master_rows, "ts": datetime.utcnow().isoformat()}
+    return _cached_master_locations.get("normalized", [])
+
+
 def _headers() -> Dict[str, str]:
     token = Config.NOTION_TOKEN
     if not token:
@@ -238,13 +373,17 @@ def _headers() -> Dict[str, str]:
     }
 
 
-async def _query_notion(filter_block: Dict[str, Any] | None = None, sorts: List[Dict[str, str]] | None = None) -> List[Dict[str, Any]]:
-    db_id = Config.LOCATIONS_MASTER_DB
-    if not Config.NOTION_TOKEN or not db_id:
+async def _query_notion(
+    filter_block: Dict[str, Any] | None = None,
+    sorts: List[Dict[str, str]] | None = None,
+    db_id: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    database_id = db_id or Config.LOCATIONS_MASTER_DB
+    if not Config.NOTION_TOKEN or not database_id:
         raise RuntimeError("Missing NOTION_TOKEN or LOCATIONS_MASTER_DB")
 
     headers = _headers()
-    url = f"https://api.notion.com/v1/databases/{db_id}/query"
+    url = f"https://api.notion.com/v1/databases/{database_id}/query"
     items: List[Dict[str, Any]] = []
     start_cursor: str | None = None
 

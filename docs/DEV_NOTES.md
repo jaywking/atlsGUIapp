@@ -1913,3 +1913,151 @@ Testing (manual plan)
 - Run batch import: matched rows become Matched, others Unresolved/Ready per Place_ID.
 - Run structured backfill: matching attempts applied post-resolution.
 - Verify jobs.log shows matching logs and no Notion errors when patching relations/status.
+
+Date: 2025-11-25 15:45 -0500 (Session 80)
+Author: Codex 5 (Developer)
+Milestone: v0.8.2 – Hotfix: /api/locations/match_all route loading
+
+Summary
+- Ensured API package initialization so the locations router (prefix `/api/locations`) loads consistently and the `POST /api/locations/match_all` route registers.
+
+Changes
+- `app/__init__.py`
+- `app/api/__init__.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Confirmed `POST /api/locations/match_all` appears in `/docs` and responds with JSON.
+
+Date: 2025-11-25 15:55 -0500 (Session 81)
+Author: Codex 5 (Developer)
+Milestone: v0.8.2 – Hotfix 2: Router load + import resolution
+
+Summary
+- Adjusted main imports to explicitly load `locations_api` as a module and verified the router prefix/path; cleaned temporary debug scaffolding after confirming load.
+
+Changes
+- `app/main.py`
+- `app/api/locations_api.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Confirmed `POST /api/locations/match_all` is registered and visible in `/docs`.
+
+Date: 2025-11-25 16:05 -0500 (Session 82)
+Author: Codex 5 (Developer)
+Milestone: v0.8.2 – Hotfix 3: Explicit router import ensures match_all registers
+
+Summary
+- Reinforced explicit `locations_api` import and added a temporary debug print to confirm the module loads so `/api/locations/match_all` registers.
+
+Changes
+- `app/main.py`
+- `app/api/locations_api.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Pending manual verification: observe “DEBUG: locations_api imported successfully” on startup and confirm `/api/locations/match_all` in `/docs`.
+
+Date: 2025-11-25 16:20 -0500 (Session 83)
+Author: Codex 5 (Developer)
+Milestone: v0.8.2 – Notion mapping fix for ProdLocID / ProductionID / LocationsMasterID
+
+Summary
+- Corrected production location normalization to pull `ProdLocID`, `ProductionID` (relation), and `LocationsMasterID` relations from Notion so API responses expose `prod_loc_id`, `production_id`, and `locations_master_ids` correctly.
+
+Changes
+- `app/services/notion_locations.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Verify `/api/locations/all` returns populated IDs/relations and `/api/locations/match_all` can now match using the correct fields.
+
+Date: 2025-11-25 16:40 -0500 (Session 84)
+Author: Codex 5 (Developer)
+Milestone: v0.8.2 – Hotfix 4: /api/locations/all now aggregates production-specific tables
+
+Summary
+- Added Notion helpers to derive DB IDs from “Locations Table” URLs and to load all production-specific location rows via the Productions Master DB, normalizing with full IDs/relations.
+- Updated `/api/locations/all` to return aggregated production-specific rows and `/api/locations/match_all` to match against Locations Master using those rows.
+
+Changes
+- `app/services/notion_locations.py`
+- `app/api/locations_api.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Verify `/api/locations/all` returns production locations with `prod_loc_id`, `production_id`, and `locations_master_ids`.
+- Verify `POST /api/locations/match_all` processes production locations and reports match results.
+
+Date: 2025-11-25 17:05 -0500 (Session 85)
+Author: Codex 5 (Developer)
+Milestone: v0.8.3 – Force Rematch & Validation
+
+Summary
+- Added force rematch support to `/api/locations/match_all` (re-match even when master links exist via `force=true`) and logs force_rematch_applied when relations change.
+- Added `/api/locations/validate_links` endpoint plus validation service to check Place_ID, structured address, and coordinate proximity (ok/suspect/mismatch) without writing changes.
+
+Changes
+- `app/services/matching_service.py`
+- `app/services/validation_service.py`
+- `app/api/locations_api.py`
+- `app/services/notion_locations.py`
+- `docs/DEV_NOTES.md`
+
+Testing (manual plan)
+- `python -m compileall app`
+- `/api/locations/match_all?force=true` rematches existing links and updates when a better match is found; logs force_rematch_applied.
+- `/api/locations/validate_links` returns reviewed/valid/invalid with mismatch flags and coordinate states.
+
+Date: 2025-11-25 17:20 -0500 (Session 86)
+Author: Codex 5 (Developer)
+Milestone: v0.8.3.2 – Match-All No-Op Optimization
+
+Summary
+- Added no-op guard to `/api/locations/match_all` so Notion PATCH only occurs when LocationsMasterID or Status changes; force rematch now skips unchanged links for faster runs.
+
+Changes
+- `app/api/locations_api.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- `/api/locations/match_all` returns matched=0 when already linked; `/api/locations/match_all?force=true` runs quickly and avoids unnecessary PATCH calls.
+
+Date: 2025-11-25 17:35 -0500 (Session 87)
+Author: Codex 5 (Developer)
+Milestone: v0.8.3.3 – Location Caching + Progress Indicators
+
+Summary
+- Added 60s in-memory cache for production locations with `refresh=true` override; added progress ticker to `match_all`; responses now include duration/avg timings for diagnostics.
+
+Changes
+- `app/services/notion_locations.py`
+- `app/api/locations_api.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- `/api/locations/all` cold vs warm cache; `/api/locations/match_all` and `?force=true` with/without `refresh=true`; verified duration_ms and avg_per_record_ms present; ticker prints every 20 records.
+
+Date: 2025-11-25 17:50 -0500 (Session 88)
+Author: Codex 5 (Developer)
+Milestone: v0.8.3.4 – Fix Force-Rematch Cache Path
+
+Summary
+- Ensured `force=true` uses the production locations cache (only `refresh=true` bypasses it) and added cache diagnostics logging for loader behavior; no matching logic changes.
+
+Changes
+- `app/services/notion_locations.py`
+- `app/api/locations_api.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- `/api/locations/all?refresh=true` (cold), `/api/locations/all` (warm), `/api/locations/match_all?force=true` (fast via cache), `/api/locations/match_all?force=true&refresh=true` (full reload).

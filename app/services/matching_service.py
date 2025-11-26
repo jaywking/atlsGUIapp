@@ -67,13 +67,13 @@ def find_master_candidates(
     return [], "none"
 
 
-def match_to_master(prod_location: Dict[str, Any], master_cache: List[Dict[str, Any]]) -> Dict[str, Any]:
+def match_to_master(prod_location: Dict[str, Any], master_cache: List[Dict[str, Any]], force: bool = False) -> Dict[str, Any]:
     """
     Attempt to match a production location to a master record.
     Returns dict with matched_master_id, status, notes, match_reason, candidate_count.
     """
     place_id = prod_location.get("place_id")
-    exclude_id = prod_location.get("id") or prod_location.get("row_id")
+    exclude_id = None if force else prod_location.get("id") or prod_location.get("row_id")
     address_fields = {
         "address1": prod_location.get("address1"),
         "city": prod_location.get("city"),
