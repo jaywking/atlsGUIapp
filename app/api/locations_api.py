@@ -221,6 +221,7 @@ async def match_all_locations(force: bool = False, refresh: bool = Query(False))
     matched = 0
     conflicts = 0
     unresolved = 0
+    match_noop = 0
     total = len(prod_locations)
 
     for record in prod_locations:
@@ -261,6 +262,7 @@ async def match_all_locations(force: bool = False, refresh: bool = Query(False))
                 "success",
                 f"record_id={record.get('id')} master_id={matched_id} reason={match_result.get('match_reason')}",
             )
+            match_noop += 1
             continue
 
         props = {
@@ -291,6 +293,7 @@ async def match_all_locations(force: bool = False, refresh: bool = Query(False))
         "matched": matched,
         "conflicts": conflicts,
         "unresolved": unresolved,
+        "match_noop": match_noop,
         "duration_ms": round(duration * 1000),
         "avg_per_record_ms": round(avg_ms),
     }

@@ -433,6 +433,9 @@ async def update_location_page(page_id: str, properties: Dict[str, Any]) -> Dict
     url = f"https://api.notion.com/v1/pages/{page_id}"
     payload = {"properties": properties}
 
+    # DEBUG PRINT (correct location)
+    print("NOTION PATCH PAYLOAD:\n", json.dumps(payload, indent=2))
+
     async with httpx.AsyncClient(timeout=15.0) as client:
         response = await client.patch(url, headers=headers, json=payload)
         response.raise_for_status()

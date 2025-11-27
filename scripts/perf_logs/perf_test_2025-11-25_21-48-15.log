@@ -21,3 +21,24 @@ Conflicts: 0
 RAW_JSON: {"status":"success","reviewed":181,"matched":0,"conflicts":0,"unresolved":0,"duration_ms":2623,"avg_per_record_ms":14}
 
 === MATCH FORCE - POST /locations/match_all?force=true ===
+Time: 65195 ms
+duration_ms (reported): 65190
+avg_per_record_ms (reported): 360
+Reviewed: 181
+Matched: 42
+Unresolved: 3
+Conflicts: 22
+RAW_JSON: {"status":"success","reviewed":181,"matched":42,"conflicts":22,"unresolved":3,"duration_ms":65190,"avg_per_record_ms":360}
+
+=== MATCH FULL RELOAD - POST /locations/match_all?refresh=true ===
+Time: 8965 ms
+duration_ms (reported): 8960
+avg_per_record_ms (reported): 50
+Reviewed: 181
+Matched: 0
+Unresolved: 0
+Conflicts: 0
+RAW_JSON: {"status":"success","reviewed":181,"matched":0,"conflicts":0,"unresolved":0,"duration_ms":8960,"avg_per_record_ms":50}
+
+All tests completed.
+-------------------------------------------------------------

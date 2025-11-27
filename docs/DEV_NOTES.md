@@ -2061,3 +2061,18 @@ Changes
 Testing
 - `python -m compileall app`
 - `/api/locations/all?refresh=true` (cold), `/api/locations/all` (warm), `/api/locations/match_all?force=true` (fast via cache), `/api/locations/match_all?force=true&refresh=true` (full reload).
+
+Date: 2025-11-25 21:55 -0500 (Session 89)
+Author: Codex 5 (Developer)
+Milestone: v0.8.3.6 – Smart Force Rematch
+
+Summary
+- Updated `/api/locations/match_all` to recompute matches while only PATCHing when LocationsMasterID or Status change; force rematch now skips unchanged rows (tracked via match_noop) to avoid redundant writes.
+
+Changes
+- `app/api/locations_api.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- `match_all?force=true` twice: first may apply updates; second should be fast with matched=0 and match_noop reflecting untouched rows; `match_all?force=true&refresh=true` still reloads when requested.
