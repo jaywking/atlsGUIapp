@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Query
 
 from app.services.cache_utils import DEFAULT_MAX_AGE_SECONDS, is_cache_stale
+from app.services.dedup_service import find_master_duplicates
 from app.services.logger import log_job
 from app.services.matching_service import match_to_master
 from app.services.notion_locations import (
@@ -126,6 +127,48 @@ async def get_master_locations() -> Dict[str, Any]:
         "status": "success",
         "message": f"Returned {len(master)} master locations",
         "data": master,
+    }
+
+
+@router.get("/master/dedup")
+async def dedup_master_locations(refresh: bool = Query(False)) -> Dict[str, Any]:
+    start = time.perf_counter()
+    log_job("dedup", "master_dedup", "start", f"refresh={refresh}")
+    try:
+        master_rows = await get_locations_master_cached(refresh=refresh)
+    except Exception as exc:  # noqa: BLE001
+        err = f"Failed to load master locations: {exc}"
+        log_job("dedup", "master_dedup", "error", err)
+        return {"status": "error", "message": err, "total_master": 0, "duplicate_groups": [], "group_count": 0}
+
+    duplicates = find_master_duplicates(master_rows)
+    group_count = len(duplicates)
+    total_master = len(master_rows)
+    sizes = [len(group.get("rows", [])) for group in duplicates]
+    reasons = [group.get("reason") for group in duplicates]
+    duration_ms = int((time.perf_counter() - start) * 1000)
+
+    for group in duplicates:
+        log_job(
+            "dedup",
+            "group",
+            "success",
+            f"group_id={group.get('group_id')} reason={group.get('reason')} size={len(group.get('rows', []))}",
+        )
+
+    log_job(
+        "dedup",
+        "master_dedup",
+        "success",
+        f"total_master={total_master} groups={group_count} sizes={sizes} reasons={reasons} duration_ms={duration_ms}",
+    )
+
+    return {
+        "status": "success",
+        "message": f"Found {group_count} duplicate groups",
+        "total_master": total_master,
+        "duplicate_groups": duplicates,
+        "group_count": group_count,
     }
 
 

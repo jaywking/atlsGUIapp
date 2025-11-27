@@ -1,6 +1,6 @@
 Refer to README.md and PROJECT_HANDBOOK.md for architecture and workflow rules.
 
-Current Version: v0.5.2
+Current Version: v0.8.4
 
 
 
@@ -2064,7 +2064,7 @@ Testing
 
 Date: 2025-11-25 21:55 -0500 (Session 89)
 Author: Codex 5 (Developer)
-Milestone: v0.8.3.6 – Smart Force Rematch
+Milestone: v0.8.3.6 - Smart Force Rematch
 
 Summary
 - Updated `/api/locations/match_all` to recompute matches while only PATCHing when LocationsMasterID or Status change; force rematch now skips unchanged rows (tracked via match_noop) to avoid redundant writes.
@@ -2076,3 +2076,21 @@ Changes
 Testing
 - `python -m compileall app`
 - `match_all?force=true` twice: first may apply updates; second should be fast with matched=0 and match_noop reflecting untouched rows; `match_all?force=true&refresh=true` still reloads when requested.
+
+Date: 2025-11-25 22:30 -0500 (Session 90)
+Author: Codex 5 (Developer)
+Milestone: v0.8.4 - Locations Master Deduplication Engine
+
+Summary
+- Added synchronous deduplication service that clusters Locations Master rows by Place_ID, full address, address-without-zip, or coordinate proximity with sequential DUP ids.
+- Exposed `GET /api/locations/master/dedup` using the existing master cache loader, returning duplicate clusters with counts and logging summary + per-group metrics under the `dedup` category.
+- Documented heuristics and test approach for validating place_id, address, and Haversine (<50m) grouping without Notion writes.
+
+Changes
+- `app/services/dedup_service.py`
+- `app/api/locations_api.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual plan: insert duplicate master rows (place_id, full address, near-identical coordinates), call `/api/locations/master/dedup` with/without `refresh=true`, verify clusters and logged counts/reasons, confirm no Notion writes occur.
