@@ -1,6 +1,6 @@
 Refer to README.md and PROJECT_HANDBOOK.md for architecture and workflow rules.
 
-Current Version: v0.8.4
+Current Version: v0.8.9.2
 
 
 
@@ -2094,3 +2094,279 @@ Changes
 Testing
 - `python -m compileall app`
 - Manual plan: insert duplicate master rows (place_id, full address, near-identical coordinates), call `/api/locations/master/dedup` with/without `refresh=true`, verify clusters and logged counts/reasons, confirm no Notion writes occur.
+
+Date: 2025-11-25 23:05 -0500 (Session 91)
+Author: Codex 5 (Developer)
+Milestone: v0.8.5 - Master Address Normalization & Repair Tools
+
+Summary
+- Added address normalization service that reuses the shared address parser to fill missing structured fields (address1, address2, city, state, zip, country) on master rows without overwriting existing values.
+- New read-only preview endpoint `/api/locations/master/normalize_preview` loads master rows, runs normalization, and returns before/after samples plus counts; no Notion writes or cache mutations.
+- Logging under `address_normalization` captures per-row filled field counts, totals scanned/updated, and parse errors; functions are idempotent and safe to rerun.
+
+Changes
+- `app/services/address_normalizer.py`
+- `app/api/locations_api.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual plan: call `/api/locations/master/normalize_preview?refresh=true` to confirm structured fields are filled in the preview, rerun without refresh to confirm idempotent counts, and observe logs for filled fields/errors. Dedup improvements expected once write-back is enabled in v0.8.6.
+
+Date: 2025-11-26 00:00 -0500 (Session 92)
+Author: Codex 5 (Developer)
+Milestone: v0.8.6 - Address Normalization Write-Back Engine
+
+Summary
+- Added write-back planning in `address_normalizer.apply_master_normalization`, generating per-row field updates only where structured fields are empty.
+- Implemented throttled Notion writeback with retries in `notion_writeback.write_address_updates` (3/sec, exponential backoff) and logging under `address_writeback`.
+- New endpoint `POST /api/locations/master/normalize_apply` to apply missing structured fields to Locations Master, refresh cache after writes, and return a sample of applied updates; idempotent—re-runs skip already populated rows.
+
+Changes
+- `app/services/address_normalizer.py`
+- `app/services/notion_writeback.py`
+- `app/api/locations_api.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual plan: preview (`/api/locations/master/normalize_preview?refresh=true`), apply (`/api/locations/master/normalize_apply?refresh=true`), re-run apply to confirm 0 updates, and verify dedup still operates on refreshed cache.
+
+Date: 2025-11-26 00:25 -0500 (Session 93)
+Author: Codex 5 (Developer)
+Milestone: v0.8.7 - Strict Empty-Field Normalization (Guaranteed Fix)
+
+Summary
+- Hardened empty-field detection with `is_empty` (treats whitespace-only strings as empty) across normalization planning and writeback to ensure whitespace junk no longer blocks updates.
+- Planning now logs whitespace-only fields per row and honors an optional `strict` flag (default true) on `/api/locations/master/normalize_apply`; writeback skips empty payload fields after strict normalization.
+- Added safety logging for whitespace detection and maintained throttled writeback behavior; idempotent runs now properly fill previously whitespace-only fields.
+
+Changes
+- `app/services/address_normalizer.py`
+- `app/services/notion_writeback.py`
+- `app/api/locations_api.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual plan: preview (`/api/locations/master/normalize_preview?refresh=true`), apply with strict (`/api/locations/master/normalize_apply?strict=true&refresh=true`), re-run apply to confirm zero updates, verify logs show whitespace handling, and re-run dedup to ensure stability.
+
+Date: 2025-11-26 00:45 -0500 (Session 93.1)
+Author: Codex 5 (Developer)
+Milestone: v0.8.7.2 - Locations Master Address Source Fix
+
+Summary
+- Fixed normalization to read the correct Notion field ("Full Address" rich_text) with plain-text extraction, falling back to legacy `address` when present; previously the parser saw empty input so no structured fields were populated.
+- Strict `is_empty` checks preserved to treat whitespace-only structured fields as empty, ensuring writeback eligibility remains intact.
+- Hotfix is backward compatible and restores real input to the normalization/writeback pipeline.
+
+Changes
+- `app/services/address_normalizer.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual plan: preview (`/api/locations/master/normalize_preview?refresh=true`) shows rows to update; apply (`/api/locations/master/normalize_apply?strict=true&refresh=true`) fills structured fields; re-run apply returns zero updates; dedup sanity via `/api/locations/master/dedup?refresh=true`.
+
+Date: 2025-11-26 01:05 -0500 (Session 93.2)
+Author: Codex 5 (Developer)
+Milestone: v0.8.7.3 - Critical Normalization Debug & Repair Patch
+
+Summary
+- Added detailed debug logging for normalization planning (full address raw/extracted, parser output, existing structured fields, per-field empty checks, needs_update flags) under `address_normalization_debug`.
+- Enforced plain-text extraction from Notion "Full Address" rich_text (fallback to `address`), ensured normalize_preview uses apply_master_normalization(strict=True), and bypasses cache via refresh to inspect true Notion state.
+- Confirmed rows_to_update logic relies on strict empty checks with parsed values; preview now shows pending updates when structured fields are empty/whitespace.
+
+Changes
+- `app/services/address_normalizer.py`
+- `app/api/locations_api.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual plan: preview with refresh shows rows_to_update > 0 and debug logs; apply with strict+refresh writes structured fields; re-run apply returns zero updates; dedup sanity with refreshed cache.
+
+Date: 2025-11-26 01:20 -0500 (Session 93.3)
+Author: Codex 5 (Developer)
+Milestone: v0.8.7.3.1 - Address Normalization Debug Hotfix
+
+Summary
+- Ensured full address extraction handles raw Notion rich_text and normalized string fields (`address`/`full_address`), preventing empty input to the parser.
+- Added per-row debug logging for existing structured fields alongside raw/extracted full address, parsed output, and empty checks to pinpoint why rows were skipped.
+- Preview remains bound to `apply_master_normalization(strict=True)` with refresh to bypass stale cache; strict empty checks preserved.
+
+Changes
+- `app/services/address_normalizer.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual plan: rerun preview with refresh to confirm rows_to_update > 0 and inspect debug logs; apply with strict+refresh populates fields; repeat apply shows zero updates.
+
+Date: 2025-11-26 01:35 -0500 (Session 93.4)
+Author: Codex 5 (Developer)
+Milestone: v0.8.7.3.2 - Address Raw-Field Detection Patch
+
+Summary
+- Captured raw Notion structured fields (`address1_raw`, `city_raw`, etc.) during normalization so empty-field checks no longer rely on parser-populated values; applies updates when Notion fields are actually empty even if parsed data filled normalized values.
+- Address extraction still honors rich_text "Full Address" plus legacy string fallbacks; preview/apply now evaluate emptiness against raw fields first.
+
+Changes
+- `app/services/notion_locations.py`
+- `app/services/address_normalizer.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual plan: `normalize_preview?refresh=true` should now show rows_to_update > 0; `normalize_apply?strict=true&refresh=true` should write structured fields; re-run apply should be idempotent.
+
+Date: 2025-11-26 01:50 -0500 (Session 93.5)
+Author: Codex 5 (Developer)
+Milestone: v0.8.7.3.3 - Full Address Newline Normalization
+
+Summary
+- Sanitized full-address input before parsing by collapsing newlines into comma separators, preventing the city field from being polluted by the street line in parsed output.
+- Keeps strict empty checks and raw-field detection intact; improves parsed city/state/zip accuracy for writeback.
+
+Changes
+- `app/services/address_normalizer.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual plan: rerun preview with refresh; verify sample shows correct city values (not including street); apply with strict+refresh should now write accurate structured fields; re-run apply stays idempotent.
+
+Date: 2025-11-27 16:25 -0500 (Session 93.6)
+Author: Codex 5 (Developer)
+Milestone: v0.8.7.3.4 - Writeback Progress + Throttle Bump
+
+Summary
+- Added periodic progress logging (every 5 processed) and returned progress list in writeback responses to monitor long runs.
+- Reduced throttle between Notion PATCH requests to ~0.2s (~5 req/sec) from 0.34s to speed up normalization while retaining retries/backoff.
+
+Changes
+- `app/services/notion_writeback.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual plan: rerun `/api/locations/master/normalize_apply?strict=true&refresh=true`, watch `address_writeback progress` logs, verify summary success and faster completion; re-run without refresh to confirm idempotent 0 updates.
+
+Date: 2025-11-27 17:05 -0500 (Session 93.7)
+Author: Codex 5 (Developer)
+Milestone: v0.8.7.3.5 - Locations Master Property Mapping Fix
+
+Summary
+- Corrected Notion writeback property mappings to use the actual lowercase field names on the Locations Master DB (`address1`, `address2`, `city`, `state`, `zip`, `country`), resolving 400 validation errors.
+
+Changes
+- `app/services/notion_writeback.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual plan: restart server, rerun `/api/locations/master/normalize_apply?strict=true&refresh=true` to confirm successful updates, then re-run without refresh for idempotence.
+
+Date: 2025-11-28 10:00 -0500 (Session 94)
+Author: Codex 5 (Developer)
+Milestone: v0.8.8 - Locations Master Dedup Resolution Engine
+
+Summary
+- Added dedup resolution service to build merge plans (primary selection heuristics, field fills without overwrites, production pointer rewrites, deletion list) and endpoints for preview/apply.
+- Preview endpoint (`GET /api/locations/master/dedup_resolve_preview`) uses dedup clusters, selects primary via heuristics, and returns field updates, prod pointer updates, and delete lists.
+- Apply endpoint (`POST /api/locations/master/dedup_resolve_apply`) validates explicit primary/duplicate ids, rebuilds the plan, patches the primary master, updates production location relations, archives duplicate masters, refreshes caches, and logs full progress/debug.
+- Writeback helpers now include progress ticks and relation updater; master field mapping uses lowercase property names matching the Locations Master schema.
+
+Changes
+- `app/services/dedup_resolve_service.py`
+- `app/services/notion_writeback.py`
+- `app/api/locations_api.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual plan: identify a dedup group via `/api/locations/master/dedup?refresh=true`; preview with `/api/locations/master/dedup_resolve_preview?group_id=...`; apply with `/api/locations/master/dedup_resolve_apply` body including primary_id + duplicate_ids; confirm production relations updated, duplicates archived, caches refreshed, and re-run apply for idempotence.
+
+Date: 2025-11-28 11:00 -0500 (Session 94.1)
+Author: Codex 5 (Developer)
+Milestone: v0.8.8.1 - Master Archival Fix
+
+Summary
+- Fixed dedup apply to archive duplicate master rows using the correct Locations Master Status property and ensured every delete_master_id is written back.
+- Added Notion writeback helper for Status updates with throttle/retry and error-body logging, wiring archival into the dedup apply flow with refreshed caches and summary counts.
+
+Changes
+- `app/services/notion_writeback.py`
+- `app/api/locations_api.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual plan: rerun apply on a dedup group with duplicates, confirm Status=ARCHIVED on those rows, prod pointers updated, and re-run apply to confirm idempotent 0 archives.
+
+Date: 2025-11-28 11:30 -0500 (Session 94.2)
+Author: Codex 5 (Developer)
+Milestone: v0.8.8.2 - Dedup Resolve Archival Execution Hotfix
+
+Summary
+- Ensured dedup apply always invokes archival for delete_master_ids and uses the correct Status payload; archival now logs errors with Notion response bodies and tracks archived ids.
+- Added archival helper return of archived_ids; apply response summary reflects archived count and caches refresh after archival.
+
+Changes
+- `app/services/notion_writeback.py`
+- `app/api/locations_api.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual plan: rerun dedup apply on a group with duplicates, confirm archived count > 0 and Status=ARCHIVED in Notion; rerun apply (no refresh) shows archived=0 idempotence.
+
+Date: 2025-11-29 09:00 -0500 (Session 95)
+Author: Codex 5 (Developer)
+Milestone: v0.8.9 - Dedup Resolution UI (Admin Tools)
+
+Summary
+- Added admin-only Dedup Resolution UI under `/tools/dedup` (visible when `DEBUG_ADMIN=true`) with group listing, preview modal, and apply workflow using existing dedup endpoints.
+- Preview shows primary/duplicates, field updates, prod pointer changes, rows to archive, and summary; apply triggers merge via POST, shows toast, closes modal, and refreshes groups.
+
+Changes
+- `app/ui/dedup.py`
+- `app/ui/layout.py`
+- `app/main.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual plan: open `/tools/dedup`, load groups, preview a group, apply merge, confirm success toast and group removal, re-run preview/apply for idempotence.
+
+Date: 2025-11-29 09:30 -0500 (Session 95.1)
+Author: Codex 5 (Developer)
+Milestone: v0.8.9.1 - Dedup UI JSON Serialization Fix
+
+Summary
+- Removed function references from table rows/columns in the dedup UI to avoid JSON serialization errors; preview buttons now use closure on group_id only.
+- Added a quick self-test to log any non-serializable (callable) values in table rows; table data now contains only basic types.
+
+Changes
+- `app/ui/dedup.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual plan: load `/tools/dedup`, ensure table renders without errors, preview/apply flows still work.
+
+Date: 2025-11-29 10:00 -0500 (Session 95.2)
+Author: Codex 5 (Developer)
+Milestone: v0.8.9.2 - Dedup UI Load/Serialization Hotfix
+
+Summary
+- Fixed dedup UI loading crash by adapting to backend response shape (`duplicate_groups`), removed table state entirely, and built a simple list with preview buttons (no functions stored in data).
+- Added status text, spinner, and refresh button; group_id parsing tolerates alternate key casing; maintained pure JSON-serializable state.
+
+Changes
+- `app/ui/dedup.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Manual plan: open `/tools/dedup`, verify groups load (or show “no groups”), preview/apply still function without serialization errors.

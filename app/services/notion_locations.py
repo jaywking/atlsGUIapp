@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import time
 from datetime import datetime
@@ -26,6 +27,14 @@ PROD_CACHE_TTL = 60  # seconds
 def _rich_text(props: Dict[str, Any], key: str) -> str:
     arr = props.get(key, {}).get("rich_text", [])
     return " ".join([a.get("plain_text", "") for a in arr if isinstance(a, dict)]) if arr else ""
+
+
+def _rich_text_any(props: Dict[str, Any], keys: List[str]) -> str:
+    for k in keys:
+        val = _rich_text(props, k)
+        if val:
+            return val
+    return ""
 
 
 def _title(props: Dict[str, Any], key: str) -> str:
@@ -174,15 +183,22 @@ def normalize_location(page: Dict[str, Any]) -> Dict[str, Any]:
     elif prop_prod_loc.get("rich_text"):
         prod_loc_id = "".join([t.get("plain_text", "") for t in prop_prod_loc.get("rich_text", []) if isinstance(t, dict)])
 
-    practical_name = _rich_text(props, "Practical Name")
-    name = practical_name or _rich_text(props, "Location Name") or prod_loc_id
-    address1 = _rich_text(props, "Address 1")
-    address2 = _rich_text(props, "Address 2")
-    address3 = _rich_text(props, "Address 3")
-    city = _rich_text(props, "City")
-    state = _rich_text(props, "State / Province") or _rich_text(props, "State")
-    zip_code = _rich_text(props, "ZIP / Postal Code") or _rich_text(props, "ZIP")
-    country = _safe_country(_rich_text(props, "Country"))
+    practical_name = _rich_text_any(props, ["Practical Name", "practical_name"])
+    name = practical_name or _rich_text_any(props, ["Location Name", "location_name"]) or prod_loc_id
+    address1_raw = _rich_text_any(props, ["Address 1", "address1"])
+    address2_raw = _rich_text_any(props, ["Address 2", "address2"])
+    address3_raw = _rich_text_any(props, ["Address 3", "address3"])
+    city_raw = _rich_text_any(props, ["City", "city"])
+    state_raw = _rich_text_any(props, ["State / Province", "State", "state"])
+    zip_code_raw = _rich_text_any(props, ["ZIP / Postal Code", "ZIP", "zip"])
+    country_raw = _safe_country(_rich_text_any(props, ["Country", "country"]))
+    address1 = address1_raw
+    address2 = address2_raw
+    address3 = address3_raw
+    city = city_raw
+    state = state_raw
+    zip_code = zip_code_raw
+    country = country_raw
     county = _rich_text(props, "County")
     borough = _rich_text(props, "Borough")
     existing_full_address = _rich_text(props, "Full Address")
@@ -234,6 +250,13 @@ def normalize_location(page: Dict[str, Any]) -> Dict[str, Any]:
         "state": state,
         "zip": zip_code,
         "country": country,
+        "address1_raw": address1_raw,
+        "address2_raw": address2_raw,
+        "address3_raw": address3_raw,
+        "city_raw": city_raw,
+        "state_raw": state_raw,
+        "zip_raw": zip_code_raw,
+        "country_raw": country_raw,
         "county": county or parsed.get("county"),
         "borough": borough or parsed.get("borough"),
         "status": status,
@@ -438,6 +461,15 @@ async def update_location_page(page_id: str, properties: Dict[str, Any]) -> Dict
 
     async with httpx.AsyncClient(timeout=15.0) as client:
         response = await client.patch(url, headers=headers, json=payload)
+        if response.is_success:
+            return response.json()
+        # Log response body for diagnostics before raising
+        log_job(
+            "address_writeback",
+            "update_response",
+            "error",
+            f"page_id={page_id} status={response.status_code} body={response.text}",
+        )
         response.raise_for_status()
         return response.json()
 

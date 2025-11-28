@@ -1,9 +1,11 @@
 import time
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Body, Query
 
+from app.services.address_normalizer import TARGET_FIELDS, apply_master_normalization, normalize_master_rows
 from app.services.cache_utils import DEFAULT_MAX_AGE_SECONDS, is_cache_stale
+from app.services.dedup_resolve_service import build_merge_plan, choose_primary_with_heuristics
 from app.services.dedup_service import find_master_duplicates
 from app.services.logger import log_job
 from app.services.matching_service import match_to_master
@@ -18,6 +20,7 @@ from app.services.notion_locations import (
     update_location_page,
     resolve_status,
 )
+from app.services.notion_writeback import archive_master_rows, update_master_fields, update_production_master_links, write_address_updates
 from app.services.validation_service import validate_links
 from config import Config
 from scripts import process_new_locations
@@ -169,6 +172,274 @@ async def dedup_master_locations(refresh: bool = Query(False)) -> Dict[str, Any]
         "total_master": total_master,
         "duplicate_groups": duplicates,
         "group_count": group_count,
+    }
+
+
+@router.get("/master/normalize_preview")
+async def normalize_master_preview(refresh: bool = Query(False)) -> Dict[str, Any]:
+    start = time.perf_counter()
+    log_job("address_normalization", "normalize_preview", "start", f"refresh={refresh}")
+    log_job("address_normalization_debug", "preview_call", "success", "normalize_preview using apply_master_normalization(strict=True)")
+    try:
+        master_rows = await get_locations_master_cached(refresh=refresh)
+    except Exception as exc:  # noqa: BLE001
+        err = f"Failed to load master locations: {exc}"
+        log_job("address_normalization", "normalize_preview", "error", err)
+        return {"status": "error", "message": err, "total_rows": 0, "updated_rows": 0, "sample": []}
+
+    plan = apply_master_normalization(master_rows, strict=True)
+    updates = plan.get("updates", [])
+    sample: List[Dict[str, Any]] = []
+    updated_rows = len(updates)
+
+    for item in updates[:10]:
+        row_id = item.get("row_id")
+        fields = item.get("fields") or {}
+        before = next((r for r in master_rows if (r.get("id") or r.get("row_id")) == row_id), {})
+        after = dict(before)
+        after.update(fields)
+        sample.append(
+            {
+                "row_id": row_id,
+                "filled_fields": list(fields.keys()),
+                "before": {k: before.get(k) for k in ["address", "Full Address"] + TARGET_FIELDS},
+                "after": {k: after.get(k) for k in ["address", "Full Address"] + TARGET_FIELDS},
+            }
+        )
+
+    duration_ms = int((time.perf_counter() - start) * 1000)
+    log_job(
+        "address_normalization",
+        "normalize_preview",
+        "success",
+        f"rows_scanned={plan.get('total_rows', 0)} rows_needing_update={updated_rows} duration_ms={duration_ms}",
+    )
+
+    return {
+        "status": "success",
+        "message": f"Scanned {plan.get('total_rows', 0)} rows; {updated_rows} need structured fields",
+        "total_rows": plan.get("total_rows", 0),
+        "updated_rows": updated_rows,
+        "sample": sample,
+    }
+
+
+@router.get("/master/dedup_resolve_preview")
+async def dedup_resolve_preview(group_id: str, refresh: bool = Query(False)) -> Dict[str, Any]:
+    start = time.perf_counter()
+    log_job("dedup_resolve", "preview", "start", f"group_id={group_id} refresh={refresh}")
+    try:
+        master_rows = await get_locations_master_cached(refresh=refresh)
+    except Exception as exc:  # noqa: BLE001
+        err = f"Failed to load master locations: {exc}"
+        log_job("dedup_resolve", "preview", "error", err)
+        return {"status": "error", "message": err}
+
+    groups = find_master_duplicates(master_rows)
+    target_group = next((g for g in groups if g.get("group_id") == group_id), None)
+    if not target_group:
+        msg = f"group_id {group_id} not found"
+        log_job("dedup_resolve", "preview", "error", msg)
+        return {"status": "error", "message": msg}
+
+    rows = target_group.get("rows") or []
+    if len(rows) < 2:
+        msg = f"group_id {group_id} has fewer than 2 rows"
+        log_job("dedup_resolve", "preview", "error", msg)
+        return {"status": "error", "message": msg}
+
+    try:
+        primary_row, dup_rows = choose_primary_with_heuristics(rows)
+    except Exception as exc:  # noqa: BLE001
+        err = f"Unable to choose primary: {exc}"
+        log_job("dedup_resolve", "preview", "error", err)
+        return {"status": "error", "message": err}
+
+    productions_db_id = Config.PRODUCTIONS_MASTER_DB or Config.PRODUCTIONS_DB_ID or Config.NOTION_PRODUCTIONS_DB_ID
+    if not productions_db_id:
+        err = "Missing productions master database id"
+        log_job("dedup_resolve", "preview", "error", err)
+        return {"status": "error", "message": err}
+
+    try:
+        prod_rows = await load_all_production_locations(productions_db_id, refresh=refresh)
+    except Exception as exc:  # noqa: BLE001
+        err = f"Failed to load production locations: {exc}"
+        log_job("dedup_resolve", "preview", "error", err)
+        return {"status": "error", "message": err}
+
+    plan = build_merge_plan(primary_row, dup_rows, prod_rows)
+    duration_ms = int((time.perf_counter() - start) * 1000)
+    summary = f"{len(rows)} masters merged -> 1; prod pointers={len(plan.get('prod_loc_updates', []))}"
+    log_job(
+        "dedup_resolve",
+        "preview",
+        "success",
+        f"group_id={group_id} primary={primary_row.get('id') or primary_row.get('row_id')} duplicates={len(dup_rows)} duration_ms={duration_ms}",
+    )
+
+    return {
+        "status": "success",
+        "group_id": group_id,
+        "primary_id": primary_row.get("id") or primary_row.get("row_id"),
+        "duplicate_ids": [r.get("id") or r.get("row_id") for r in dup_rows],
+        "field_updates": plan.get("field_updates"),
+        "prod_loc_updates": plan.get("prod_loc_updates"),
+        "delete_master_ids": plan.get("delete_master_ids"),
+        "summary": summary,
+    }
+
+
+@router.post("/master/normalize_apply")
+async def normalize_master_apply(refresh: bool = Query(False), strict: bool = Query(True)) -> Dict[str, Any]:
+    start = time.perf_counter()
+    log_job("address_writeback", "apply", "start", f"refresh={refresh} strict={strict}")
+    try:
+        master_rows = await get_locations_master_cached(refresh=refresh)
+    except Exception as exc:  # noqa: BLE001
+        err = f"Failed to load master locations: {exc}"
+        log_job("address_writeback", "apply", "error", err)
+        return {"status": "error", "message": err}
+
+    plan = apply_master_normalization(master_rows, strict=strict)
+    updates = plan.get("updates", [])
+    if not updates:
+        log_job(
+            "address_writeback",
+            "apply",
+            "success",
+            f"rows_scanned={plan.get('total_rows', 0)} rows_updated=0",
+        )
+        return {
+            "status": "success",
+            "message": "No rows need updates",
+            "total_rows": plan.get("total_rows", 0),
+            "rows_updated": 0,
+            "writeback": {"attempted": 0, "successful": 0, "failed": 0},
+            "sample": [],
+        }
+
+    write_result = await write_address_updates(updates)
+    await get_locations_master_cached(refresh=True)
+
+    sample = []
+    for item in updates[:10]:
+        sample.append(
+            {
+                "row_id": item.get("row_id"),
+                "fields": item.get("fields"),
+            }
+        )
+
+    duration_ms = int((time.perf_counter() - start) * 1000)
+    log_job(
+        "address_writeback",
+        "apply",
+        "success",
+        f"rows_scanned={plan.get('total_rows', 0)} rows_updated={write_result.get('successful', 0)} duration_ms={duration_ms}",
+    )
+
+    return {
+        "status": "success",
+        "message": f"Applied updates to {write_result.get('successful', 0)} rows",
+        "total_rows": plan.get("total_rows", 0),
+        "rows_updated": write_result.get("successful", 0),
+        "writeback": write_result,
+        "sample": sample,
+    }
+
+
+@router.post("/master/dedup_resolve_apply")
+async def dedup_resolve_apply(
+    payload: Dict[str, Any] | None = Body(None),
+    group_id: str | None = Query(None),
+    primary_id: str | None = Query(None),
+    duplicate_ids: str | None = Query(None),
+) -> Dict[str, Any]:
+    start = time.perf_counter()
+    normalized_body: Dict[str, Any] = {}
+    if payload:
+        normalized_body = {str(k).lower(): v for k, v in payload.items()}
+    group = normalized_body.get("group_id") or group_id
+    primary = normalized_body.get("primary_id") or primary_id
+    dup_ids = normalized_body.get("duplicate_ids") or []
+    if isinstance(duplicate_ids, str) and not dup_ids:
+        dup_ids = [d.strip() for d in duplicate_ids.split(",") if d.strip()]
+    # Normalize dup_ids if provided as single string in body
+    if isinstance(dup_ids, str):
+        dup_ids = [d.strip() for d in dup_ids.split(",") if d.strip()]
+    if not group or not primary or not dup_ids:
+        return {"status": "error", "message": "group_id, primary_id, and duplicate_ids are required"}
+
+    log_job("dedup_resolve", "apply", "start", f"group_id={group} primary_id={primary} duplicates={len(dup_ids)}")
+
+    try:
+        master_rows = await get_locations_master_cached(refresh=True)
+    except Exception as exc:  # noqa: BLE001
+        err = f"Failed to load master locations: {exc}"
+        log_job("dedup_resolve", "apply", "error", err)
+        return {"status": "error", "message": err}
+
+    master_by_id = {r.get("id") or r.get("row_id"): r for r in master_rows}
+    primary_row = master_by_id.get(primary)
+    dup_rows = [master_by_id.get(did) for did in dup_ids if master_by_id.get(did)]
+
+    if not primary_row or not dup_rows:
+        err = "Invalid primary_id or duplicate_ids"
+        log_job("dedup_resolve", "apply", "error", err)
+        return {"status": "error", "message": err}
+
+    productions_db_id = Config.PRODUCTIONS_MASTER_DB or Config.PRODUCTIONS_DB_ID or Config.NOTION_PRODUCTIONS_DB_ID
+    if not productions_db_id:
+        err = "Missing productions master database id"
+        log_job("dedup_resolve", "apply", "error", err)
+        return {"status": "error", "message": err}
+
+    try:
+        prod_rows = await load_all_production_locations(productions_db_id, refresh=True)
+    except Exception as exc:  # noqa: BLE001
+        err = f"Failed to load production locations: {exc}"
+        log_job("dedup_resolve", "apply", "error", err)
+        return {"status": "error", "message": err}
+
+    plan = build_merge_plan(primary_row, dup_rows, prod_rows)
+
+    field_updates = plan.get("field_updates") or {}
+    prod_updates = plan.get("prod_loc_updates") or []
+    delete_ids = plan.get("delete_master_ids") or []
+
+    if field_updates:
+        await update_master_fields(primary_id, field_updates)
+        log_job("dedup_resolve", "primary_updated", "success", f"primary_id={primary_id} fields={list(field_updates.keys())}")
+
+    prod_result = await update_production_master_links(prod_updates)
+    archive_result = await archive_master_rows(delete_ids)
+
+    await get_locations_master_cached(refresh=True)
+    if productions_db_id:
+        await load_all_production_locations(productions_db_id, refresh=True)
+
+    duration_ms = int((time.perf_counter() - start) * 1000)
+    log_job(
+        "dedup_resolve",
+        "apply",
+        "success",
+        f"group_id={group} primary_id={primary} duplicates={len(dup_rows)} prod_updated={prod_result.get('successful', 0)} archive_success={archive_result.get('successful', 0)} duration_ms={duration_ms}",
+    )
+
+    return {
+        "status": "success",
+        "group_id": group,
+        "primary_id": primary,
+        "duplicate_ids": dup_ids,
+        "field_updates": field_updates,
+        "prod_loc_updates": prod_updates,
+        "delete_master_ids": delete_ids,
+        "writeback": {
+            "prod_updates": prod_result,
+            "archive": archive_result,
+        },
+        "summary": f"Merged {len(dup_rows)+1} -> 1; prod pointers updated {prod_result.get('successful', 0)}; archived {archive_result.get('successful', 0)}",
     }
 
 

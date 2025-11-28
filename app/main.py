@@ -20,7 +20,7 @@ load_dotenv(dotenv_path=_ENV if _ENV.exists() else None)
 fastapi_app = FastAPI(title='ATLSApp')
 
 # UI page imports
-from app.ui import layout, productions, locations, medicalfacilities, jobs, settings, dashboard
+from app.ui import dashboard, jobs, layout, locations, medicalfacilities, productions, settings, dedup
 
 # API router imports
 import app.api.locations_api as locations_api
@@ -82,6 +82,11 @@ def jobs_page():
 @ui.page('/settings')
 def settings_page():
     layout.shell('Settings', settings.page_content)
+
+
+@ui.page('/tools/dedup')
+def dedup_page():
+    layout.shell('Locations Master - Dedup Resolution', dedup.page_content)
 
 
 # ---------------------------------------------------------------------
