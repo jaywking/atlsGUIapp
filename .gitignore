@@ -5,6 +5,10 @@
 logs/
 app/data/*.log
 
+# Runtime data caches and archives
+app/data/*cache*.json
+app/data/archive/
+
 # Ignore Python bytecode and caches
 __pycache__/
 *.pyc
@@ -42,3 +46,11 @@ Thumbs.db
 .python-version
 __pypackages__/
 node_modules/
+
+# Local scratch artifacts
+scripts/perf_logs/
+output.txt
+terminal_log.txt
+
+# OS/desktop shortcuts
+*.lnk
