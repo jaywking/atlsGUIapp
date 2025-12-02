@@ -9,6 +9,7 @@ httpx>=0.27.0
 
 # Environment Management
 python-dotenv>=1.0.1
+pydantic-settings>=2.2.1
 
 # Data Handling & Storage
 pandas>=2.2.2

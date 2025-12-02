@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
-
+import time
 import re
+from typing import Any, Dict, List, Tuple
 
 from app.services.address_parser import parse_address
 from app.services.logger import log_job
+from app.services.notion_locations import get_locations_master_cached, load_all_production_locations
+from app.services.notion_medical_facilities import fetch_and_cache_medical_facilities
+from config import Config
 
 
 TARGET_FIELDS = ["address1", "address2", "city", "state", "zip", "country"]
@@ -212,4 +215,165 @@ def apply_master_normalization(master_rows: List[Dict[str, Any]], strict: bool =
         "total_rows": total_rows,
         "rows_to_update": rows_to_update,
         "updates": updates,
+    }
+
+
+async def _load_rows_for_table(table_name: str) -> Tuple[str, List[Dict[str, Any]], Dict[str, Any]]:
+    """Resolve a supported table name to normalized rows."""
+    name = table_name.strip()
+    if name == "Locations Master":
+        rows = await get_locations_master_cached(refresh=True)
+        return "Locations Master", rows, {"raw_rows": len(rows), "filtered_rows": len(rows)}
+    if name == "Medical Facilities":
+        facilities = await fetch_and_cache_medical_facilities()
+        rows = facilities.get("normalized", []) if isinstance(facilities, dict) else facilities
+        rows = rows or []
+        return "Medical Facilities", rows, {"raw_rows": len(rows), "filtered_rows": len(rows)}
+
+    # Production-specific locations tables use the prefix before "_Locations"
+    if name.endswith("_Locations"):
+        abbreviation = name.replace("_Locations", "")
+        prod_db = Config.PRODUCTIONS_MASTER_DB or Config.PRODUCTIONS_DB_ID
+        if not prod_db:
+            raise RuntimeError("Missing productions master DB id for production locations normalization")
+        rows = await load_all_production_locations(prod_db, refresh=True)
+        raw_count = len(rows)
+        abbrev = abbreviation.upper()
+        filtered = [
+            row
+            for row in rows
+            if str(row.get("production_id") or row.get("ProductionID") or "").upper() == abbrev
+        ]
+        fallback_used = False
+        if not filtered and rows:
+            filtered = rows  # fallback to all rows so preview/apply can proceed
+            fallback_used = True
+        return name, filtered, {
+            "raw_rows": raw_count,
+            "filtered_rows": len(filtered),
+            "production_filter": abbrev,
+            "filter_fallback_used": fallback_used,
+        }
+
+    raise ValueError(f"Unsupported table: {table_name}")
+
+
+async def normalize_table(table_name: str, preview: bool = True) -> Dict[str, Any]:
+    """
+    Normalize address components for a given Notion table.
+    Supported table names:
+      - AMCL_Locations
+      - TGD_Locations
+      - YDEO_Locations
+      - IPR_Locations
+      - Locations Master
+      - Medical Facilities
+    """
+    started = time.perf_counter()
+    try:
+        resolved_name, rows, load_diag = await _load_rows_for_table(table_name)
+    except Exception as exc:  # noqa: BLE001
+        err = f"Failed to load table {table_name}: {exc}"
+        log_job("address_normalization", "normalize_load", "error", err)
+        return {
+            "status": "error",
+            "message": err,
+            "table": table_name,
+            "preview": preview,
+            "total_rows": 0,
+            "updated": 0,
+            "skipped": 0,
+            "errors": [err],
+            "sample_changes": [],
+            "sample_existing": [],
+            "diagnostics": {"raw_rows": 0, "filtered_rows": 0},
+        }
+
+    plan = apply_master_normalization(rows, strict=True)
+    total_rows = plan.get("total_rows", 0)
+    updates: List[Dict[str, Any]] = plan.get("updates", [])
+    updated = len(updates)
+    skipped = max(total_rows - updated, 0)
+    errors: List[str] = []
+
+    sample_changes = []
+    for update in updates[:5]:
+        sample_changes.append(
+            {
+                "row_id": update.get("row_id"),
+                "fields": update.get("fields"),
+            }
+        )
+
+    sample_existing: List[Dict[str, Any]] = []
+    sample_keys: List[Dict[str, Any]] = []
+    for row in rows[:5]:
+        sample_existing.append(
+            {
+                "row_id": row.get("id") or row.get("row_id"),
+                "address": row.get("address") or row.get("full_address") or row.get("Full Address"),
+                "address1": row.get("address1"),
+                "address2": row.get("address2"),
+                "address3": row.get("address3"),
+                "city": row.get("city"),
+                "state": row.get("state"),
+                "zip": row.get("zip"),
+                "country": row.get("country"),
+            }
+        )
+        sample_keys.append(
+            {
+                "row_id": row.get("id") or row.get("row_id"),
+                "present_fields": sorted([k for k, v in row.items() if k in {"address1", "address2", "address3", "city", "state", "zip", "country"} and v is not None]),
+            }
+        )
+
+    if preview:
+        duration_ms = int((time.perf_counter() - started) * 1000)
+        log_job(
+            "address_normalization",
+            "normalize_preview",
+            "success",
+            f"table={resolved_name} rows_scanned={total_rows} rows_to_update={updated} duration_ms={duration_ms}",
+        )
+        return {
+            "status": "success",
+            "message": f"Preview complete for {resolved_name}",
+            "table": resolved_name,
+            "preview": True,
+            "total_rows": total_rows,
+            "updated": updated,
+            "skipped": skipped,
+            "errors": errors,
+            "sample_changes": sample_changes,
+            "sample_existing": sample_existing,
+            "sample_keys": sample_keys,
+            "diagnostics": load_diag,
+        }
+
+    # Apply updates
+    from app.services.notion_writeback import write_address_updates
+
+    write_result = await write_address_updates(updates)
+    duration_ms = int((time.perf_counter() - started) * 1000)
+    log_job(
+        "address_normalization",
+        "normalize_apply",
+        "success",
+        f"table={resolved_name} rows_scanned={total_rows} rows_applied={write_result.get('successful', 0)} duration_ms={duration_ms}",
+    )
+
+    return {
+        "status": "success",
+        "message": f"Applied normalization for {resolved_name}",
+        "table": resolved_name,
+        "preview": False,
+        "total_rows": total_rows,
+        "updated": write_result.get("successful", 0),
+        "skipped": skipped,
+        "errors": write_result.get("errors", []),
+        "sample_changes": sample_changes,
+        "sample_existing": sample_existing,
+        "sample_keys": sample_keys,
+        "diagnostics": load_diag,
     }

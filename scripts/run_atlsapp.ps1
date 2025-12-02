@@ -1,5 +1,7 @@
 [CmdletBinding()]
-param()
+param(
+    [switch]$Admin
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -115,6 +117,15 @@ function Get-AvailablePort {
 }
 
 Set-Location -Path $repoRoot
+
+# Admin gate: set DEBUG_ADMIN when requested, report what is active
+if ($Admin) {
+    Write-Host "Admin mode enabled (DEBUG_ADMIN=true)" -ForegroundColor Cyan
+    $env:DEBUG_ADMIN = "true"
+} else {
+    Write-Host "Admin mode not requested; using existing DEBUG_ADMIN (if any)." -ForegroundColor DarkGray
+}
+Write-Host "DEBUG_ADMIN is currently: $($env:DEBUG_ADMIN)" -ForegroundColor Yellow
 Show-Banner
 
 Ensure-Venv -RootPath $repoRoot

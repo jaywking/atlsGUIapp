@@ -3,7 +3,7 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Body, Query
 
-from app.services.address_normalizer import TARGET_FIELDS, apply_master_normalization, normalize_master_rows
+from app.services.address_normalizer import TARGET_FIELDS, apply_master_normalization, normalize_master_rows, normalize_table
 from app.services.cache_utils import DEFAULT_MAX_AGE_SECONDS, is_cache_stale
 from app.services.dedup_resolve_service import build_merge_plan, choose_primary_with_heuristics
 from app.services.dedup_service import find_master_duplicates
@@ -222,6 +222,34 @@ async def normalize_master_preview(refresh: bool = Query(False)) -> Dict[str, An
         "updated_rows": updated_rows,
         "sample": sample,
     }
+
+
+@router.post("/normalize/preview")
+async def normalize_any_table_preview(payload: Dict[str, Any]) -> Dict[str, Any]:
+    table = str(payload.get("table") or "").strip()
+    if not table:
+        return {"status": "error", "message": "table is required"}
+    try:
+        result = await normalize_table(table, preview=True)
+        return {"status": result.get("status", "success"), "message": result.get("message", ""), "data": result}
+    except Exception as exc:  # noqa: BLE001
+        err = f"Failed to preview normalization for {table}: {exc}"
+        log_job("address_normalization", "normalize_preview", "error", err)
+        return {"status": "error", "message": err}
+
+
+@router.post("/normalize/apply")
+async def normalize_any_table_apply(payload: Dict[str, Any]) -> Dict[str, Any]:
+    table = str(payload.get("table") or "").strip()
+    if not table:
+        return {"status": "error", "message": "table is required"}
+    try:
+        result = await normalize_table(table, preview=False)
+        return {"status": result.get("status", "success"), "message": result.get("message", ""), "data": result}
+    except Exception as exc:  # noqa: BLE001
+        err = f"Failed to apply normalization for {table}: {exc}"
+        log_job("address_normalization", "normalize_apply", "error", err)
+        return {"status": "error", "message": err}
 
 
 @router.get("/master/dedup_resolve_preview")

@@ -1,5 +1,6 @@
 # Project Handbook - ATLS GUI App  
-Last Updated: 2025-11-25
+Last Updated: 2025-11-29  
+Version: v0.8.11.7
 
 This handbook defines how ATLSApp is developed using NiceGUI, FastAPI, and a structured workflow.
 
@@ -217,6 +218,8 @@ Short milestone summary posted back to ChatGPT to align PM + Dev agent context.
 - Control bars: keep controls left-aligned with consistent gaps (gap-2), minimum height around 52px, and keep controls on one line until the viewport forces wrap.
 - Table containers: wrap each table in an `overflow-x-auto` block with light vertical padding to keep spacing consistent.
 - Hover/focus: use `hover:bg-slate-100 dark:hover:bg-slate-800` on buttons and links (including ProductionID/Link cells) for consistent feedback.
+- New Admin Tools page (v0.8.4): replaces Dedup Simple in the sidebar, centralizes admin/debug/maintenance operations, is visible only when `DEBUG_ADMIN=true`, and uses collapsible sections for each tool.
+- Address Normalization panel supports Preview and Apply for: AMCL_Locations, TGD_Locations, YDEO_Locations, IPR_Locations, Locations Master, Medical Facilities.
 - Productions Search (v0.5.2): search is client-side only, applied against the locally cached rows; must not trigger backend fetches or modify background sync logic.
 - Dark Mode Source of Truth: Quasar/NiceGUI's `body--dark` class is authoritative. Page header blocks must include the `atls-page-header` class so shared CSS can target them. Tailwind `dark:` variants are allowed but must rely on `body--dark`, and theme persistence is handled by monitoring this class.
 - Dark Mode Architecture:
@@ -289,6 +292,8 @@ v0.5.2 - Productions Search Fix: restored client-side search on /productions wit
 v1.0.0 - Production release
 ```
 
+Versioning guardrail: keep the version at the last known-good state while fixing issues; only bump after the fix is verified to work so we avoid trails of non-working “versions.”
+
 ---
 
 ## 12. Deferred Items / Parking Lot
@@ -335,11 +340,22 @@ This section tracks known issues, architectural concerns, or improvements that m
    - This will enable precise server-side filtering, sorting, data validation, geospatial queries, and clean integration with the planned Facility Sync service and background worker architecture.  
    - This work should occur after the backend refactor that introduces background jobs, caching, and the new search endpoint.
 
-9. **Medical Facilities – Server-Side Search, Caching & Bulk Retrieval**  
+9. **Medical Facilities - Server-Side Search, Caching & Bulk Retrieval**  
    - A future milestone (v0.7.x or later) should introduce a dedicated backend search endpoint (e.g., `/api/medicalfacilities/find`) supporting query parameters such as `name_contains`, `address_contains`, `state`, and `facility_type` using Notion `filter` and `sorts` blocks.  
    - Implement API-level caching so the server maintains a refreshed copy of the full Medical Facilities dataset, reducing Notion round-trips and improving response times.  
    - Add support for larger page sizes or a bulk endpoint (e.g., `/api/medicalfacilities/all`) to reduce client fetches and improve bootstrap performance.  
    - These changes depend on the future background worker architecture, caching layer, and Facility Sync service, and should occur after those systems are introduced.
+
+10. **Production Template Bundle (Automated New-Production Setup)**  
+   - A future milestone should introduce a standardized Production Template Bundle that eliminates manual setup for new productions.  
+   - The bundle should include:  
+     - Prebuilt _Locations database with the correct schema  
+     - Pre-linked relation to Locations Master, with Two-Way Relation enabled  
+     - Standardized naming conventions aligned with ATLSApp schema  
+     - Automatic ProductionID mapping for new production rows  
+     - Default Status values consistent with v0.8.x enforcement rules  
+     - Preconfigured layout, filters, and ready-to-sync structure for all automations  
+   - This feature will ensure all future productions inherit a fully wired environment, eliminating repeated Notion configuration steps and guaranteeing schema consistency across all production-specific tables.
 
 ---
 

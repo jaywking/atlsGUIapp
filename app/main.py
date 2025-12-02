@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from nicegui import ui
 from pathlib import Path
 from dotenv import load_dotenv
@@ -20,7 +20,7 @@ load_dotenv(dotenv_path=_ENV if _ENV.exists() else None)
 fastapi_app = FastAPI(title='ATLSApp')
 
 # UI page imports
-from app.ui import dashboard, jobs, layout, locations, medicalfacilities, productions, settings, dedup
+from app.ui import admin_tools, dashboard, dedup, jobs, layout, locations, medicalfacilities, productions, settings
 
 # API router imports
 import app.api.locations_api as locations_api
@@ -89,10 +89,19 @@ def dedup_page():
     layout.shell('Locations Master - Dedup Resolution', dedup.page_content)
 
 
+@ui.page('/admin_tools')
+async def admin_tools_page(request: Request):
+    layout.shell('Admin Tools', lambda: admin_tools.page_content(request))
+
+
 # ---------------------------------------------------------------------
 # Run App
 # ---------------------------------------------------------------------
-ui.run_with(fastapi_app)
+ui.run_with(
+    fastapi_app,
+    reconnect_timeout=30.0,  # allow longer reconnect window for local socket stability
+    message_history_length=5000,
+)
 
 if __name__ == '__main__':
     ui.run(host='0.0.0.0', port=8080)

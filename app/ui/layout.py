@@ -1,8 +1,7 @@
-import os
-
 from nicegui import ui
 
 from app.services.api_client import api_url
+from app.core.settings import settings
 
 PAGE_HEADER_CLASSES = (
     "atls-page-header w-full items-center flex-wrap gap-3 mb-4 "
@@ -21,7 +20,7 @@ SIDEBAR_LINKS = [
     ('Settings', '/settings', 'settings'),
 ]
 
-DEBUG_ADMIN = os.getenv("DEBUG_ADMIN", "").lower() == "true"
+DEBUG_ADMIN = settings.DEBUG_ADMIN
 
 
 def shell(title: str, content_callable):
@@ -197,7 +196,8 @@ h1, h2, h3, h4 {
         with ui.column().classes('w-56 min-h-screen bg-slate-100 text-slate-900 gap-1.5 py-3 px-3 dark:bg-slate-800 dark:text-white'):
             ui.label('ATLSApp').classes('text-xl font-semibold pb-3 text-slate-900 dark:text-white')
             links = list(SIDEBAR_LINKS)
-            links.append(('Dedup Resolution', '/tools/dedup', 'warning'))
+            if DEBUG_ADMIN:
+                links.append(('Admin Tools', '/admin_tools', 'admin_panel_settings'))
             for text, link, icon in links:
                 with ui.row().classes('items-center gap-2 w-full rounded px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800'):
                     ui.icon(icon).classes('text-slate-700 dark:text-slate-100')

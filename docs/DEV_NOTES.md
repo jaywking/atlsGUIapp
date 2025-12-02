@@ -1,6 +1,8 @@
 Refer to README.md and PROJECT_HANDBOOK.md for architecture and workflow rules.
 
-Current Version: v0.8.9.2
+Current Version: v0.8.11.7  # held until preview/apply fully verified (version bump deferred by guardrail)
+
+Versioning guardrail: keep the repo version at the last confirmed-working build while fixing issues; do not bump for broken attempts—only increment once the fix is verified to work.
 
 
 
@@ -2369,4 +2371,363 @@ Changes
 
 Testing
 - `python -m compileall app`
-- Manual plan: open `/tools/dedup`, verify groups load (or show “no groups”), preview/apply still function without serialization errors.
+- Manual plan: open `/tools/dedup`, verify groups load (or show "no groups"), preview/apply still function without serialization errors.
+
+Date: 2025-11-29 11:30 -0500 (Session 97)
+Author: Codex 5
+Milestone: v0.8.10 – Centralized Settings Model (Option B)
+
+Summary
+- Introduced `app/core/settings.py` with unified Pydantic BaseSettings.
+- Migrated DEBUG_ADMIN from layout.py env lookup to Settings model.
+- Updated layout.py and dedup_simple.py to import `settings.DEBUG_ADMIN`.
+- Removed SimpleNamespace and os.getenv patterns.
+- Launcher now works cleanly; no more import-time timing issues.
+
+Changes
+- `app/core/settings.py`
+- `app/ui/layout.py`
+- `app/ui/dedup_simple.py`
+- `requirements.txt`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app`
+- Start launcher with -Admin; `/tools/dedup_simple` shows admin view.
+- Start launcher without -Admin; page shows 'Not authorized.'
+
+Notes
+- This establishes a long-term configuration architecture for ATLSApp.
+
+Date: 2025-11-29 11:45 -0500 (Session 97.1)
+Author: Codex 5
+Milestone: v0.8.10 – Centralized Settings Model (Option B)
+
+Summary
+- Updated developer launcher to honor `-Admin` by setting `DEBUG_ADMIN` and echoing the active value before starting Uvicorn.
+
+Changes
+- `scripts/run_atlsapp.ps1`
+
+Testing
+- Not run (launcher script change).
+
+Date: 2025-11-29 10:30 -0500 (Session 96)
+Author: Codex 5 (Developer)
+Milestone: v0.8.10 – Dedup Simple Admin UI
+
+Summary
+- Replaced failing modal/table dedup UI.
+- New `/tools/dedup_simple` implements clean, minimal, admin-only interface.
+- Uses strict async HTTP patterns and JSON-safe state.
+- No changes to backend; backend already fully working.
+
+Changes
+- `app/ui/dedup_simple.py`
+- `app/ui/layout.py`
+- `app/main.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- Not run (UI-only update).
+
+Date: 2025-11-29 12:00 -0500 (Session 97.2)
+Author: Codex 5
+Milestone: v0.8.10 - Documentation Update
+
+Summary
+- Added a Parking Lot entry for the Production Template Bundle to standardize automated new-production setup.
+- Captured requirements for the prebuilt _Locations database, two-way Locations Master relation, schema-aligned naming, ProductionID mapping, status defaults, and automation-ready layouts/filters.
+
+Changes
+- `docs/PROJECT_HANDBOOK.md`
+- `docs/DEV_NOTES.md`
+
+Testing
+- Not run (docs-only).
+
+Date: 2025-11-29 12:30 -0500 (Session 97.3)
+Author: Codex 5
+Milestone: v0.8.4 – Admin Tools Page
+
+Summary
+- Implemented new `/admin_tools` page gated by `DEBUG_ADMIN`, with collapsible sections for Match All, Schema Update placeholders, Cache Management, Normalization placeholders, Reprocess, Dedup Admin, Diagnostics, and System Info.
+- Replaced the sidebar link to Dedup Simple with Admin Tools and removed the `/tools/dedup_simple` route while keeping dedup services intact.
+- Added diagnostics/error handling for admin calls and placeholders for future schema/normalization/reprocess actions.
+
+Changes
+- `app/ui/admin_tools.py`
+- `app/ui/layout.py`
+- `app/main.py`
+- `README.md`
+- `docs/PROJECT_HANDBOOK.md`
+- `docs/DEV_NOTES.md`
+- `docs/AGENTS.md`
+
+Testing
+- Not run (UI/docs updates only).
+
+Date: 2025-11-29 13:00 -0500 (Session 97.4)
+Author: Codex 5
+Milestone: v0.8.4 – Admin Tools Page
+
+Summary
+- Polished the Admin Tools layout with constrained width and clearer defaults.
+- Replaced the initial Match All JSON block with a “run to see results” placeholder and similar diagnostics placeholder.
+
+Changes
+- `app/ui/admin_tools.py`
+- `README.md`
+- `docs/DEV_NOTES.md`
+- `docs/PROJECT_HANDBOOK.md`
+
+Testing
+- Not run (UI/docs updates only).
+
+Date: 2025-11-29 13:30 -0500 (Session 97.5)
+Author: Codex 5
+Milestone: v0.8.11 – Address Normalization (Admin Tools Integration)
+
+Summary
+- Added address_normalizer.normalize_table to support preview/apply normalization across Locations Master, Medical Facilities, and production `_Locations` tables.
+- Introduced `/api/locations/normalize/preview` and `/api/locations/normalize/apply` endpoints.
+- Wired the Admin Tools Address Normalization panel with table selector, preview/apply actions, spinner, and JSON result display.
+
+Changes
+- `app/services/address_normalizer.py`
+- `app/api/locations_api.py`
+- `app/ui/admin_tools.py`
+- `README.md`
+- `docs/PROJECT_HANDBOOK.md`
+- `docs/DEV_NOTES.md`
+
+Testing
+- Not run (service/UI wiring only).
+
+Date: 2025-11-29 14:00 -0500 (Session 97.6)
+Author: Codex 5
+Milestone: v0.8.11.1 – Address Normalization Hotfix
+
+Summary
+- Resolved circular import by deferring `write_address_updates` import inside `normalize_table`.
+- Keeps Address Normalization preview/apply endpoints functional.
+
+Changes
+- `app/services/address_normalizer.py`
+- `README.md`
+- `docs/PROJECT_HANDBOOK.md`
+- `docs/DEV_NOTES.md`
+
+Testing
+- Not run (import-cycle hotfix only).
+
+Date: 2025-11-29 14:20 -0500 (Session 97.7)
+Author: Codex 5
+Milestone: v0.8.11.2 – Admin Tools Patch
+
+Summary
+- Wired Address Normalization UI (Preview + Apply) to call `/locations/normalize/preview` and `/locations/normalize/apply`.
+- Added spinner, disabled state bindings, error handling, and JSON result output.
+
+Changes
+- `app/ui/admin_tools.py`
+- `README.md`
+- `docs/PROJECT_HANDBOOK.md`
+- `docs/DEV_NOTES.md`
+
+Testing
+- Not run (UI wiring only).
+
+Date: 2025-11-29 14:40 -0500 (Session 97.8)
+Author: Codex 5
+Milestone: v0.8.11.3 – Admin Tools Patch Hotfix
+
+Summary
+- Fixed button binding initialization in Admin Tools Address Normalization (avoid chaining disable() return None).
+
+Changes
+- `app/ui/admin_tools.py`
+- `README.md`
+- `docs/PROJECT_HANDBOOK.md`
+- `docs/DEV_NOTES.md`
+
+Testing
+- Not run (UI hotfix).
+
+Date: 2025-11-29 14:55 -0500 (Session 97.9)
+Author: Codex 5
+Milestone: v0.8.11.4 – Admin Tools Address Normalization Endpoint Fix
+
+Summary
+- Corrected Address Normalization UI calls to use `/api/locations/normalize/preview` and `/api/locations/normalize/apply` with base_url to avoid hanging requests.
+
+Changes
+- `app/ui/admin_tools.py`
+- `README.md`
+- `docs/PROJECT_HANDBOOK.md`
+- `docs/DEV_NOTES.md`
+
+Testing
+- Not run (UI endpoint fix).
+
+Date: 2025-11-29 15:10 -0500 (Session 97.10)
+Author: Codex 5
+Milestone: v0.8.11.5 – Admin Tools UX Improvement
+
+Summary
+- Added an elapsed-time label next to the Address Normalization spinner to show how long preview/apply have been running.
+
+Changes
+- `app/ui/admin_tools.py`
+- `README.md`
+- `docs/PROJECT_HANDBOOK.md`
+- `docs/DEV_NOTES.md`
+
+Testing
+- Not run (UI-only UX tweak).
+
+Date: 2025-11-29 15:25 -0500 (Session 97.11)
+Author: Codex 5
+Milestone: v0.8.11.6 – Admin Tools Code Component Fix
+
+Summary
+- Fixed Admin Tools code blocks to use `text` + `update()` instead of the nonexistent `set_text` on `ui.code`, preventing exceptions and stuck spinners during Address Normalization preview/apply.
+
+Changes
+- `app/ui/admin_tools.py`
+- `README.md`
+- `docs/PROJECT_HANDBOOK.md`
+- `docs/DEV_NOTES.md`
+
+Testing
+- Not run (UI bugfix).
+
+Date: 2025-11-29 15:35 -0500 (Session 97.12)
+Author: Codex 5
+Milestone: v0.8.11.7 – Admin Tools Preview Fix
+
+Summary
+- Replaced remaining `set_text` calls on Address Normalization UI with `text` + `update` and fixed the elapsed timer updates to prevent spinner hangs during preview/apply.
+
+Changes
+- `app/ui/admin_tools.py`
+- `README.md`
+- `docs/PROJECT_HANDBOOK.md`
+- `docs/DEV_NOTES.md`
+
+Testing
+- Not run (UI hotfix).
+
+Date: 2025-11-29 15:45 -0500 (Session 97.13)
+Author: Codex 5
+Milestone: v0.8.11.7 – Admin Tools Preview Output Fix
+
+Summary
+- Ensured Address Normalization preview/apply shows results by using a shared `_show_result` helper, initial placeholder text, min-height for the code block, and error/empty fallbacks.
+
+Changes
+- `app/ui/admin_tools.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- Not run (UI-only fix).
+
+Date: 2025-11-29 15:55 -0500 (Session 97.14)
+Author: Codex 5
+Milestone: v0.8.11.7 – Admin Tools Code Content Fix
+
+Summary
+- Switched Admin Tools code blocks to use `content` + `update()` (NiceGUI Code expects `content`), ensuring Match All, Diagnostics, and Address Normalization results render.
+- Kept version pinned (no bump) until normalization UI is fully verified per guardrail.
+
+Changes
+- `app/ui/admin_tools.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- Not run (UI hotfix).
+
+Date: 2025-11-29 16:05 -0500 (Session 97.15)
+Author: Codex 5
+Milestone: v0.8.11.7 – Admin Tools Preview Diagnostics
+
+Summary
+- Added `sample_existing` to normalization preview responses (first few rows with current structured fields) to understand why updates are skipped.
+
+Changes
+- `app/services/address_normalizer.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- Not run (service response tweak).
+
+Date: 2025-11-29 16:15 -0500 (Session 97.16)
+Author: Codex 5
+Milestone: v0.8.11.7 – Admin Tools Preview Diagnostics 2
+
+Summary
+- Added load diagnostics to normalization preview (raw_rows, filtered_rows, production filter) to trace why zero rows are considered.
+
+Changes
+- `app/services/address_normalizer.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- Not run (service diagnostics tweak).
+
+Date: 2025-11-29 16:25 -0500 (Session 97.17)
+Author: Codex 5
+Milestone: v0.8.11.7 – Admin Tools Preview Fallback
+
+Summary
+- Added a fallback to include all production location rows when the production filter yields zero matches, preventing empty previews for `_Locations` tables.
+
+Changes
+- `app/services/address_normalizer.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- Not run (logic tweak).
+
+Date: 2025-11-29 16:35 -0500 (Session 97.18)
+Author: Codex 5
+Milestone: v0.8.11.7 – Admin Tools Mapping Diagnostics
+
+Summary
+- Added `sample_keys` to normalization preview to show which structured fields are present per sampled row, helping trace mapping vs. missing fields without renaming Notion columns.
+
+Changes
+- `app/services/address_normalizer.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- Not run (diagnostics only).
+
+Date: 2025-11-29 16:45 -0500 (Session 97.19)
+Author: Codex 5
+Milestone: v0.8.11.7 – Socket Reconnect Tolerance
+
+Summary
+- Increased NiceGUI reconnect timeout and message history length to reduce transient websocket disconnect banners during admin tools use.
+
+Changes
+- `app/main.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- Not run (config tweak).
+
+Date: 2025-11-29 16:55 -0500 (Session 97.20)
+Author: Codex 5
+Milestone: v0.8.11.7 – Socket Heartbeat
+
+Summary
+- Added a periodic heartbeat on Admin Tools to keep the websocket active during long admin actions; further increased reconnect window and message history.
+
+Changes
+- `app/ui/admin_tools.py`
+- `app/main.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- Not run (UX/connectivity tweak).

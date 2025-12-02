@@ -88,3 +88,4 @@ ChatGPT manages milestones, version naming, and roadmap updates.
 
 ## 12. Summary
 Jay sets the vision, ChatGPT architected the system and maintains quality, and Codex executes implementation cleanly.
+Admin Tools UI is now at `/admin_tools` and should be the target location for future maintenance and debugging tools.

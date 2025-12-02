@@ -1,7 +1,9 @@
-# ATLS GUI App – Above the Line Safety
+# ATLS GUI App - Above the Line Safety
 
 A browser-based control surface for Above the Line Safety (ATLS) workflows.  
 ATLSApp integrates production data, location data, medical facility lookups, and operational diagnostics into one unified interface.
+
+Current Version: v0.8.11.7
 
 Built with:
 
@@ -116,10 +118,17 @@ uvicorn app.main:fastapi_app --reload
 
 ## Documentation
 
-- Project Framework: `docs/ATLSApp – Project Framework (v1.0).md`
+- Project Framework: `docs/ATLSApp - Project Framework (v1.0).md`
 - Handbook: `docs/PROJECT_HANDBOOK.md`
 - Developer Notes: `docs/DEV_NOTES.md`
 - Agent Model: `docs/AGENTS.md`
+
+---
+
+## Admin Access
+
+- A dedicated Admin Tools page is available at `/admin_tools` when `DEBUG_ADMIN=true`.
+- The page centralizes Match All, Schema Update, Cache Management, Normalization, Reprocess, Dedup admin, Diagnostics, and System Info tools.
 
 ---
 
