@@ -101,6 +101,7 @@ ui.run_with(
     fastapi_app,
     reconnect_timeout=30.0,  # allow longer reconnect window for local socket stability
     message_history_length=5000,
+    storage_secret="atlsapp-storage",
 )
 
 if __name__ == '__main__':

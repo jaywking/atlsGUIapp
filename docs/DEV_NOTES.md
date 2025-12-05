@@ -2731,3 +2731,74 @@ Changes
 
 Testing
 - Not run (UX/connectivity tweak).
+
+Date: 2025-12-02 15:20 -0500 (Session 97.21)
+Author: Codex 5
+Milestone: v0.8.11.7 – Admin Tools Result Persistence
+
+Summary
+- Admin Tools Address Normalization now restores the last result from browser storage and saves new results, so preview/apply output persists across socket reconnects.
+
+Changes
+- `app/ui/admin_tools.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- Not run (UI persistence tweak).
+
+Date: 2025-12-02 15:40 -0500 (Session 97.22)
+Author: Codex 5
+Milestone: v0.8.11.7 – Admin Tools Storage Secret
+
+Summary
+- Added NiceGUI storage_secret to enable browser storage; normalization results now also fall back to direct localStorage writes so previews persist across reconnects.
+
+Changes
+- `app/main.py`
+- `app/ui/admin_tools.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- Not run (config/UI persistence tweak).
+
+Date: 2025-12-02 16:00 -0500 (Session 97.23)
+Author: Codex 5
+Milestone: v0.8.11.7 – Admin Tools Client Fetch
+
+Summary
+- Reworked Address Normalization preview/apply buttons to use direct browser fetch + DOM/localStorage updates (no websocket dependency) and render into a plain `<pre>` so results persist even if the socket reconnects.
+
+Changes
+- `app/ui/admin_tools.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- Not run (UI fetch/render tweak).
+
+Date: 2025-12-02 16:10 -0500 (Session 97.24)
+Author: Codex 5
+Milestone: v0.8.11.7 – Admin Tools Pre Render Fix
+
+Summary
+- Fixed `<pre>` initialization to use `text` + `update()` (no `set_text`) so the normalization result box renders without errors.
+
+Changes
+- `app/ui/admin_tools.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- Not run (UI minor fix).
+
+Date: 2025-12-02 16:20 -0500 (Session 97.25)
+Author: Codex 5
+Milestone: v0.8.11.7 – Admin Tools JS Call Fix
+
+Summary
+- Removed unsupported `respond` parameter from `ui.run_javascript` calls in Admin Tools to stop the 500 error on /admin_tools.
+
+Changes
+- `app/ui/admin_tools.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- Not run (UI hotfix).

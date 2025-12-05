@@ -149,84 +149,57 @@ def page_content(request: Request) -> None:
                 label="Select Table",
             ).classes("w-full")
 
-            result_box = ui.code("Run Preview or Apply to see results.", language="json").classes("w-full min-h-[120px]")
-            with ui.row().classes("items-center gap-3 mt-2"):
-                spinner = ui.spinner(size='lg')
-                spinner.visible = False
-                elapsed_label = ui.label("").classes("text-sm text-slate-500")
-            elapsed_counter = {"value": 0}
+            result_pre = ui.element("pre").classes(
+                "w-full min-h-[160px] text-xs font-mono bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-2 overflow-auto"
+            )
+            result_pre.text = "Run Preview or Apply to see results."
+            result_pre.update()
 
-            def _tick_elapsed() -> None:
-                elapsed_label.text = f"Elapsed: {elapsed_counter['value']}s"
-                elapsed_label.update()
-                elapsed_counter["value"] = elapsed_counter["value"] + 1
+            # Restore last result from browser storage if available
+            ui.run_javascript(
+                f"""
+const stored = localStorage.getItem('admin_norm_result');
+const pre = document.getElementById('{result_pre.id}');
+if (stored && pre) {{
+  try {{
+    pre.textContent = JSON.stringify(JSON.parse(stored), null, 2);
+  }} catch (e) {{
+    pre.textContent = stored;
+  }}
+}}
+"""
+            )
 
-            elapsed_timer = ui.timer(1.0, _tick_elapsed, active=False)
+            def run_client_fetch(endpoint: str, table_value: str, label: str) -> None:
+                ui.run_javascript(
+                    f"""
+(async () => {{
+  const pre = document.getElementById('{result_pre.id}');
+  if (pre) pre.textContent = '{label}...';
+  try {{
+    const resp = await fetch('{endpoint}', {{
+      method: 'POST',
+      headers: {{'Content-Type': 'application/json'}},
+      body: JSON.stringify({{ table: '{table_value}' }})
+    }});
+    const data = await resp.json();
+    localStorage.setItem('admin_norm_result', JSON.stringify(data));
+    if (pre) pre.textContent = JSON.stringify(data, null, 2);
+  }} catch (e) {{
+    if (pre) pre.textContent = 'Error: ' + e;
+  }}
+}})();
+"""
+                )
 
-            def _show_result(payload: Any) -> None:
-                if payload in (None, "", {}):
-                    result_box.content = "No data returned."
-                else:
-                    try:
-                        result_box.content = json.dumps(payload, indent=2, ensure_ascii=False)
-                    except Exception:
-                        result_box.content = str(payload)
-                result_box.update()
-
-            async def do_preview() -> None:
-                spinner.visible = True
-                result_box.content = "Working..."
-                result_box.update()
-                elapsed_counter["value"] = 0
-                elapsed_label.text = "Elapsed: 0s"
-                elapsed_label.update()
-                elapsed_timer.active = True
-
-                try:
-                    async with httpx.AsyncClient(base_url=str(request.base_url), timeout=30.0) as client:
-                        resp = await client.post(
-                            "/api/locations/normalize/preview",
-                            json={"table": table_select.value}
-                        )
-                    _show_result(resp.json())
-                except Exception as e:  # noqa: BLE001
-                    _show_result(f"Error: {e}")
-                finally:
-                    spinner.visible = False
-                    elapsed_timer.active = False
-
-            async def do_apply() -> None:
-                spinner.visible = True
-                result_box.content = "Applying..."
-                result_box.update()
-                elapsed_counter["value"] = 0
-                elapsed_label.text = "Elapsed: 0s"
-                elapsed_label.update()
-                elapsed_timer.active = True
-
-                try:
-                    async with httpx.AsyncClient(base_url=str(request.base_url), timeout=60.0) as client:
-                        resp = await client.post(
-                            "/api/locations/normalize/apply",
-                            json={"table": table_select.value}
-                        )
-                    _show_result(resp.json())
-                except Exception as e:  # noqa: BLE001
-                    _show_result(f"Error: {e}")
-                finally:
-                    spinner.visible = False
-                    elapsed_timer.active = False
-
-            preview_button = ui.button("Preview Normalization", on_click=do_preview).classes("bg-slate-900 text-white hover:bg-slate-800 px-3 py-1 mb-1")
-            apply_button = ui.button("Apply Normalization", on_click=do_apply).classes("mt-2 bg-amber-600 text-white hover:bg-amber-700 px-3 py-1 mb-1")
-
-            preview_button.disable()
-            preview_button.bind_visibility_from(spinner, "visible", backward=lambda v: not v)
-            preview_button.bind_enabled_from(spinner, "visible", backward=lambda v: not v)
-
-            apply_button.disable()
-            apply_button.bind_visibility_from(spinner, "visible", backward=lambda v: not v)
-            apply_button.bind_enabled_from(spinner, "visible", backward=lambda v: not v)
+            preview_button = ui.button(
+                "Preview Normalization",
+                on_click=lambda e: run_client_fetch("/api/locations/normalize/preview", table_select.value, "Preview running"),
+            ).classes("bg-slate-900 text-white hover:bg-slate-800 px-3 py-1 mb-1")
+            apply_button = ui.button(
+                "Apply Normalization",
+                on_click=lambda e: run_client_fetch("/api/locations/normalize/apply", table_select.value, "Apply running"),
+            ).classes("mt-2 bg-amber-600 text-white hover:bg-amber-700 px-3 py-1 mb-1")
 
         # Section 5 - Reprocess Production Locations
         with ui.expansion("Reprocess Production Locations", icon="refresh").classes(
