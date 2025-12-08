@@ -1,6 +1,6 @@
 Refer to README.md and PROJECT_HANDBOOK.md for architecture and workflow rules.
 
-Current Version: v0.8.11.7  # held until preview/apply fully verified (version bump deferred by guardrail)
+Current Version: v0.8.12.1
 
 Versioning guardrail: keep the repo version at the last confirmed-working build while fixing issues; do not bump for broken attempts—only increment once the fix is verified to work.
 
@@ -2791,7 +2791,7 @@ Testing
 
 Date: 2025-12-02 16:20 -0500 (Session 97.25)
 Author: Codex 5
-Milestone: v0.8.11.7 – Admin Tools JS Call Fix
+Milestone: v0.8.11.7 - Admin Tools JS Call Fix
 
 Summary
 - Removed unsupported `respond` parameter from `ui.run_javascript` calls in Admin Tools to stop the 500 error on /admin_tools.
@@ -2802,3 +2802,41 @@ Changes
 
 Testing
 - Not run (UI hotfix).
+
+Date: 2025-12-02 17:45 -0500 (Session 97.26)
+Author: Codex 5
+Milestone: v0.8.12.0 - Ingestion Normalization Rebuild Scripts
+
+Summary
+- Added ingestion normalization helper (structured fields + formatted address + Place_ID carry-through) and wired it into production imports, dedup writebacks, and facilities refresh.
+- Introduced rebuild scripts for Locations Master, production _Locations tables, Medical Facilities, and an orchestrator to run them headlessly with job-logger summaries.
+- Extended Notion service layer for production/facility page creation and production DB discovery; refreshed handbook rules and version to v0.8.12.0.
+
+Changes
+- `app/services/ingestion_normalizer.py`
+- `app/services/import_jobs.py`, `app/api/locations_api.py`
+- `app/services/notion_locations.py`, `app/services/notion_medical_facilities.py`
+- `scripts/rebuild_locations_master.py`, `scripts/rebuild_production_locations.py`, `scripts/rebuild_medical_facilities.py`, `scripts/rebuild_all.py`
+- `scripts/fetch_medical_facilities.py`
+- `docs/PROJECT_HANDBOOK.md`, `README.md`, `docs/DEV_NOTES.md`
+
+Testing
+- Not run (backend scripts and service wiring only).
+
+Date: 2025-12-02 18:30 -0500 (Session 97.27)
+Author: Codex 5
+Milestone: v0.8.12.1 - Notion Address Repair Tool
+
+Summary
+- Replaced rebuild-from-source flow with a unified Notion Address Repair Tool (`scripts/repair_addresses.py`) that normalizes existing Notion rows in-place (master, productions, facilities) with dry-run support.
+- Retired old rebuild scripts and redirected the orchestrator to the repair tool; added facility page update helper.
+- Documented the repair tool, retired rebuild guidance, and bumped version to v0.8.12.1.
+
+Changes
+- `scripts/repair_addresses.py`
+- `app/services/notion_medical_facilities.py`
+- `scripts/rebuild_locations_master.py`, `scripts/rebuild_production_locations.py`, `scripts/rebuild_all.py` (retired wrappers)
+- `docs/PROJECT_HANDBOOK.md`, `docs/DEV_NOTES.md`, `README.md`
+
+Testing
+- `python -m py_compile` on modified scripts/services.

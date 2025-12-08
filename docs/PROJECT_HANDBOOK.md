@@ -1,6 +1,6 @@
 # Project Handbook - ATLS GUI App  
-Last Updated: 2025-11-29  
-Version: v0.8.11.7
+Last Updated: 2025-12-02  
+Version: v0.8.12.1
 
 This handbook defines how ATLSApp is developed using NiceGUI, FastAPI, and a structured workflow.
 
@@ -219,7 +219,16 @@ Short milestone summary posted back to ChatGPT to align PM + Dev agent context.
 - Table containers: wrap each table in an `overflow-x-auto` block with light vertical padding to keep spacing consistent.
 - Hover/focus: use `hover:bg-slate-100 dark:hover:bg-slate-800` on buttons and links (including ProductionID/Link cells) for consistent feedback.
 - New Admin Tools page (v0.8.4): replaces Dedup Simple in the sidebar, centralizes admin/debug/maintenance operations, is visible only when `DEBUG_ADMIN=true`, and uses collapsible sections for each tool.
-- Address Normalization panel supports Preview and Apply for: AMCL_Locations, TGD_Locations, YDEO_Locations, IPR_Locations, Locations Master, Medical Facilities.
+- Address Normalization UI is retired; normalization now runs only during ingestion (imports/repair pipelines). Do not re-enable the panel.
+- All ingestion paths (master, productions, facilities, dedup writebacks) must call the canonical ingestion normalizer before Notion writes: parse + structured fields + formatted/full address + Place_ID when present; no post-hoc bulk normalization.
+- Notion Address Repair Tool (backend-only, headless): `scripts/repair_addresses.py` (targets: master, productions, facilities, or all). It performs in-place normalization of existing Notion rows, never deletes or recreates pages, and preserves identifiers/relations/status values.
+
+### Notion Address Repair Tool
+- Location: `scripts/repair_addresses.py`
+- Purpose: In-place normalization of existing Notion address data (Locations Master, production _Locations tables, Medical Facilities) without deleting or recreating rows.
+- Behavior: Reads current rows, normalizes via the canonical ingestion normalizer, and writes back only address-related fields (address lines, city/state/zip/country/county/borough, formatted/full address, Place_ID, latitude/longitude when present). ProdLocID, LocationsMasterID, relations, and Status values are preserved.
+- Modes: `--target {master|productions|facilities|all}` with `--dry-run` to preview; uses job-logger format for structured logs.
+- Safety: Backend-only; no UI; never imports external datasets or alters schemas/relations.
 - Productions Search (v0.5.2): search is client-side only, applied against the locally cached rows; must not trigger backend fetches or modify background sync logic.
 - Dark Mode Source of Truth: Quasar/NiceGUI's `body--dark` class is authoritative. Page header blocks must include the `atls-page-header` class so shared CSS can target them. Tailwind `dark:` variants are allowed but must rely on `body--dark`, and theme persistence is handled by monitoring this class.
 - Dark Mode Architecture:

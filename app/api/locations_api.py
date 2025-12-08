@@ -7,6 +7,7 @@ from app.services.address_normalizer import TARGET_FIELDS, apply_master_normaliz
 from app.services.cache_utils import DEFAULT_MAX_AGE_SECONDS, is_cache_stale
 from app.services.dedup_resolve_service import build_merge_plan, choose_primary_with_heuristics
 from app.services.dedup_service import find_master_duplicates
+from app.services.ingestion_normalizer import normalize_components
 from app.services.logger import log_job
 from app.services.matching_service import match_to_master
 from app.services.notion_locations import (
@@ -432,7 +433,7 @@ async def dedup_resolve_apply(
 
     plan = build_merge_plan(primary_row, dup_rows, prod_rows)
 
-    field_updates = plan.get("field_updates") or {}
+    field_updates = normalize_components(plan.get("field_updates") or {})
     prod_updates = plan.get("prod_loc_updates") or []
     delete_ids = plan.get("delete_master_ids") or []
 

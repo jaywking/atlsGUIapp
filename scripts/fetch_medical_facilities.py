@@ -34,6 +34,7 @@ from tqdm import tqdm
 project_root = Path(__file__).resolve().parents[1]
 sys.path.append(str(project_root))
 from config import Config
+from app.services.ingestion_normalizer import build_facility_properties, normalize_ingest_record
 from scripts import notion_utils as nu
 from scripts.google_utils import nearby_places, place_details as google_place_details
 
@@ -469,6 +470,16 @@ def _create_or_get_facility_page(
             if first_type:
                 update_props["Type"] = nu.format_select(first_type.replace("_", " ").title()[:100])
 
+        if details.get("formatted_address"):
+            normalized = normalize_ingest_record({"full_address": details.get("formatted_address")}, log_category="rebuild_facilities", log=False)
+            normalized_props = build_facility_properties(normalized)
+            for key, val in normalized_props.items():
+                if key in update_props:
+                    continue
+                if key in facility_props and _get_rich_text(facility_props, key):
+                    continue
+                update_props[key] = val
+
         weekday_text = (details.get("opening_hours") or {}).get("weekday_text") or []
         for entry in weekday_text:
             if ":" not in entry:
@@ -525,6 +536,10 @@ def _create_or_get_facility_page(
         prop_name = DAY_TO_PROP.get(day)
         if prop_name:
             props[prop_name] = nu.format_rich_text(hours)
+
+    normalized = normalize_ingest_record({"full_address": details.get("formatted_address") or ""}, log_category="rebuild_facilities", log=False)
+    for key, val in build_facility_properties(normalized).items():
+        props.setdefault(key, val)
 
     if dry_run:
         facility_name = details.get("name", "Unknown Name")

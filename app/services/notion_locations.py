@@ -185,13 +185,13 @@ def normalize_location(page: Dict[str, Any]) -> Dict[str, Any]:
 
     practical_name = _rich_text_any(props, ["Practical Name", "practical_name"])
     name = practical_name or _rich_text_any(props, ["Location Name", "location_name"]) or prod_loc_id
-    address1_raw = _rich_text_any(props, ["Address 1", "address1"])
-    address2_raw = _rich_text_any(props, ["Address 2", "address2"])
-    address3_raw = _rich_text_any(props, ["Address 3", "address3"])
-    city_raw = _rich_text_any(props, ["City", "city"])
-    state_raw = _rich_text_any(props, ["State / Province", "State", "state"])
-    zip_code_raw = _rich_text_any(props, ["ZIP / Postal Code", "ZIP", "zip"])
-    country_raw = _safe_country(_rich_text_any(props, ["Country", "country"]))
+    address1_raw = _rich_text_any(props, ["address1", "Address 1"])
+    address2_raw = _rich_text_any(props, ["address2", "Address 2"])
+    address3_raw = _rich_text_any(props, ["address3", "Address 3"])
+    city_raw = _rich_text_any(props, ["city", "City"])
+    state_raw = _rich_text_any(props, ["state", "State", "State / Province"])
+    zip_code_raw = _rich_text_any(props, ["zip", "ZIP", "ZIP / Postal Code"])
+    country_raw = _safe_country(_rich_text_any(props, ["country", "Country"]))
     address1 = address1_raw
     address2 = address2_raw
     address3 = address3_raw
@@ -199,8 +199,8 @@ def normalize_location(page: Dict[str, Any]) -> Dict[str, Any]:
     state = state_raw
     zip_code = zip_code_raw
     country = country_raw
-    county = _rich_text(props, "County")
-    borough = _rich_text(props, "Borough")
+    county = _rich_text(props, "county") or _rich_text(props, "County")
+    borough = _rich_text(props, "borough") or _rich_text(props, "Borough")
     existing_full_address = _rich_text(props, "Full Address")
     status = _status(props, "Status")
     parsed = parse_address(existing_full_address)
@@ -306,6 +306,51 @@ async def _query_productions_master(db_id: str) -> List[Dict[str, Any]]:
                 break
             start_cursor = data.get("next_cursor")
     return items
+
+
+async def fetch_production_locations(db_id: str, production_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Fetch and normalize rows for a single production locations database."""
+    pages = await _query_notion(filter_block=None, sorts=[], db_id=db_id)
+    normalized_rows = [normalize_location(p) for p in pages]
+    if production_id:
+        for row in normalized_rows:
+            if not row.get("production_id"):
+                row["production_id"] = production_id
+    return normalized_rows
+
+
+async def fetch_database_title(db_id: str) -> str:
+    """Return the Notion database title for display."""
+    headers = _headers()
+    url = f"https://api.notion.com/v1/databases/{db_id}"
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.get(url, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        title_blocks = data.get("title") or []
+        title = "".join([t.get("plain_text", "") for t in title_blocks if isinstance(t, dict)]).strip()
+        return title or db_id
+
+
+async def list_production_location_databases(productions_master_db_id: str) -> List[Dict[str, str]]:
+    """Return mappings of production title -> locations DB id."""
+    pages = await _query_productions_master(productions_master_db_id)
+    records: List[Dict[str, str]] = []
+    for prod in pages:
+        props = prod.get("properties") or {}
+        locations_table_prop = props.get("Locations Table") or {}
+        locations_url = locations_table_prop.get("url") or ""
+        db_id = get_locations_db_id_from_url(locations_url)
+        if not db_id:
+            continue
+        records.append(
+            {
+                "production_id": _extract_title_generic(props),
+                "locations_db_id": db_id,
+                "locations_url": locations_url,
+            }
+        )
+    return records
 
 
 async def load_all_production_locations(productions_master_db_id: str, refresh: bool = False) -> List[Dict[str, Any]]:
@@ -440,6 +485,20 @@ async def create_location_page(properties: Dict[str, Any]) -> Dict[str, Any]:
     db_id = Config.LOCATIONS_MASTER_DB
     if not db_id:
         raise RuntimeError("Missing LOCATIONS_MASTER_DB")
+
+    payload = {"parent": {"database_id": db_id}, "properties": properties}
+    headers = _headers()
+    url = "https://api.notion.com/v1/pages"
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        response = await client.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+        return response.json()
+
+
+async def create_production_location_page(db_id: str, properties: Dict[str, Any]) -> Dict[str, Any]:
+    if not db_id:
+        raise RuntimeError("Missing target production locations database id")
 
     payload = {"parent": {"database_id": db_id}, "properties": properties}
     headers = _headers()

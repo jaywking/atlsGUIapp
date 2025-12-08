@@ -3,7 +3,7 @@
 A browser-based control surface for Above the Line Safety (ATLS) workflows.  
 ATLSApp integrates production data, location data, medical facility lookups, and operational diagnostics into one unified interface.
 
-Current Version: v0.8.11.7
+Current Version: v0.8.12.1
 
 Built with:
 

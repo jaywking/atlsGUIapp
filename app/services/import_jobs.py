@@ -3,23 +3,13 @@ from __future__ import annotations
 import time
 from typing import Any, Dict, List, Tuple
 
-from app.services.address_parser import parse_address
+from app.services.ingestion_normalizer import build_location_payload, make_address_key, make_component_key, normalize_ingest_record
 from app.services.logger import log_job
-from app.services.notion_locations import build_location_properties, create_location_page, fetch_and_cache_locations, update_location_page
+from app.services.notion_locations import create_location_page, fetch_and_cache_locations, update_location_page
 from app.services.matching_service import match_to_master
 from app.services.notion_locations import resolve_status
 
 VALID_DUPLICATE_STRATEGIES = {"skip", "update", "flag"}
-
-
-def _normalize_address(address: str) -> str:
-    return " ".join(address.lower().split()) if address else ""
-
-
-def _parsed_key(parsed: Dict[str, Any]) -> str:
-    parts = [parsed.get("address1"), parsed.get("city"), parsed.get("state"), parsed.get("zip"), parsed.get("country")]
-    cleaned = [str(part).strip().lower() for part in parts if part]
-    return "|".join(cleaned)
 
 
 def _build_existing_indexes(records: List[Dict[str, Any]], production_id: str) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
@@ -31,12 +21,12 @@ def _build_existing_indexes(records: List[Dict[str, Any]], production_id: str) -
         if (record.get("production_id") or "").lower() != prod_lower:
             continue
 
-        address = record.get("address") or ""
-        normalized = _normalize_address(address)
-        parsed_key = _parsed_key(parse_address(address))
+        normalized_row = normalize_ingest_record(record, production_id=production_id, log=False)
+        normalized = normalized_row.get("address_key") or make_address_key(record.get("address") or "")
+        parsed_key = normalized_row.get("components_key") or make_component_key(normalized_row.get("components", {}))
         entry = {
             "id": record.get("id") or record.get("row_id") or "",
-            "address": address,
+            "address": normalized_row.get("full_address") or record.get("address") or "",
             "production_id": record.get("production_id") or "",
         }
         if normalized:
@@ -59,20 +49,23 @@ async def _ensure_production_link(page_id: str, production_id: str) -> None:
     await update_location_page(page_id, properties)
 
 
-async def _create_location_record(address: str, production_id: str, flag_duplicate: bool, match_result: Dict[str, Any], parsed: Dict[str, Any]) -> Dict[str, Any]:
-    latitude, longitude, place_name = await _geocode_address(address)
+async def _create_location_record(
+    normalized: Dict[str, Any],
+    production_id: str,
+    flag_duplicate: bool,
+    match_result: Dict[str, Any],
+) -> Dict[str, Any]:
     matched_id = match_result.get("matched_master_id")
-    normalized_status = resolve_status(place_id=None, matched=bool(matched_id), explicit=match_result.get("status"))
-    properties = build_location_properties(
-        components=parsed,
-        production_id=production_id,
-        place_id=None,
-        place_name=place_name,
-        latitude=latitude,
-        longitude=longitude,
-        status=normalized_status,
+    normalized_status = resolve_status(
+        place_id=normalized.get("place_id"),
         matched=bool(matched_id),
+        explicit=match_result.get("status"),
+    )
+    properties = build_location_payload(
+        normalized,
+        status=normalized_status,
         matched_master_id=matched_id,
+        production_id=production_id,
     )
     if flag_duplicate:
         note_text = f"Potential duplicate flagged for production {production_id}"
@@ -120,9 +113,10 @@ async def import_locations_for_production(production_id: str, addresses: List[st
 
     for address in cleaned_addresses:
         stats["processed"] += 1
-        normalized = _normalize_address(address)
-        parsed = parse_address(address)
-        parsed_key = _parsed_key(parsed)
+        normalized_row = normalize_ingest_record({"full_address": address}, production_id=production_id, log_category="locations_batch_import")
+        normalized = normalized_row.get("address_key")
+        parsed = normalized_row.get("components", {})
+        parsed_key = normalized_row.get("components_key")
         match_result = match_to_master(
             {
                 "id": "",
@@ -161,14 +155,14 @@ async def import_locations_for_production(production_id: str, addresses: List[st
                         "locations_batch_import",
                         "update",
                         "error",
-                        f"production_id={production_id} address={normalized} error={exc}",
+                        f"production_id={production_id} address={normalized or address} error={exc}",
                     )
                 continue
             if strategy == "flag":
                 flag_duplicate = True
 
         try:
-            page = await _create_location_record(address, production_id, flag_duplicate, match_result, parsed)
+            page = await _create_location_record(normalized_row, production_id, flag_duplicate, match_result)
             stats["created"] += 1
             if flag_duplicate:
                 stats["flagged"] += 1
@@ -184,7 +178,7 @@ async def import_locations_for_production(production_id: str, addresses: List[st
                 "locations_batch_import",
                 "create",
                 "error",
-                f"production_id={production_id} address={normalized} error={exc}",
+                f"production_id={production_id} address={normalized or address} error={exc}",
             )
             continue
 

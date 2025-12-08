@@ -92,16 +92,16 @@ def normalize_facility(page: Dict[str, Any]) -> Dict[str, Any]:
     distance_val = _number(props, "Distance", "Distance (mi)")
     phone_val = _rich_text(props, "Phone") or _rich_text(props, "International Phone")
     state_val = _select(props, "State")
-    full_address_raw = _rich_text(props, "Address")
-    address1 = _rich_text(props, "Address 1") or _rich_text(props, "Address1")
-    address2 = _rich_text(props, "Address 2") or _rich_text(props, "Address2")
-    address3 = _rich_text(props, "Address 3") or _rich_text(props, "Address3")
-    city = _rich_text(props, "City")
-    state_province = _rich_text(props, "State / Province") or state_val
-    zip_code = _rich_text(props, "ZIP / Postal Code") or _rich_text(props, "Postal Code") or _rich_text(props, "ZIP")
-    country = _safe_country(_rich_text(props, "Country"))
-    county = _rich_text(props, "County")
-    borough = _rich_text(props, "Borough")
+    full_address_raw = _rich_text(props, "Full Address") or _rich_text(props, "Address")
+    address1 = _rich_text(props, "address1") or _rich_text(props, "Address 1") or _rich_text(props, "Address1")
+    address2 = _rich_text(props, "address2") or _rich_text(props, "Address 2") or _rich_text(props, "Address2")
+    address3 = _rich_text(props, "address3") or _rich_text(props, "Address 3") or _rich_text(props, "Address3")
+    city = _rich_text(props, "city") or _rich_text(props, "City")
+    state_province = _rich_text(props, "state") or _rich_text(props, "State / Province") or state_val
+    zip_code = _rich_text(props, "zip") or _rich_text(props, "ZIP / Postal Code") or _rich_text(props, "Postal Code") or _rich_text(props, "ZIP")
+    country = _safe_country(_rich_text(props, "country") or _rich_text(props, "Country"))
+    county = _rich_text(props, "county") or _rich_text(props, "County")
+    borough = _rich_text(props, "borough") or _rich_text(props, "Borough")
 
     parsed = parse_address(full_address_raw)
     if not state_province and parsed.get("state"):
@@ -214,6 +214,26 @@ def _build_sorts(sorts: List[str] | None) -> List[Dict[str, str]]:
     return sort_blocks
 
 
+async def create_medical_facility_page(properties: Dict[str, Any]) -> Dict[str, Any]:
+    db_id = Config.MEDICAL_FACILITIES_DB
+    token = Config.NOTION_TOKEN
+    if not token or not db_id:
+        raise RuntimeError("Missing NOTION_TOKEN or MEDICAL_FACILITIES_DB")
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Notion-Version": NOTION_VERSION,
+        "Content-Type": "application/json",
+    }
+    url = "https://api.notion.com/v1/pages"
+    payload = {"parent": {"database_id": db_id}, "properties": properties}
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        response = await client.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+        return response.json()
+
+
 async def _query_notion(filter_block: Dict[str, Any] | None, sorts: List[Dict[str, str]]) -> List[Dict[str, Any]]:
     db_id = Config.MEDICAL_FACILITIES_DB
     token = Config.NOTION_TOKEN
@@ -248,6 +268,25 @@ async def _query_notion(filter_block: Dict[str, Any] | None, sorts: List[Dict[st
             start_cursor = data.get("next_cursor")
 
     return items
+
+
+async def update_medical_facility_page(page_id: str, properties: Dict[str, Any]) -> Dict[str, Any]:
+    token = Config.NOTION_TOKEN
+    if not token:
+        raise RuntimeError("Missing NOTION_TOKEN")
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Notion-Version": NOTION_VERSION,
+        "Content-Type": "application/json",
+    }
+    url = f"https://api.notion.com/v1/pages/{page_id}"
+    payload = {"properties": properties}
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        response = await client.patch(url, headers=headers, json=payload)
+        response.raise_for_status()
+        return response.json()
 
 
 async def search_medical_facilities(filters: Dict[str, str], sorts: List[str]) -> List[Dict[str, Any]]:
