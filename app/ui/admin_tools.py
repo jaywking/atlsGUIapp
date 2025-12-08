@@ -4,8 +4,8 @@ import asyncio
 import json
 import os
 import sys
-from typing import Any, Dict, List, Optional, Tuple
 import time
+from typing import Any, Dict, List, Optional, Tuple
 
 import fastapi
 import httpx
@@ -74,7 +74,9 @@ def page_content(request: Request) -> None:
 
     with ui.column().classes("w-full max-w-4xl gap-3 items-stretch"):
         # Section 1 - Match All Locations
-        with ui.expansion("Match All Locations", icon="bolt", value=True).classes("border border-slate-200 dark:border-slate-700"):
+        with ui.expansion("Match All Locations", icon="bolt", value=True).classes(
+            "border border-slate-200 dark:border-slate-700"
+        ):
             result_code = ui.code(
                 format_json(state["match_all_result"], empty_message="Result will appear after running Match All.")
             ).classes("w-full text-sm")
@@ -134,72 +136,15 @@ def page_content(request: Request) -> None:
                 on_click=lambda e: ui.notify("Reload All Places Data coming soon.", type="info", position="top"),
             ).classes("bg-amber-600 text-white hover:bg-amber-700 px-3 py-1")
 
-        # Section 4 - Address Normalization
-        with ui.expansion("Address Normalization", icon="home_pin").classes("border border-slate-200 dark:border-slate-700"):
-            table_select = ui.select(
-                [
-                    "AMCL_Locations",
-                    "TGD_Locations",
-                    "YDEO_Locations",
-                    "IPR_Locations",
-                    "Locations Master",
-                    "Medical Facilities",
-                ],
-                value="Locations Master",
-                label="Select Table",
-            ).classes("w-full")
-
-            result_pre = ui.element("pre").classes(
-                "w-full min-h-[160px] text-xs font-mono bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-2 overflow-auto"
-            )
-            result_pre.text = "Run Preview or Apply to see results."
-            result_pre.update()
-
-            # Restore last result from browser storage if available
-            ui.run_javascript(
-                f"""
-const stored = localStorage.getItem('admin_norm_result');
-const pre = document.getElementById('{result_pre.id}');
-if (stored && pre) {{
-  try {{
-    pre.textContent = JSON.stringify(JSON.parse(stored), null, 2);
-  }} catch (e) {{
-    pre.textContent = stored;
-  }}
-}}
-"""
-            )
-
-            def run_client_fetch(endpoint: str, table_value: str, label: str) -> None:
-                ui.run_javascript(
-                    f"""
-(async () => {{
-  const pre = document.getElementById('{result_pre.id}');
-  if (pre) pre.textContent = '{label}...';
-  try {{
-    const resp = await fetch('{endpoint}', {{
-      method: 'POST',
-      headers: {{'Content-Type': 'application/json'}},
-      body: JSON.stringify({{ table: '{table_value}' }})
-    }});
-    const data = await resp.json();
-    localStorage.setItem('admin_norm_result', JSON.stringify(data));
-    if (pre) pre.textContent = JSON.stringify(data, null, 2);
-  }} catch (e) {{
-    if (pre) pre.textContent = 'Error: ' + e;
-  }}
-}})();
-"""
-                )
-
-            preview_button = ui.button(
-                "Preview Normalization",
-                on_click=lambda e: run_client_fetch("/api/locations/normalize/preview", table_select.value, "Preview running"),
-            ).classes("bg-slate-900 text-white hover:bg-slate-800 px-3 py-1 mb-1")
-            apply_button = ui.button(
-                "Apply Normalization",
-                on_click=lambda e: run_client_fetch("/api/locations/normalize/apply", table_select.value, "Apply running"),
-            ).classes("mt-2 bg-amber-600 text-white hover:bg-amber-700 px-3 py-1 mb-1")
+        # Section 4 - Address Normalization (Retired)
+        with ui.expansion("Address Normalization", icon="home_pin").classes(
+            "border border-slate-200 dark:border-slate-700"
+        ):
+            ui.label(
+                "Address normalization is no longer available in the UI. "
+                "All new data is normalized at ingest. To repair existing Notion data, use:"
+            ).classes("text-sm text-slate-500")
+            ui.code("python -m scripts.repair_addresses").classes("w-full text-xs")
 
         # Section 5 - Reprocess Production Locations
         with ui.expansion("Reprocess Production Locations", icon="refresh").classes(

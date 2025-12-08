@@ -136,6 +136,32 @@ It is available to all PowerShell 7 sessions invoked by Codex.
 * Relative API paths keep dev/staging/prod aligned (no host/port hard-coding).
 * Review `docs/DEV_NOTES.md` frequently for current patterns and pitfalls.
 
+## Address Repair Tool (Developer Notes)
+
+Developer Purpose  
+- Corrective utility to fix historical Notion address data; not part of the ingestion pipeline.  
+- Relies on the canonical ingestion normalizer plus a fallback parser when structured components are missing.
+
+Canonical Field Enforcement  
+- Only write to: address1/2/3, city, state, zip, country, county, borough, Full Address, Place_ID, Latitude, Longitude.  
+- Map any legacy incoming fields in the ingestion normalizer; the repair tool intentionally ignores legacy property names.
+
+Fallback Logic  
+- Fallback parser runs when structured fields (address1/city/state/zip) are empty, even if defaults like country exist.  
+- This prevents silent skips when the normalizer returns only partial components.
+
+Comparison Strategy  
+- Preview/update compares against raw Notion values first; empty rich_text arrays count as empty strings.  
+- Idempotent: a clean second run must produce zero diffs/updates.
+
+Logging  
+- Notion PATCH payloads append to `logs/address_repair_patches.log`.  
+- httpx logging is suppressed to WARNING for cleaner CLI output.
+
+Testing Guidance  
+- Dry-run a single production DB first; review diffs.  
+- Apply mode next; confirm preview shows zero-needed rows afterward.
+
 ---
 
 # DEV_NOTES.md - ATLS GUI App
@@ -2840,3 +2866,18 @@ Changes
 
 Testing
 - `python -m py_compile` on modified scripts/services.
+
+Date: 2025-12-07 19:45 -0500 (Session 97.28)
+Author: Codex 5
+Milestone: v0.8.12.2 - Admin Tools Cleanup (Address Normalization Retired)
+
+Summary
+- Removed the deprecated Address Normalization panel from Admin Tools and replaced it with a notice pointing to the CLI repair tool.
+- Left backend normalization endpoints intact for compatibility; UI now reflects ingest-time normalization + CLI-only repair.
+
+Changes
+- `app/ui/admin_tools.py`
+- `docs/DEV_NOTES.md`
+
+Testing
+- `python -m py_compile app/ui/admin_tools.py`

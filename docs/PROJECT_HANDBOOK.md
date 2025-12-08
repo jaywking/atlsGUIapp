@@ -223,6 +223,53 @@ Short milestone summary posted back to ChatGPT to align PM + Dev agent context.
 - All ingestion paths (master, productions, facilities, dedup writebacks) must call the canonical ingestion normalizer before Notion writes: parse + structured fields + formatted/full address + Place_ID when present; no post-hoc bulk normalization.
 - Notion Address Repair Tool (backend-only, headless): `scripts/repair_addresses.py` (targets: master, productions, facilities, or all). It performs in-place normalization of existing Notion rows, never deletes or recreates pages, and preserves identifiers/relations/status values.
 
+## Address Repair Tool
+
+Purpose  
+- `scripts/repair_addresses.py` performs in-place normalization of existing Notion address data across production _Locations tables, Locations Master, and Medical Facilities.  
+- It corrects and standardizes existing rows; it does not replace the ingestion-time normalization pipeline.
+
+When to Use  
+- After schema corrections, ingestion bugs, or data migrations that left inconsistent or legacy address fields.  
+- When a production table, Locations Master, or Facilities table shows mixed/legacy property names or inconsistent formatting.  
+- Not part of routine ingestion; use as a corrective/cleanup tool.
+
+Canonical Address Schema  
+- Properties: address1, address2, address3, city, state, zip, country, county, borough, Full Address, Place_ID, Latitude, Longitude.  
+- All writes must target these names. Legacy fields (e.g., "Address 1", "City", "ZIP / Postal Code") are intentionally ignored by the repair tool.
+
+How It Works  
+- Loads rows from Notion (productions, master, facilities).  
+- Extracts existing values and runs the ingestion normalizer to derive structured components.  
+- If structured components are missing but Full Address exists, applies a fallback parser to derive address lines/city/state/zip.  
+- Builds a canonical update dict and writes only changed fields back to the same Notion rows.  
+- Idempotent: rerunning after a clean pass should produce zero updates.
+
+How to Run  
+- Interactive (recommended):  
+  ```
+  python -m scripts.repair_addresses
+  ```  
+  - Shows a menu of available databases.  
+  - "Dry run only" prints per-row diffs.  
+  - "Apply updates" writes changes to Notion.  
+  - Returns to the menu after each database is processed.  
+- Non-interactive:  
+  ```
+  python -m scripts.repair_addresses --target productions --dry-run
+  python -m scripts.repair_addresses --target master
+  python -m scripts.repair_addresses --target facilities
+  python -m scripts.repair_addresses --target all
+  ```  
+  - Summary only; no per-row diffs.
+
+Logging  
+- All Notion PATCH operations are logged to `logs/address_repair_patches.log` with timestamp, database label, row ID, and JSON payload.
+
+Normalized Ingest Requirement  
+- All future address writes (imports, dedup writebacks, facility refresh, UI/admin tools) must normalize on ingest using the canonical ingestion normalizer.  
+- The Address Repair Tool is a corrective utility for historical inconsistencies, not a replacement for proper ingestion-time normalization.
+
 ### Notion Address Repair Tool
 - Location: `scripts/repair_addresses.py`
 - Purpose: In-place normalization of existing Notion address data (Locations Master, production _Locations tables, Medical Facilities) without deleting or recreating rows.

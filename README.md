@@ -84,6 +84,37 @@ atlsGUIapp/
 
 ---
 
+## Address Repair Tool
+
+What it does  
+`scripts/repair_addresses.py` performs in-place normalization of address data across production location tables, Locations Master, and Medical Facilities. It aligns existing Notion rows to the canonical schema and corrects historical inconsistencies without recreating pages.
+
+When to use it  
+- After schema alignment, ingestion bugs, or migrations.  
+- When Notion tables have inconsistent or partially filled address fields.  
+- Corrective tool only; not part of routine ingestion.
+
+Canonical fields  
+- address1/2/3, city, state, zip, country  
+- county, borough  
+- Full Address, Place_ID  
+- Latitude, Longitude
+
+How to run  
+- Interactive:  
+  ```
+  python -m scripts.repair_addresses
+  ```
+- Non-interactive example:  
+  ```
+  python -m scripts.repair_addresses --target productions --dry-run
+  ```
+
+Logging  
+Patch operations are written to `logs/address_repair_patches.log`.
+
+---
+
 ## Local Development
 
 ### Environment Setup
