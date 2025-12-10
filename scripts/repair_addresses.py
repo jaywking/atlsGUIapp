@@ -76,57 +76,6 @@ def _write_patch_log(db_label: str, row_id: str, props: Dict[str, Any]) -> None:
         pass
 
 
-def _fallback_parse_components(full_address: str) -> Dict[str, Optional[str]]:
-    """
-    Fallback parser for structured address components from a multi-line Full Address.
-    Expected formats:
-        "123 Main St\nCity, ST 12345"
-        "Building Name\n123 Main St\nCity, ST 12345"
-
-    Returns canonical keys:
-        address1, address2, address3,
-        city, state, zip,
-        country=None, county=None, borough=None
-    """
-    if not full_address:
-        return {}
-
-    lines = [line.strip() for line in full_address.split("\n") if line.strip()]
-    if not lines:
-        return {}
-
-    address1 = lines[0]
-    address2 = None
-    address3 = None
-
-    last = lines[-1]
-    city = state = zip_code = None
-    if "," in last:
-        city_part, rest = last.split(",", 1)
-        city = city_part.strip()
-        parts = rest.strip().split()
-        if len(parts) >= 2:
-            state = parts[0]
-            zip_code = parts[1]
-
-    if len(lines) == 3:
-        address2 = lines[1]
-    elif len(lines) > 3:
-        address2 = lines[1]
-
-    return {
-        "address1": address1,
-        "address2": address2,
-        "address3": address3,
-        "city": city,
-        "state": state,
-        "zip": zip_code,
-        "country": None,
-        "county": None,
-        "borough": None,
-    }
-
-
 async def _process_rows(
     rows: Iterable[Dict[str, Any]],
     build_updates_fn,
@@ -200,18 +149,6 @@ def _build_location_updates(row: Dict[str, Any], normalized: Dict[str, Any]) -> 
     components = normalized.get("components") or {}
     full_address = _clean(normalized.get("full_address"))
 
-    # If components missing or any key is empty, derive/merge from Full Address
-    if full_address and (
-        not components
-        or all(not components.get(k) for k in ("address1", "city", "state", "zip"))
-    ):
-        fallback = _fallback_parse_components(full_address)
-        merged: Dict[str, Any] = dict(components)
-        for key, value in fallback.items():
-            if not merged.get(key):
-                merged[key] = value
-        components = merged
-
     props: Dict[str, Any] = {}
     field_map = {
         "address1": "address1",
@@ -248,16 +185,6 @@ def _build_location_updates(row: Dict[str, Any], normalized: Dict[str, Any]) -> 
     place_id_old = _clean(row.get("Place_ID") or row.get("place_id"))
     if place_id_new and not _eq(place_id_old, place_id_new):
         props["Place_ID"] = _rt(place_id_new)
-
-    # Ensure structured fields accompany a new Full Address
-    if "Full Address" in props:
-        fallback_components = _fallback_parse_components(full_address)
-        for key, notion_key in field_map.items():
-            new_val = _clean(fallback_components.get(key))
-            if not new_val:
-                continue
-            if notion_key not in props:
-                props[notion_key] = _rt(new_val)
 
     lat_new = normalized.get("latitude")
     lon_new = normalized.get("longitude")
@@ -307,7 +234,14 @@ def _build_facility_updates(row: Dict[str, Any], normalized: Dict[str, Any]) -> 
 
 async def _repair_master_rows(dry_run: bool) -> Dict[str, Any]:
     rows = await get_locations_master_cached(refresh=True)
-    return await _process_rows(rows, _build_location_updates, update_location_page, dry_run, category="address_repair", db_label="Locations Master")
+    return await _process_rows(
+        rows,
+        _build_location_updates,
+        update_location_page,
+        dry_run,
+        category="address_repair",
+        db_label="Locations Master",
+    )
 
 
 async def _repair_production_rows(dry_run: bool) -> Dict[str, Any]:

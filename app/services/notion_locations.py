@@ -3,12 +3,11 @@ from __future__ import annotations
 import json
 import re
 import time
+import asyncio
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import httpx
-
-from app.services.address_parser import parse_address
 from app.services.cache_utils import DEFAULT_MAX_AGE_SECONDS, _utc_now, is_cache_stale, load_locations_cache, save_locations_cache
 from app.services.logger import log_job
 from app.services.location_status_utils import STATUS_MATCHED, STATUS_READY, STATUS_UNRESOLVED, log_status_applied
@@ -74,39 +73,18 @@ def _safe_country(value: Optional[str]) -> str:
 
 
 def build_full_address(components: Dict[str, Optional[str]]) -> str:
-    lines: List[str] = []
-    for key in ("address1", "address2", "address3"):
-        val = components.get(key)
-        if val:
-            lines.append(str(val).strip())
-
+    address1 = (components.get("address1") or "").strip()
     city = (components.get("city") or "").strip()
     state = (components.get("state") or "").strip()
     postal = (components.get("zip") or "").strip()
-
-    city_line_parts: List[str] = []
-    if city:
-        city_line_parts.append(city)
-    if state:
-        city_line_parts.append(state if not city else f"{state}")
-    if postal:
-        # ensure spacing between state and postal
-        joined = " ".join([p for p in [state, postal] if p]).strip()
-        if city and state:
-            city_line_parts = [f"{city}, {joined}"]
-        elif city and postal:
-            city_line_parts = [f"{city} {postal}"]
-        elif joined:
-            city_line_parts = [joined]
-    if not city_line_parts and city and state:
-        city_line_parts.append(f"{city}, {state}")
-    if city_line_parts and not lines and city_line_parts[0]:
-        # no address lines but we have city/state/zip
-        lines.append(city_line_parts[0])
-    elif city_line_parts:
-        lines.append(city_line_parts[0])
-
-    return "\n".join([line for line in lines if line]).strip()
+    country = (components.get("country") or DEFAULT_COUNTRY).strip().upper()
+    if not (address1 and city and state):
+        return ""
+    core = f"{address1}, {city}, {state} {postal}".strip()
+    core = " ".join(core.split())
+    if country and country != "US":
+        return f"{core}, {country}".strip()
+    return core
 
 
 def resolve_status(place_id: Optional[str], matched: bool, explicit: Optional[str]) -> str:
@@ -129,6 +107,7 @@ def build_location_properties(
     status: Optional[str] = None,
     matched: bool = False,
     matched_master_id: Optional[str] = None,
+    formatted_address_google: Optional[str] = None,
 ) -> Dict[str, Any]:
     country = _safe_country(components.get("country"))
     payload = {
@@ -154,21 +133,23 @@ def build_location_properties(
         "Location Name": _rt(title_value),
         "Practical Name": _rt(practical_name[:200] if practical_name else ""),
         "Full Address": _rt(full_address),
-        "Address 1": _rt(payload["address1"] or ""),
-        "Address 2": _rt(payload["address2"] or ""),
-        "Address 3": _rt(payload["address3"] or ""),
-        "City": _rt(payload["city"] or ""),
-        "State / Province": _rt(payload["state"] or ""),
-        "ZIP / Postal Code": _rt(payload["zip"] or ""),
-        "Country": _rt(country),
-        "County": _rt(payload["county"] or ""),
-        "Borough": _rt(payload["borough"] or ""),
+        "address1": _rt(payload["address1"] or ""),
+        "address2": _rt(payload["address2"] or ""),
+        "address3": _rt(payload["address3"] or ""),
+        "city": _rt(payload["city"] or ""),
+        "state": _rt(payload["state"] or ""),
+        "zip": _rt(payload["zip"] or ""),
+        "country": _rt(country),
+        "county": _rt(payload["county"] or ""),
+        "borough": _rt(payload["borough"] or ""),
         "ProductionID": _rt(production_id or ""),
         "Place_ID": _rt(place_id or ""),
         "Status": _status_prop(resolved_status),
         "Latitude": {"number": latitude},
         "Longitude": {"number": longitude},
     }
+    if formatted_address_google:
+        props["formatted_address_google"] = _rt(formatted_address_google)
     if matched_master_id:
         props["LocationsMasterID"] = {"relation": [{"id": matched_master_id}]}
     return props
@@ -185,13 +166,13 @@ def normalize_location(page: Dict[str, Any]) -> Dict[str, Any]:
 
     practical_name = _rich_text_any(props, ["Practical Name", "practical_name"])
     name = practical_name or _rich_text_any(props, ["Location Name", "location_name"]) or prod_loc_id
-    address1_raw = _rich_text_any(props, ["address1", "Address 1"])
-    address2_raw = _rich_text_any(props, ["address2", "Address 2"])
-    address3_raw = _rich_text_any(props, ["address3", "Address 3"])
-    city_raw = _rich_text_any(props, ["city", "City"])
-    state_raw = _rich_text_any(props, ["state", "State", "State / Province"])
-    zip_code_raw = _rich_text_any(props, ["zip", "ZIP", "ZIP / Postal Code"])
-    country_raw = _safe_country(_rich_text_any(props, ["country", "Country"]))
+    address1_raw = _rich_text_any(props, ["address1"])
+    address2_raw = _rich_text_any(props, ["address2"])
+    address3_raw = _rich_text_any(props, ["address3"])
+    city_raw = _rich_text_any(props, ["city"])
+    state_raw = _rich_text_any(props, ["state"])
+    zip_code_raw = _rich_text_any(props, ["zip"])
+    country_raw = _safe_country(_rich_text_any(props, ["country"]))
     address1 = address1_raw
     address2 = address2_raw
     address3 = address3_raw
@@ -199,26 +180,10 @@ def normalize_location(page: Dict[str, Any]) -> Dict[str, Any]:
     state = state_raw
     zip_code = zip_code_raw
     country = country_raw
-    county = _rich_text(props, "county") or _rich_text(props, "County")
-    borough = _rich_text(props, "borough") or _rich_text(props, "Borough")
+    county = _rich_text(props, "county")
+    borough = _rich_text(props, "borough")
     existing_full_address = _rich_text(props, "Full Address")
     status = _status(props, "Status")
-    parsed = parse_address(existing_full_address)
-    if not state and parsed.get("state"):
-        state = parsed.get("state")
-    if not zip_code and parsed.get("zip"):
-        zip_code = parsed.get("zip")
-    if not city and parsed.get("city"):
-        city = parsed.get("city")
-    if not address1 and parsed.get("address1"):
-        address1 = parsed.get("address1")
-    if not address2 and parsed.get("address2"):
-        address2 = parsed.get("address2")
-    if not address3 and parsed.get("address3"):
-        address3 = parsed.get("address3")
-    if not country and parsed.get("country"):
-        country = _safe_country(parsed.get("country"))
-
     full_address = build_full_address(
         {
             "address1": address1,
@@ -227,6 +192,7 @@ def normalize_location(page: Dict[str, Any]) -> Dict[str, Any]:
             "city": city,
             "state": state,
             "zip": zip_code,
+            "country": country,
         }
     )
     if existing_full_address and not full_address:
@@ -257,13 +223,14 @@ def normalize_location(page: Dict[str, Any]) -> Dict[str, Any]:
         "state_raw": state_raw,
         "zip_raw": zip_code_raw,
         "country_raw": country_raw,
-        "county": county or parsed.get("county"),
-        "borough": borough or parsed.get("borough"),
+        "county": county,
+        "borough": borough,
         "status": status,
         "production_id": production_id or "",
         "place_id": _rich_text(props, "Place_ID"),
         "latitude": _number(props, "Latitude"),
         "longitude": _number(props, "Longitude"),
+        "formatted_address_google": _rich_text(props, "formatted_address_google"),
         "locations_master_ids": _relation_ids(props, "LocationsMasterID"),
     }
 
@@ -336,6 +303,7 @@ async def list_production_location_databases(productions_master_db_id: str) -> L
     """Return mappings of production title -> locations DB id."""
     pages = await _query_productions_master(productions_master_db_id)
     records: List[Dict[str, str]] = []
+    db_ids_for_titles: List[str] = []
     for prod in pages:
         props = prod.get("properties") or {}
         locations_table_prop = props.get("Locations Table") or {}
@@ -343,13 +311,32 @@ async def list_production_location_databases(productions_master_db_id: str) -> L
         db_id = get_locations_db_id_from_url(locations_url)
         if not db_id:
             continue
+        code = _extract_title_generic(props)
+        display_name = _rich_text_any(props, ["Name", "Production Name", "Nickname", "Abbreviation"]) or code
         records.append(
             {
-                "production_id": _extract_title_generic(props),
+                "production_id": code,
+                "production_title": code,
+                "display_name": display_name,
                 "locations_db_id": db_id,
                 "locations_url": locations_url,
             }
         )
+        db_ids_for_titles.append(db_id)
+
+    # Enrich display_name with DB titles when available
+    if db_ids_for_titles:
+        try:
+            title_results = await asyncio.gather(*(fetch_database_title(dbid) for dbid in db_ids_for_titles))
+            for rec, db_title in zip(records, title_results):
+                if db_title:
+                    rec["display_name"] = db_title
+                if not rec.get("display_name"):
+                    rec["display_name"] = rec.get("production_title") or rec.get("production_id") or "Production"
+                if not rec.get("production_title"):
+                    rec["production_title"] = rec.get("production_id") or rec.get("display_name") or "Production"
+        except Exception:
+            pass
     return records
 
 
@@ -601,11 +588,11 @@ def _build_filter(filters: Dict[str, str]) -> Dict[str, Any] | None:
 
     city = _clean_str(filters.get("city"))
     if city:
-        clauses.append({"property": "City", "rich_text": {"equals": city}})
+        clauses.append({"property": "city", "rich_text": {"equals": city}})
 
     state = _clean_str(filters.get("state"))
     if state:
-        clauses.append({"property": "State / Province", "rich_text": {"equals": state}})
+        clauses.append({"property": "state", "rich_text": {"equals": state}})
 
     production_id = _clean_str(filters.get("production_id"))
     if production_id:
@@ -620,8 +607,8 @@ def _build_filter(filters: Dict[str, str]) -> Dict[str, Any] | None:
 SORT_MAP: Dict[str, Dict[str, str]] = {
     "name_asc": {"property": "Location Name", "direction": "ascending"},
     "name_desc": {"property": "Location Name", "direction": "descending"},
-    "city": {"property": "City", "direction": "ascending"},
-    "state": {"property": "State / Province", "direction": "ascending"},
+    "city": {"property": "city", "direction": "ascending"},
+    "state": {"property": "state", "direction": "ascending"},
 }
 
 

@@ -1,6 +1,6 @@
 Refer to README.md and PROJECT_HANDBOOK.md for architecture and workflow rules.
 
-Current Version: v0.8.12.1
+Current Version: v0.9.4
 
 Versioning guardrail: keep the repo version at the last confirmed-working build while fixing issues; do not bump for broken attempts—only increment once the fix is verified to work.
 
@@ -2881,3 +2881,140 @@ Changes
 
 Testing
 - `python -m py_compile app/ui/admin_tools.py`
+
+Date: 2025-12-07 21:30 -0500 (Session 98)
+Author: Codex 5
+Milestone: v0.9.0 - Canonical Structured Ingest
+
+Summary
+- Rebuilt ingestion_normalizer to require Full Address or structured fields; Full Address now triggers a fresh Google lookup that overwrites structured fields, Place_ID, lat/lng, county/borough, and stores formatted_address_google; ATLS formatting applied (Title Case city, 2-letter state, 5-digit ZIP, ISO country, sanitized Full Address).
+- Updated Notion location helpers to accept canonical property names only, include formatted_address_google, and set Status (Ready/Unresolved/Matched) from canonical inputs; dedupe/matching now assumes canonical structures.
+- Import jobs now reject incomplete addresses, always normalize before writes, and dedupe via canonical keys; repair tool routes through the canonical normalizer without legacy fallback parsing; matching prioritizes Place_ID then deterministic address hashes.
+
+Changes
+- `app/services/ingestion_normalizer.py`
+- `app/services/notion_locations.py`
+- `app/services/import_jobs.py`
+- `app/services/matching_service.py`
+- `app/api/locations_api.py`
+- `scripts/repair_addresses.py`
+- `README.md`, `docs/PROJECT_HANDBOOK.md`, `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app scripts`
+
+Migration Note
+- Legacy fallback address parsing removed in v0.9.0. All ingestion paths now require Full Address or structured fields; Full Address inputs always refresh via Google and store formatted_address_google internally.
+
+Date: 2025-12-07 22:15 -0500 (Session 99)
+Author: Codex 5
+Milestone: v0.9.1 - Master Canonicalization & Matching Stability
+
+Summary
+- Added master rebuild CLI (`python -m scripts.repair_master`) to overwrite all Locations Master rows via the canonical ingestion normalizer (ATLS Full Address, ISO country, Place_ID/lat/lng refresh, county/borough, formatted_address_google).
+- Introduced canonical matching cache (`app/services/master_cache.py`) with place_id, address hash, and city/state/zip indexes; matching uses deterministic priority with canonical fields only.
+- Added schema verification helper (`python -m scripts.verify_schema`) to patch Locations Master and production `_Locations` databases to canonical properties (address1/2/3, city, state, zip, country, county, borough, Full Address, formatted_address_google, Place_ID, Latitude, Longitude, Status).
+- Updated matching service to consume canonical cache; docs bumped to v0.9.1 with master rebuild workflow and migration note.
+
+Changes
+- `scripts/repair_master.py`
+- `scripts/verify_schema.py`
+- `app/services/master_cache.py`
+- `app/services/matching_service.py`
+- `app/services/notion_schema_utils.py`
+- `README.md`, `docs/PROJECT_HANDBOOK.md`, `docs/DEV_NOTES.md`
+
+Testing
+- `python -m compileall app scripts`
+
+Migration Note
+- v0.9.1: Locations Master must be rebuilt via the canonical normalizer; matching uses only canonical indexes (Place_ID → address hash → city/state/zip); schemas are patched to canonical fields (including formatted_address_google).
+
+Date: 2025-12-07 22:45 -0500 (Session 99.1)
+Author: Codex 5
+Milestone: v0.9.1 - Admin Tools Match All Streaming
+
+Summary
+- Added streaming progress for Match All Locations in Admin Tools using HTTP chunked lines; UI shows live progress with a readonly textarea and disables the run button during execution.
+- Introduced streaming endpoint `/api/locations/match_all_stream` using StreamingResponse; matching service now exposes `stream_match_all` to yield progress while applying matches.
+
+Changes
+- `app/ui/admin_tools.py`
+- `app/api/locations_api.py`
+- `app/services/matching_service.py`
+- `README.md`
+
+Testing
+- `python -m compileall app`
+
+Date: 2025-12-07 23:05 -0500 (Session 99.2)
+Author: Codex 5
+Milestone: v0.9.2 - Admin Tools Schema Streaming
+
+Summary
+- Added streaming progress to Schema Update: new `/api/schema_update_stream` streams line-by-line updates while patching canonical schema across Locations Master and all `_Locations` DBs.
+- Admin Tools Schema Update panel now shows live progress in a readonly textarea, clears on start, and disables the run button during execution; mirrors Match All streaming pattern.
+
+Changes
+- `app/api/locations_api.py`
+- `app/ui/admin_tools.py`
+- `README.md`
+
+Testing
+- `python -m compileall app scripts`
+
+Date: 2025-12-07 23:25 -0500 (Session 99.3)
+Author: Codex 5
+Milestone: v0.9.2 - Admin Tools Cache Streaming
+
+Summary
+- Added streaming progress for Cache Management actions: refresh cache, purge dedup cache, and reload all places data via `/api/locations/cache_refresh_stream`, `/api/locations/cache_purge_stream`, `/api/locations/cache_reload_stream`.
+- Admin Tools Cache panel now streams output into a readonly textarea, clears on start, and disables buttons during execution.
+
+Changes
+- `app/api/locations_api.py`
+- `app/ui/admin_tools.py`
+- `README.md`
+
+Testing
+- `python -m compileall app scripts`
+
+Date: 2025-12-08 00:15 -0500 (Session 99.4)
+Author: Codex 5
+Milestone: v0.9.3 - Admin Tools Production Selector Fixes
+
+Summary
+- Ensured production_dbs endpoint guarantees display_name (friendly title fallback) and never shows raw DB IDs; Admin Tools select now maps display_name → locations_db_id.
+- Reprocess stream filters strictly by selected locations_db_id with clear error when not found; streaming output includes selected production info.
+
+Changes
+- `app/api/locations_api.py`
+- `app/services/notion_locations.py`
+- `app/ui/admin_tools.py`
+- `README.md`
+
+Testing
+- `python -m compileall app`
+
+Notes
+- Production selector now uses display_name labels with locations_db_id values; reprocess endpoint filters by locations_db_id only to avoid unintended batch runs.
+
+Date: 2025-12-08 01:00 -0500 (Session 99.5)
+Author: Codex 5
+Milestone: v0.9.4 - Admin Tools Streaming Modernization
+
+Summary
+- Added streaming Dedup, Diagnostics, and System Info endpoints; Admin Tools panels now stream outputs for dedup and diagnostics and load structured system info.
+- Production selector remains friendly-name mapped; reprocess filters by locations_db_id.
+
+Changes
+- `app/api/locations_api.py`
+- `app/ui/admin_tools.py`
+- `README.md`
+
+Testing
+- `python -m compileall app`
+
+Known Issues
+- Production selector/reprocess mapping still has instability: labels can surface DB IDs and reprocess may misalign db_id; this remains in the Parking Lot.
+- Diagnostics v2 and Dedup v2 (near-duplicate heuristics, remediation workflow) are pending.

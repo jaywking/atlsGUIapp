@@ -21,7 +21,10 @@ def _build_existing_indexes(records: List[Dict[str, Any]], production_id: str) -
         if (record.get("production_id") or "").lower() != prod_lower:
             continue
 
-        normalized_row = normalize_ingest_record(record, production_id=production_id, log=False)
+        try:
+            normalized_row = normalize_ingest_record(record, production_id=production_id, log=False)
+        except Exception:
+            continue
         normalized = normalized_row.get("address_key") or make_address_key(record.get("address") or "")
         parsed_key = normalized_row.get("components_key") or make_component_key(normalized_row.get("components", {}))
         entry = {
@@ -113,7 +116,21 @@ async def import_locations_for_production(production_id: str, addresses: List[st
 
     for address in cleaned_addresses:
         stats["processed"] += 1
-        normalized_row = normalize_ingest_record({"full_address": address}, production_id=production_id, log_category="locations_batch_import")
+        try:
+            normalized_row = normalize_ingest_record(
+                {"full_address": address},
+                production_id=production_id,
+                log_category="locations_batch_import",
+            )
+        except Exception as exc:  # noqa: BLE001
+            stats["errors"] += 1
+            log_job(
+                "locations_batch_import",
+                "normalize_error",
+                "error",
+                f"production_id={production_id} address={address} error={exc}",
+            )
+            continue
         normalized = normalized_row.get("address_key")
         parsed = normalized_row.get("components", {})
         parsed_key = normalized_row.get("components_key")

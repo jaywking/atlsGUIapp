@@ -102,22 +102,27 @@ def _status_has_unresolved(status_prop: Dict[str, Any]) -> Tuple[bool, str]:
 
 
 async def ensure_schema(db_id: str) -> Tuple[bool, List[str]]:
-    """Ensure the target database has required address fields and Status includes Unresolved.
+    """Ensure the target database has required canonical address fields and Status includes Unresolved.
 
     Returns (updated, updated_fields).
     """
     db = await fetch_database(db_id)
     props = db.get("properties") or {}
     required_props = {
-        "Address 1": {"rich_text": {}},
-        "Address 2": {"rich_text": {}},
-        "Address 3": {"rich_text": {}},
-        "City": {"rich_text": {}},
-        "State / Province": {"rich_text": {}},
-        "ZIP / Postal Code": {"rich_text": {}},
-        "Country": {"rich_text": {}},
-        "County": {"rich_text": {}},
-        "Borough": {"rich_text": {}},
+        "address1": {"rich_text": {}},
+        "address2": {"rich_text": {}},
+        "address3": {"rich_text": {}},
+        "city": {"rich_text": {}},
+        "state": {"rich_text": {}},
+        "zip": {"rich_text": {}},
+        "country": {"rich_text": {}},
+        "county": {"rich_text": {}},
+        "borough": {"rich_text": {}},
+        "formatted_address_google": {"rich_text": {}},
+        "Full Address": {"rich_text": {}},
+        "Place_ID": {"rich_text": {}},
+        "Latitude": {"number": {}},
+        "Longitude": {"number": {}},
     }
 
     missing = _missing_props(props, required_props)

@@ -3,7 +3,7 @@
 A browser-based control surface for Above the Line Safety (ATLS) workflows.  
 ATLSApp integrates production data, location data, medical facility lookups, and operational diagnostics into one unified interface.
 
-Current Version: v0.8.12.1
+Current Version: v0.9.4
 
 Built with:
 
@@ -15,13 +15,16 @@ This app modernizes your LocationSync and Medical Facility automation scripts in
 
 ---
 
-## Release Notes (v0.8.x Highlights)
+## Release Notes (v0.9.4 highlights)
 
-- v0.8.2 - Master Matching Logic: match production locations to Locations Master via Place_ID first, then hierarchical address fallback; set LocationsMasterID relations and Status=Matched when unique; logs matching outcomes; `/api/locations/match_all`.
-- v0.8.1.2 - Status Enforcement: centralized status defaults for all location writes (Unresolved without Place_ID, Ready with Place_ID, Matched when linked); applies to import, backfill, and API helpers.
-- v0.8.1.1 - Schema Update: on-demand admin endpoint to add structured address fields to all `_Locations` tables plus master/facilities DBs; Status option updates remain manual per Notion constraints.
-- v0.8.1.0 - Batch Location Import: async import job per production with duplicate handling, cache refresh, and logging.
-- v0.7.x - Hybrid caches, background jobs, structured address parsing, and server-side search for Locations/Facilities.
+- Streaming Admin Tools expanded: Dedup Scan (`/api/locations/dedup_stream`), Diagnostics (`/api/locations/diagnostics_stream`), and System Info (`/api/system_info`) now use the same line-by-line streaming model as Match All, Schema Update, and Cache Management. Buttons disable during runs; outputs stream into read-only text areas.
+- Dedup Scan detects duplicate Place_ID and canonical address hashes across Locations Master and all production `_Locations` tables.
+- Diagnostics streams master row counts, missing Place_ID counts, cache index sizes, and Notion/Maps credential presence.
+- System Info returns structured app/runtime/cache/credential metadata.
+- Compatible with canonical ingestion (v0.9.x). Production selector → reprocess mapping issues are tracked in Parking Lot.
+- v0.9.2 – Admin Tools streaming: Match All, Schema Update, and Cache Management actions now stream real-time progress to the UI (line-by-line).
+- v0.9.1 – Master Canonicalization & Matching Stability: Added master rebuild CLI to overwrite all Locations Master rows with canonical normalized fields (ATLS Full Address, ISO country, refreshed Place_ID/lat/lng/county/borough, formatted_address_google). Matching cache rebuilt with canonical indexes (place_id, address hash, city/state/zip) and deterministic priority. Schema verification helper patches all _Locations databases to canonical fields (including formatted_address_google). Matching now assumes canonical inputs only.
+- v0.9.0 – Canonical Ingestion: Full Address triggers a fresh Google Places lookup; structured fields, Place_ID, lat/lng, county/borough, and formatted_address_google overwrite; ATLS Full Address enforced; ingestion rejects rows without Full Address or structured fields; canonical Notion payloads only.
 
 ### Dashboard
 - Enhanced per-service diagnostic timings (v0.4.5)
@@ -113,6 +116,18 @@ How to run
 Logging  
 Patch operations are written to `logs/address_repair_patches.log`.
 
+## Master Rebuild (v0.9.1)
+- Use `python -m scripts.repair_master` to canonicalize all Locations Master rows with the ingestion normalizer (Google refresh, ATLS Full Address, ISO country, formatted_address_google, Place_ID/lat/lng, county/borough).
+- Use `python -m scripts.verify_schema` to ensure all Locations Master and production `_Locations` tables have the canonical schema (address1/2/3, city, state, zip, country, county, borough, Full Address, formatted_address_google, Place_ID, Latitude, Longitude, Status).
+
+## Migration Note (v0.9.1)
+
+Legacy fallback address parsing remains removed. All ingestion paths require Full Address or structured fields; Full Address inputs always refresh via Google, overwrite structured data, and store formatted_address_google internally. Matching now uses only canonical indexes (Place_ID → address hash → city/state/zip).
+
+## Migration Note (v0.9.0)
+
+Legacy fallback address parsing is removed as of v0.9.0. All ingestion paths now require Full Address or structured fields, and Full Address inputs always refresh via Google with ATLS-formatted outputs (including formatted_address_google internally).
+
 ---
 
 ## Local Development
@@ -159,7 +174,7 @@ uvicorn app.main:fastapi_app --reload
 ## Admin Access
 
 - A dedicated Admin Tools page is available at `/admin_tools` when `DEBUG_ADMIN=true`.
-- The page centralizes Match All, Schema Update, Cache Management, Normalization, Reprocess, Dedup admin, Diagnostics, and System Info tools.
+- The page centralizes Match All (streams progress), Schema Update (streams progress), Cache Management (streams progress), Normalization, Reprocess, Dedup admin, Diagnostics, and System Info tools.
 
 ---
 

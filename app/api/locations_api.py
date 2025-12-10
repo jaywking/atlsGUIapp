@@ -1,26 +1,34 @@
 import time
+import platform
+import sys
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Body, Query
+from fastapi.responses import StreamingResponse
 
 from app.services.address_normalizer import TARGET_FIELDS, apply_master_normalization, normalize_master_rows, normalize_table
-from app.services.cache_utils import DEFAULT_MAX_AGE_SECONDS, is_cache_stale
+from app.services.cache_utils import DEFAULT_MAX_AGE_SECONDS, is_cache_stale, load_locations_cache, save_locations_cache
 from app.services.dedup_resolve_service import build_merge_plan, choose_primary_with_heuristics
 from app.services.dedup_service import find_master_duplicates
 from app.services.ingestion_normalizer import normalize_components
 from app.services.logger import log_job
-from app.services.matching_service import match_to_master
+from app.services.master_cache import load_master_cache
+from app.services.matching_service import match_to_master, stream_match_all, stream_reprocess
+from app.services.notion_schema_utils import ensure_schema, search_location_databases
 from app.services.notion_locations import (
     fetch_all_locations,
     fetch_and_cache_locations,
     get_cached_locations,
     get_locations_master_cached,
+    list_production_location_databases,
+    fetch_production_locations,
     load_all_production_locations,
     load_locations_master,
     search_locations,
     update_location_page,
     resolve_status,
 )
+from app.services.notion_schema_utils import search_location_databases, ensure_schema
 from app.services.notion_writeback import archive_master_rows, update_master_fields, update_production_master_links, write_address_updates
 from app.services.validation_service import validate_links
 from config import Config
@@ -640,3 +648,415 @@ async def match_all_locations(force: bool = False, refresh: bool = Query(False))
         "duration_ms": round(duration * 1000),
         "avg_per_record_ms": round(avg_ms),
     }
+
+
+@router.get("/match_all_stream")
+async def match_all_locations_stream(force: bool = False, refresh: bool = Query(False)) -> StreamingResponse:
+    try:
+        master_cache = await load_master_cache(refresh=True)
+    except Exception as exc:  # noqa: BLE001
+        err = f"Failed to load locations cache: {exc}"
+        log_job("matching", "match_all_stream", "error", err)
+        return StreamingResponse(iter([f"error: {err}"]), media_type="text/plain")
+
+    productions_db_id = Config.PRODUCTIONS_MASTER_DB or Config.PRODUCTIONS_DB_ID or Config.NOTION_PRODUCTIONS_DB_ID
+    if not productions_db_id:
+        err = "Missing productions master database id"
+        log_job("matching", "match_all_stream", "error", err)
+        return StreamingResponse(iter([f"error: {err}"]), media_type="text/plain")
+
+    try:
+        prod_locations = await load_all_production_locations(productions_db_id, refresh=refresh)
+    except Exception as exc:  # noqa: BLE001
+        err = f"Failed to load production locations: {exc}"
+        log_job("matching", "match_all_stream", "error", err)
+        return StreamingResponse(iter([f"error: {err}"]), media_type="text/plain")
+
+    async def _generator():
+        async for line in stream_match_all(
+            prod_locations,
+            master_cache,
+            resolve_status_fn=resolve_status,
+            update_page_fn=update_location_page,
+            force=force,
+        ):
+            yield line + "\n"
+
+    return StreamingResponse(_generator(), media_type="text/plain")
+
+
+@router.get("/dedup_stream")
+async def dedup_stream(refresh: bool = Query(False)) -> StreamingResponse:
+    async def _generator():
+        groups = 0
+        try:
+            master_rows = await get_locations_master_cached(refresh=True)
+            yield f"Scanning Locations Master ({len(master_rows)} rows)...\n"
+            count, msgs = _stream_duplicates("Locations Master", master_rows)
+            groups += count
+            for line in msgs:
+                yield line
+            productions_db_id = Config.PRODUCTIONS_MASTER_DB or Config.PRODUCTIONS_DB_ID or Config.NOTION_PRODUCTIONS_DB_ID
+            if productions_db_id:
+                prod_entries = await list_production_location_databases(productions_db_id)
+                for entry in prod_entries:
+                    dbid = entry.get("locations_db_id")
+                    name = entry.get("display_name") or entry.get("production_title") or dbid
+                    if not dbid:
+                        continue
+                    try:
+                        rows = await fetch_production_locations(dbid, production_id=name)
+                    except Exception as exc:  # noqa: BLE001
+                        yield f"Scanning {name} ({dbid}) failed: {exc}\n"
+                        continue
+                    yield f"Scanning Production {name} ({len(rows)} rows)...\n"
+                    count, msgs = _stream_duplicates(name, rows)
+                    groups += count
+                    for line in msgs:
+                        yield line
+            yield f"Done. groups={groups}\n"
+        except Exception as exc:  # noqa: BLE001
+            yield f"error: {exc}\n"
+
+    return StreamingResponse(_generator(), media_type="text/plain")
+
+
+def _stream_duplicates(label: str, rows: List[Dict[str, Any]]) -> tuple[int, List[str]]:
+    groups = 0
+    messages: List[str] = []
+    by_place: Dict[str, List[Dict[str, Any]]] = {}
+    by_hash: Dict[tuple, List[Dict[str, Any]]] = {}
+    for row in rows:
+        pid = (row.get("place_id") or "").strip().lower()
+        if pid:
+            by_place.setdefault(pid, []).append(row)
+        h = (
+            (row.get("address1") or "").strip().lower(),
+            (row.get("city") or "").strip().lower(),
+            (row.get("state") or "").strip().lower(),
+            (row.get("zip") or "").strip().lower(),
+            (row.get("country") or "").strip().lower(),
+        )
+        if any(h):
+            by_hash.setdefault(h, []).append(row)
+    for bucket in [by_place, by_hash]:
+        for dup_rows in bucket.values():
+            if len(dup_rows) > 1:
+                groups += 1
+                messages.append(f"-> Duplicate Group ({label}) count={len(dup_rows)}\n")
+    return groups, messages
+
+
+@router.get("/diagnostics_stream")
+async def diagnostics_stream(refresh: bool = Query(False)) -> StreamingResponse:
+    async def _generator():
+        try:
+            master = await get_locations_master_cached(refresh=True)
+            yield f"Diagnostics:\nMaster: {len(master)} rows\n"
+            missing_pid = sum(1 for r in master if not r.get("place_id"))
+            yield f"-> missing_place_id={missing_pid}\n"
+            productions_db_id = Config.PRODUCTIONS_MASTER_DB or Config.PRODUCTIONS_DB_ID or Config.NOTION_PRODUCTIONS_DB_ID
+            if productions_db_id:
+                prod_entries = await list_production_location_databases(productions_db_id)
+                for entry in prod_entries:
+                    dbid = entry.get("locations_db_id")
+                    name = entry.get("display_name") or entry.get("production_title") or dbid
+                    if not dbid:
+                        continue
+                    try:
+                        rows = await fetch_production_locations(dbid, production_id=name)
+                        missing_full = sum(1 for r in rows if not r.get("address"))
+                        missing_pid_prod = sum(1 for r in rows if not r.get("place_id"))
+                        yield f"{name} ({len(rows)} rows): missing_full_address={missing_full} missing_place_id={missing_pid_prod}\n"
+                    except Exception as exc:  # noqa: BLE001
+                        yield f"{name}: error {exc}\n"
+            cache = await load_master_cache(refresh=True)
+            place_size = len(cache.get("place_id_index", {}))
+            hash_size = len(cache.get("canonical_hash_index", {}))
+            yield f"Cache: place_id_index={place_size} hash_index={hash_size}\n"
+            notion_status = "loaded" if Config.NOTION_TOKEN else "missing"
+            maps_status = "loaded" if Config.GOOGLE_MAPS_API_KEY else "missing"
+            yield f"APIs: Notion={notion_status} GoogleMaps={maps_status}\n"
+            yield "Done.\n"
+        except Exception as exc:  # noqa: BLE001
+            yield f"error: {exc}\n"
+
+    return StreamingResponse(_generator(), media_type="text/plain")
+
+
+@router.get("/system_info")
+async def system_info() -> Dict[str, Any]:
+    master_cache = await load_master_cache(refresh=True)
+    cache_info = {
+        "master_rows": len(master_cache.get("rows", [])),
+        "place_id_index": len(master_cache.get("place_id_index", {})),
+        "hash_index": len(master_cache.get("canonical_hash_index", {})),
+    }
+    return {
+        "status": "success",
+        "data": {
+            "application": {
+                "version": "v0.9.4",
+                "python": sys.version.split()[0],
+                "platform": platform.platform(),
+            },
+            "dependencies": {},
+            "cache": cache_info,
+            "credentials": {
+                "notion_token": bool(Config.NOTION_TOKEN),
+                "google_maps_api_key": bool(Config.GOOGLE_MAPS_API_KEY),
+            },
+        },
+    }
+
+
+@router.get("/status")
+async def status() -> Dict[str, str]:
+    return {"status": "ok"}
+
+
+@router.get("/schema_update_stream")
+async def schema_update_stream() -> StreamingResponse:
+    # Build list of DBs: configured master/facilities + discovered _Locations
+    db_ids: List[str] = []
+    db_names: Dict[str, str] = {}
+    for db_id in filter(None, [Config.LOCATIONS_MASTER_DB, Config.MEDICAL_FACILITIES_DB]):
+        db_ids.append(db_id)
+        db_names[db_id] = db_id
+    try:
+        discovered = await search_location_databases()
+        for item in discovered:
+            db_id = item.get("id")
+            if db_id and db_id not in db_ids:
+                db_ids.append(db_id)
+                title_blocks = item.get("title") or []
+                title_text = "".join([t.get("plain_text", "") for t in title_blocks if isinstance(t, dict)]).strip()
+                db_names[db_id] = title_text or db_id
+    except Exception as exc:  # noqa: BLE001
+        log_job("schema_update_stream", "discover", "error", f"discover_failed: {exc}")
+
+    total = len(db_ids)
+
+    async def _generator():
+        updated = skipped = failed = 0
+        for idx, db_id in enumerate(db_ids, start=1):
+            name = db_names.get(db_id, db_id)
+            yield f"Checking {idx}/{total}: {name}...\n"
+            try:
+                changed, fields = await ensure_schema(db_id)
+                if changed:
+                    updated += 1
+                    yield f"-> patched {len(fields)} fields\n"
+                else:
+                    skipped += 1
+                    yield "-> no changes\n"
+            except Exception as exc:  # noqa: BLE001
+                failed += 1
+                yield f"-> FAILED: {exc}\n"
+        yield f"Done. updated={updated} skipped={skipped} failed={failed}\n"
+
+    return StreamingResponse(_generator(), media_type="text/plain")
+
+
+@router.get("/cache_refresh_stream")
+async def cache_refresh_stream() -> StreamingResponse:
+    async def _generator():
+        try:
+            yield "Starting cache refresh...\n"
+            locations = await fetch_and_cache_locations()
+            total = len(locations)
+            yield f"Refreshed locations cache: {total} rows\n"
+            yield "Done.\n"
+        except Exception as exc:  # noqa: BLE001
+            yield f"Failed: {exc}\n"
+
+    return StreamingResponse(_generator(), media_type="text/plain")
+
+
+@router.get("/cache_purge_stream")
+async def cache_purge_stream() -> StreamingResponse:
+    async def _generator():
+        try:
+            yield "Purging dedup cache...\n"
+            # No dedicated dedup cache implemented; placeholder message.
+            yield "No dedicated dedup cache configured; nothing to purge.\n"
+            yield "Done.\n"
+        except Exception as exc:  # noqa: BLE001
+            yield f"Failed: {exc}\n"
+
+    return StreamingResponse(_generator(), media_type="text/plain")
+
+
+@router.get("/cache_reload_stream")
+async def cache_reload_stream() -> StreamingResponse:
+    async def _generator():
+        try:
+            yield "Reloading all places data...\n"
+            master_cache = await load_master_cache(refresh=True)
+            rows = master_cache.get("rows", [])
+            yield f"Loaded {len(rows)} master rows\n"
+            yield "Rebuilding locations cache...\n"
+            locations = await fetch_and_cache_locations()
+            yield f"Rebuilt locations cache with {len(locations)} rows\n"
+            yield "Done.\n"
+        except Exception as exc:  # noqa: BLE001
+            yield f"Failed: {exc}\n"
+
+    return StreamingResponse(_generator(), media_type="text/plain")
+
+
+@router.get("/production_dbs")
+async def list_production_dbs() -> Dict[str, Any]:
+    productions_db_id = Config.PRODUCTIONS_MASTER_DB or Config.PRODUCTIONS_DB_ID or Config.NOTION_PRODUCTIONS_DB_ID
+    if not productions_db_id:
+        return {"status": "error", "message": "Missing productions master database id", "data": []}
+    try:
+        entries_raw = await list_production_location_databases(productions_db_id)
+        entries: List[Dict[str, Any]] = []
+        for entry in entries_raw:
+            production_title = entry.get("production_title") or entry.get("production_id") or ""
+            db_title = entry.get("display_name") or ""
+            db_id = entry.get("locations_db_id") or ""
+            display_name = production_title or db_title or entry.get("abbreviation") or "Production"
+            if display_name == db_id or not display_name.strip():
+                display_name = production_title or "Production"
+            entries.append(
+                {
+                    "display_name": display_name,
+                    "production_title": production_title,
+                    "production_id": entry.get("production_id") or "",
+                    "locations_db_id": db_id,
+                }
+            )
+        return {"status": "success", "data": entries}
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "error", "message": str(exc), "data": []}
+
+
+@router.get("/reprocess_stream")
+async def reprocess_stream(force: bool = False, db_id: str | None = Query(None)) -> StreamingResponse:
+    productions_db_id = Config.PRODUCTIONS_MASTER_DB or Config.PRODUCTIONS_DB_ID or Config.NOTION_PRODUCTIONS_DB_ID
+    if not productions_db_id:
+        return StreamingResponse(iter(["error: Missing productions master database id\n"]), media_type="text/plain")
+
+    try:
+        prod_entries = await list_production_location_databases(productions_db_id)
+    except Exception as exc:  # noqa: BLE001
+        err = f"Failed to list production databases: {exc}"
+        return StreamingResponse(iter([f"error: {err}\n"]), media_type="text/plain")
+
+    target_db = (db_id or "").strip()
+    if target_db:
+        filtered = [entry for entry in prod_entries if (entry.get("locations_db_id") or "").strip() == target_db]
+        if not filtered:
+            return StreamingResponse(iter([f"Error: Production database {target_db} not found. Aborting.\n"]), media_type="text/plain")
+        prod_entries = filtered
+
+    async def _generator():
+        if target_db and not prod_entries:
+            yield f"Error: Production database {target_db} not found. Aborting.\n"
+            return
+        if target_db:
+            yield f"Selected Production: {(prod_entries[0].get('display_name') or 'Production')} ({target_db})\n"
+        else:
+            yield "Reprocessing all productions...\n"
+
+        try:
+            master_cache = await load_master_cache(refresh=True)
+        except Exception as exc:  # noqa: BLE001
+            yield f"error: Failed to load master cache: {exc}\n"
+            return
+
+        total_rows = updated = skipped = unmatched = errors = 0
+        productions_processed = 0
+
+        for entry in prod_entries:
+            prod_name = entry.get("display_name") or entry.get("production_title") or entry.get("production_id") or entry.get("name") or entry.get("locations_db_id") or "Production"
+            current_db_id = entry.get("locations_db_id")
+            if not current_db_id:
+                continue
+            productions_processed += 1
+            yield f"Production: {prod_name} ({current_db_id})\n"
+            try:
+                rows = await fetch_production_locations(current_db_id, production_id=prod_name)
+            except Exception as exc:  # noqa: BLE001
+                errors += 1
+                yield f"-> error loading rows: {exc}\n"
+                continue
+            count = len(rows)
+            total_rows += count
+            yield f"Rows: {count}\n"
+            prod_updated = prod_skipped = prod_unmatched = prod_errors = 0
+            for idx, row in enumerate(rows, start=1):
+                yield f"Row {idx}/{count} — "
+                try:
+                    from app.services.ingestion_normalizer import normalize_ingest_record
+
+                    normalized_row = normalize_ingest_record(row, production_id=prod_name, log_category="reprocess", log=False)
+                    match_result = match_to_master(
+                        {
+                            "id": row.get("id"),
+                            "address1": normalized_row["components"].get("address1"),
+                            "city": normalized_row["components"].get("city"),
+                            "state": normalized_row["components"].get("state"),
+                            "zip": normalized_row["components"].get("zip"),
+                            "country": normalized_row["components"].get("country"),
+                            "place_id": normalized_row.get("place_id"),
+                        },
+                        master_cache,
+                        force=force,
+                    )
+                    match_reason = match_result.get("match_reason") or "none"
+                    candidate_count = match_result.get("candidate_count", 0)
+                    matched_id = match_result.get("matched_master_id")
+                    if candidate_count > 1:
+                        prod_unmatched += 1
+                        unmatched += 1
+                        yield f"multiple candidates via {match_reason}\n"
+                        continue
+                    if not matched_id:
+                        prod_unmatched += 1
+                        unmatched += 1
+                        yield "no match found\n"
+                        continue
+
+                    new_status = resolve_status(
+                        normalized_row.get("place_id"),
+                        matched=True,
+                        explicit=match_result.get("status"),
+                    )
+                    props = {
+                        "address1": {"rich_text": [{"text": {"content": normalized_row["components"].get("address1") or ""}}]},
+                        "address2": {"rich_text": [{"text": {"content": normalized_row["components"].get("address2") or ""}}]},
+                        "address3": {"rich_text": [{"text": {"content": normalized_row["components"].get("address3") or ""}}]},
+                        "city": {"rich_text": [{"text": {"content": normalized_row["components"].get("city") or ""}}]},
+                        "state": {"rich_text": [{"text": {"content": normalized_row["components"].get("state") or ""}}]},
+                        "zip": {"rich_text": [{"text": {"content": normalized_row["components"].get("zip") or ""}}]},
+                        "country": {"rich_text": [{"text": {"content": normalized_row["components"].get("country") or ""}}]},
+                        "county": {"rich_text": [{"text": {"content": normalized_row["components"].get("county") or ""}}]},
+                        "borough": {"rich_text": [{"text": {"content": normalized_row["components"].get("borough") or ""}}]},
+                        "Full Address": {"rich_text": [{"text": {"content": normalized_row.get("full_address") or ""}}]},
+                        "Place_ID": {"rich_text": [{"text": {"content": normalized_row.get("place_id") or ""}}]},
+                        "Status": {"status": {"name": new_status}},
+                        "LocationsMasterID": {"relation": [{"id": matched_id}]},
+                    }
+                    if normalized_row.get("formatted_address_google"):
+                        props["formatted_address_google"] = {"rich_text": [{"text": {"content": normalized_row.get("formatted_address_google")}}]}
+                    if normalized_row.get("latitude") is not None:
+                        props["Latitude"] = {"number": normalized_row.get("latitude")}
+                    if normalized_row.get("longitude") is not None:
+                        props["Longitude"] = {"number": normalized_row.get("longitude")}
+
+                    await update_location_page(row.get("id") or "", props)
+                    prod_updated += 1
+                    updated += 1
+                    yield f"normalized -> matched via {match_reason}\n"
+                except Exception as exc:  # noqa: BLE001
+                    prod_errors += 1
+                    errors += 1
+                    yield f"error: {exc}\n"
+            yield f"Summary for {prod_name}: updated={prod_updated} skipped={prod_skipped} unmatched={prod_unmatched} errors={prod_errors}\n"
+
+        yield f"Done. productions={productions_processed} rows={total_rows} updated={updated} skipped={skipped} unmatched={unmatched} errors={errors}\n"
+
+    return StreamingResponse(_generator(), media_type="text/plain")

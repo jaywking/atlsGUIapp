@@ -1,6 +1,6 @@
 # Project Handbook - ATLS GUI App  
-Last Updated: 2025-12-02  
-Version: v0.8.12.1
+Last Updated: 2025-12-08  
+Version: v0.9.4
 
 This handbook defines how ATLSApp is developed using NiceGUI, FastAPI, and a structured workflow.
 
@@ -223,6 +223,22 @@ Short milestone summary posted back to ChatGPT to align PM + Dev agent context.
 - All ingestion paths (master, productions, facilities, dedup writebacks) must call the canonical ingestion normalizer before Notion writes: parse + structured fields + formatted/full address + Place_ID when present; no post-hoc bulk normalization.
 - Notion Address Repair Tool (backend-only, headless): `scripts/repair_addresses.py` (targets: master, productions, facilities, or all). It performs in-place normalization of existing Notion rows, never deletes or recreates pages, and preserves identifiers/relations/status values.
 
+## Canonical Ingestion Workflow (v0.9.0)
+
+- Inputs: Require either Full Address or structured fields (address1, city, state, zip, country). Missing both rejects ingestion with an explicit error.
+- Full Address path: Always perform a fresh Google Places lookup. Overwrite structured fields, Full Address, Place_ID, latitude/longitude, county, and borough from Google data. Store Google `formatted_address` internally as `formatted_address_google`. Produce ATLS-formatted Full Address `{address1}, {city}, {state} {zip}` (+ `, {country}` when not US).
+- Structured-only path: Normalize components (Title Case city, uppercase 2-letter state, ISO 3166-1 alpha-2 country, 5-digit ZIP) and build ATLS Full Address.
+- Place_ID-only path (no Full Address): Optionally refresh structured fields via Google; otherwise rely on provided canonical structured fields.
+- Notion payloads: Canonical property names only (address1/2/3, city, state, zip, country, county, borough, Full Address, Place_ID, Latitude, Longitude, formatted_address_google). Status: Ready when Place_ID exists, Unresolved when missing, Matched when linked.
+- Matching priority: Place_ID → address hash (address1/city/state/zip/country) → city/state/zip; assumes canonical completeness.
+
+## Master Rebuild Workflow (v0.9.1)
+
+- Run `python -m scripts.repair_master` to canonicalize every Locations Master row via the ingestion normalizer.
+- Overwrites structured fields, ATLS Full Address, Place_ID (when available), Latitude/Longitude, county/borough, and stores `formatted_address_google`.
+- Ensures address hashes and component keys reflect canonical values; assumes schema already includes canonical fields.
+- Run `python -m scripts.verify_schema` to ensure Locations Master and all production `_Locations` databases have canonical properties (address1/2/3, city, state, zip, country, county, borough, Full Address, formatted_address_google, Place_ID, Latitude, Longitude, Status).
+
 ## Address Repair Tool
 
 Purpose  
@@ -355,6 +371,41 @@ Versioning guardrail: keep the version at the last known-good state while fixing
 ## 12. Deferred Items / Parking Lot
 
 This section tracks known issues, architectural concerns, or improvements that must be revisited in future milestones. Items here are not part of the current milestone but require planned review.
+
+12.x Admin Tools - Production Selector & Reprocess Stability  
+- Production dropdown still showing raw locations_db_id values and occasional "DB not found" errors during reprocess.  
+- Future fix: enforce friendly labels with deterministic label/value mapping, add server-side validation/logging for selection vs. returned list, and prevent multi-table runs when a single db_id is chosen.
+
+## Migration Note (v0.9.0)
+
+Legacy fallback address parsing is removed. All ingestion paths now require Full Address or structured fields, and Full Address inputs always re-query Google to overwrite structured fields while storing `formatted_address_google` internally.
+
+## Migration Note (v0.9.1)
+
+Master canonicalization and matching stability: Locations Master rows must be rebuilt via the canonical normalizer; matching now uses only canonical indexes (Place_ID → address hash → city/state/zip); schema verification helper patches all `_Locations` databases to canonical fields.
+
+## v0.9.4 – Admin Tools Modernization
+
+### Streaming Architecture
+- Dedup, Diagnostics, Cache, Schema Update, and Match All share a consistent streaming model via FastAPI `StreamingResponse`.
+- UI panels disable buttons during runs, clear output, and stream lines into read-only textareas.
+
+### Dedup Tool Behavior
+- Scans Locations Master and Production `_Locations` tables.
+- Duplicate detection hierarchy: identical Place_ID, identical canonical hash, identical ATLS Full Address (when available).
+- Output streams grouped duplicates and recommendations; no auto-merge is performed.
+
+### Diagnostics Behavior
+- Health checks include: master row count, missing Place_ID detection, cache index sizes, Notion/Maps credential availability, and production table summaries.
+- Output streams live; this is a surface-level check. Canonical drift/schema drift audits are deferred (v2 planned).
+
+### System Info
+- Structured JSON: application version, OS/Python, NiceGUI/FastAPI, cache sizes/refresh, credential presence, production DB summary.
+
+### Known Limitations (Parking Lot)
+- Production Selector / Reprocess mapping: Labels can still show DB IDs; value resolution to `locations_db_id` can misalign. Needs focused UI/value-binding review and logging.
+- Diagnostics depth: Current diagnostics are shallow; full canonical drift and schema audits deferred to v0.9.5.
+- Dedup coverage: Current dedup handles Place_ID and canonical hash; near-duplicate heuristics and remediation workflow are deferred.
 
 ### 12.1 Current Deferred Items
 
