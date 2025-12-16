@@ -535,6 +535,16 @@ async def update_location_page(page_id: str, properties: Dict[str, Any]) -> Dict
         return response.json()
 
 
+async def get_location_page(page_id: str) -> Dict[str, Any]:
+    """Fetch a single page from Notion by page_id."""
+    headers = _headers()
+    url = f"https://api.notion.com/v1/pages/{page_id}"
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.get(url, headers=headers)
+        response.raise_for_status()
+        return response.json()
+
+
 async def fetch_and_cache_locations() -> List[Dict[str, Any]]:
     log_job("locations", "cache_refresh", "start", "operation=locations_cache_refresh")
     pages = await _query_notion(filter_block=None, sorts=[])

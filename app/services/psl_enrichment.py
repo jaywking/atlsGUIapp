@@ -1,10 +1,11 @@
 from __future__ import annotations
-
+import json
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
 
 import httpx
 import re
 
+from app.services.debug_logger import debug_log, debug_enabled
 from app.services.ingestion_normalizer import _components_from_google, _google_geometry, normalize_components
 from app.services.notion_schema_utils import fetch_database
 from app.services.logger import log_job
@@ -430,8 +431,36 @@ async def _enrich_row(
     master_cache: Dict[str, Any],
     master_schema: Dict[str, Any],
     psl_schema_props: Dict[str, str],
+    production_name: str,
+    db_id: str,
 ) -> Tuple[str, str]:
     anchors = _anchors_from_row(row)
+    page_id = row.get("id") or ""
+    label = row.get("prod_loc_id") or row.get("name") or ""
+    
+    def log_request(props: Dict[str, Any]):
+        if not debug_enabled():
+            return
+        log_payload = {
+            "production_name": production_name,
+            "psl_db_id": db_id,
+            "psl_page_id": page_id,
+            "psl_label": label,
+            "payload": props,
+        }
+        debug_log("PSL_ENRICHMENT", f"PATCH /v1/pages/{page_id} PAYLOAD: {json.dumps(log_payload, indent=2)}")
+
+    def log_success():
+        if not debug_enabled():
+            return
+        debug_log("PSL_ENRICHMENT", f"PATCH /v1/pages/{page_id} SUCCESS")
+        
+    def log_failure(exc: httpx.HTTPStatusError):
+        body = _extract_http_error_body(exc)
+        if not debug_enabled():
+            return body
+        debug_log("PSL_ENRICHMENT", f"PATCH /v1/pages/{page_id} FAILED: {body}")
+        return body
 
     try:
         if row.get("place_id"):
@@ -447,13 +476,16 @@ async def _enrich_row(
                     reason += f" (skipped: {', '.join(skipped_fields)})"
                 return "ambiguous", reason
             try:
-                await update_location_page(row.get("id") or "", _strip_psl_phone(psl_props))
+                final_props = _strip_psl_phone(psl_props)
+                log_request(final_props)
+                await update_location_page(page_id, final_props)
+                log_success()
                 reason = "refresh"
                 if skipped_fields:
                     reason += f" (skipped: {', '.join(skipped_fields)})"
                 return "enriched", reason
             except httpx.HTTPStatusError as exc:
-                body = _extract_http_error_body(exc)
+                body = log_failure(exc)
                 status_code = exc.response.status_code if exc.response else "unknown"
                 return "error", f"psl_update_failed status={status_code} body={body} payload_keys={list(psl_props.keys())}"
 
@@ -489,13 +521,16 @@ async def _enrich_row(
                     reason += f" (skipped: {', '.join(skipped_fields)})"
                 return "ambiguous", reason
             try:
-                await update_location_page(row.get("id") or "", _strip_psl_phone(psl_props))
+                final_props = _strip_psl_phone(psl_props)
+                log_request(final_props)
+                await update_location_page(page_id, final_props)
+                log_success()
                 reason = "address"
                 if skipped_fields:
                     reason += f" (skipped: {', '.join(skipped_fields)})"
                 return "enriched", reason
             except httpx.HTTPStatusError as exc:
-                body = _extract_http_error_body(exc)
+                body = log_failure(exc)
                 status_code = exc.response.status_code if exc.response else "unknown"
                 return "error", f"psl_update_failed status={status_code} body={body} payload_keys={list(psl_props.keys())}"
 
@@ -526,13 +561,16 @@ async def _enrich_row(
                     reason += f" (skipped: {', '.join(skipped_fields)})"
                 return "ambiguous", reason
             try:
-                await update_location_page(row.get("id") or "", _strip_psl_phone(psl_props))
+                final_props = _strip_psl_phone(psl_props)
+                log_request(final_props)
+                await update_location_page(page_id, final_props)
+                log_success()
                 reason = "name"
                 if skipped_fields:
                     reason += f" (skipped: {', '.join(skipped_fields)})"
                 return "enriched", reason
             except httpx.HTTPStatusError as exc:
-                body = _extract_http_error_body(exc)
+                body = log_failure(exc)
                 status_code = exc.response.status_code if exc.response else "unknown"
                 return "error", f"psl_update_failed status={status_code} body={body} payload_keys={list(psl_props.keys())}"
 
@@ -590,7 +628,7 @@ async def stream_enrich_psl(db_id: str, production_label: str | None = None) -> 
             skipped_not_ready += 1
             yield "skipped (not ready)"
             continue
-        status, reason = await _enrich_row(row, master_cache, master_schema, psl_schema_props)
+        status, reason = await _enrich_row(row, master_cache, master_schema, psl_schema_props, label, db_id)
         if status == "enriched":
             enriched += 1
             yield f"enriched via {reason}"

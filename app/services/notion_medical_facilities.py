@@ -289,6 +289,17 @@ async def update_medical_facility_page(page_id: str, properties: Dict[str, Any])
         return response.json()
 
 
+async def find_medical_facility_by_place_id(place_id: str) -> Optional[Dict[str, Any]]:
+    """Find a medical facility by its Google Place ID."""
+    if not place_id:
+        return None
+    filter_block = {"property": "Place_ID", "rich_text": {"equals": place_id}}
+    results = await _query_notion(filter_block=filter_block, sorts=[])
+    if results:
+        return results[0]
+    return None
+
+
 async def search_medical_facilities(filters: Dict[str, str], sorts: List[str]) -> List[Dict[str, Any]]:
     filter_block = _build_filter(filters)
     sort_blocks = _build_sorts(sorts)

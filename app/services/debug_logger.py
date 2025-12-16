@@ -1,0 +1,27 @@
+from __future__ import annotations
+import os
+from datetime import datetime, timezone
+
+LOG_DIR = "logs"
+DEBUG_LOG_FILE = os.path.join(LOG_DIR, "debug_tools.log")
+_DEBUG_ENABLED = os.environ.get("DEBUG_TOOLS", "false").lower() in ("true", "1", "t")
+
+def debug_enabled() -> bool:
+    """Return True only when DEBUG_TOOLS=1."""
+    return _DEBUG_ENABLED
+
+def debug_log(tool: str, message: str) -> None:
+    """
+    Append a debug entry when enabled.
+
+    Each entry must include:
+    - UTC timestamp
+    - Tool name (uppercased)
+    - Message body (verbatim)
+    """
+    if not _DEBUG_ENABLED:
+        return
+    os.makedirs(LOG_DIR, exist_ok=True)
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    with open(DEBUG_LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(f"[{timestamp}] [{tool.upper()}]\n{message}\n\n")

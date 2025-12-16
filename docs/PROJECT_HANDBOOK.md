@@ -137,7 +137,19 @@ UI, API, and service layers must remain cleanly separated.
 
 ---
 
-# 5. Environment & Secrets
+# 7. Medical Facilities Generation Flow
+
+The Medical Facilities generation service is designed to find nearby hospitals and urgent care centers for a given location in the Locations Master. This is a key step in preparing location data for production use.
+
+The relationship between Locations Master (LM) and Medical Facilities (MF) is bidirectional and must be explicitly maintained:
+-   **LM → MF:** A location in the Locations Master has specific, ordered relation fields (`ER`, `UC1`, `UC2`, `UC3`) to link to its selected medical facilities. These are single-use fields, each holding a relation to exactly one medical facility. This represents a curated list of the most relevant facilities for that location.
+-   **MF → LM:** A medical facility can serve multiple locations. Therefore, the `LocationsMasterID` field on a Medical Facility row is a multi-relation field that links back to all the Location Master rows that rely on it.
+
+When the generation service runs, it performs Google Places searches to find nearby facilities, creates or updates them in the Medical Facilities database, and then writes the relationship in **both directions** to ensure data integrity.
+
+---
+
+# 8. Environment & Secrets
 
 `.env` at the repo root, loaded automatically on app startup.
 
@@ -159,7 +171,7 @@ Logs and caches must never contain secret values.
 
 ---
 
-# 6. Development Workflow
+# 9. Development Workflow
 
 ## Step 1 - Branch  
 Each feature uses its own branch.
@@ -206,7 +218,7 @@ Short milestone summary posted back to ChatGPT to align PM + Dev agent context.
 
 ---
 
-# 7. Dashboard Overview
+# 10. Dashboard Overview
 
 - Metrics: Notion + Maps + job summary  
 - Local-time conversion  
@@ -215,7 +227,7 @@ Short milestone summary posted back to ChatGPT to align PM + Dev agent context.
 
 ---
 
-# 8. UI Conventions
+# 11. UI Conventions
 
 - Wide tables must be wrapped in an `overflow-x-auto` container so they remain beside the sidebar and allow horizontal scroll.
 - Default table text alignment is left (headers and cells) via global CSS.
@@ -315,7 +327,7 @@ Normalized Ingest Requirement
 
 ---
 
-# 9. Testing Guidelines
+# 12. Testing Guidelines
 
 ### API  
 - Validate structured JSON  
@@ -334,7 +346,7 @@ Normalized Ingest Requirement
 
 ---
 
-# 10. Documentation Rules
+# 13. Documentation Rules
 
 - README.md — User-facing summary  
 - PROJECT_HANDBOOK.md — Architecture + workflow  
@@ -346,7 +358,7 @@ Every new feature or endpoint must be documented.
 
 ---
 
-# 11. Versioning
+# 14. Versioning
 
 Semantic versioning:
 
@@ -380,7 +392,7 @@ Versioning guardrail: keep the version at the last known-good state while fixing
 
 ---
 
-## 12. Deferred Items / Parking Lot
+## 15. Deferred Items / Parking Lot
 
 This section tracks known issues, architectural concerns, or improvements that must be revisited in future milestones. Items here are not part of the current milestone but require planned review.
 
@@ -484,7 +496,7 @@ Master canonicalization and matching stability: Locations Master rows must be re
 
 ---
 
-# 13. Collaboration Roles
+# 16. Collaboration Roles
 
 - Jay - Owner  
 - ChatGPT - Project Manager  
@@ -492,7 +504,7 @@ Master canonicalization and matching stability: Locations Master rows must be re
 
 ---
 
-# 14. Notes for Codex 5
+# 17. Notes for Codex 5
 
 - Avoid blocking the UI event loop  
 - Use async httpx for network calls  

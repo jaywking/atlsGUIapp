@@ -99,6 +99,9 @@ ChatGPT manages milestones, version naming, and roadmap updates.
 - Run it when investigating Notion 400 validation errors, checking for schema drift across productions, or confirming property names/types before changing write logic.
 - Treat reports as guidance; writes must still rely on explicit intent-based whitelists, not live schema introspection.
 
-## 14. Summary
+## 14. Global Debug Logging
+ATLSApp supports an opt-in debug logging mechanism for service-level tools. Set `DEBUG_TOOLS=1` to enable append-only diagnostics written to `logs/debug_tools.log`. Logs are not automatically inspected and must be explicitly referenced when requesting debugging assistance.
+
+## 15. Summary
 Jay sets the vision, ChatGPT architected the system and maintains quality, and Codex executes implementation cleanly.
 Admin Tools UI is now at `/admin_tools` and should be the target location for future maintenance and debugging tools.

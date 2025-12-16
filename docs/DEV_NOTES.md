@@ -1,3 +1,25 @@
+Session: 2025-12-16 - Add Medical Facility Generation Service
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Implemented a new backend service to generate and link nearby medical facilities for a Location Master row.
+- This service handles eligibility checks, Google Places API searches, canonical upserts of medical facilities, and the creation of bidirectional LM <-> MF relationships.
+- The service is not yet exposed to the UI.
+
+Changes:
+- Created `app/services/medical_facilities.py` with the core logic for finding and linking nearby ER and Urgent Care facilities.
+- Added helper functions `get_location_page()` to `app/services/notion_locations.py` and `find_medical_facility_by_place_id()` to `app/services/notion_medical_facilities.py`.
+- The new service integrates with the existing global debug logger (`DEBUG_TOOLS=1`) for detailed diagnostics.
+
+Testing:
+- Manual testing will be required to verify the functionality with a valid Location Master ID and Google Maps API key once an invocation path is created.
+
+Notes:
+- The service includes rerun prevention to avoid overwriting existing facility links.
+- This is a backend-only capability addition. No UI changes were made.
+
+---
 Refer to README.md and PROJECT_HANDBOOK.md for architecture and workflow rules.
 
 Current Version: v0.9.4
