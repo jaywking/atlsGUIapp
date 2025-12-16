@@ -2,8 +2,77 @@ Refer to README.md and PROJECT_HANDBOOK.md for architecture and workflow rules.
 
 Current Version: v0.9.4
 
-Versioning guardrail: keep the repo version at the last confirmed-working build while fixing issues; do not bump for broken attempts—only increment once the fix is verified to work.
+Versioning guardrail: keep the repo version at the last confirmed-working build while fixing issues; do not bump for broken attempts-only increment once the fix is verified to work.
 
+Session: 2025-12-15 - PSL International Phone fix & error visibility  
+Author: Codex 5  
+Milestone: v0.9.4 (no version bump)  
+
+Summary:  
+- Eliminated PSL 400s caused by International Phone type mismatches; ensured PSL writes never include phone data.  
+- Corrected Locations Master phone handling to use Notion `phone_number` type when the schema property exists.  
+- Surfaced full Notion error bodies in PSL streaming to expose schema/type issues.  
+
+Changes:  
+- `app/services/psl_enrichment.py`: strip phone fields from all PSL payloads and only include confirmed fields; ensure phone never reaches PSL PATCH.  
+- `app/services/notion_locations.py`: send International Phone to Locations Master as `phone_number` (schema-guarded).  
+- Error handling: bubble raw Notion PATCH bodies into Admin Tools streams for row-level diagnostics.  
+
+Testing:  
+- Manual PSL enrichment run on AMCL_Locations (17 rows) — all 17 enriched via refresh, 0 errors, 0 skips.  
+
+Notes:  
+- AMCL_Locations schema lacks International Phone; phone is LM-only. Phone payload remains enabled for LM when the schema contains `International Phone` (phone_number).  
+
+Schema Report Tool (Admin) — Purpose & Usage  
+- Why: Added after PSL enrichment failures caused by per-table schema variance and Notion 400 validation errors; replaces guessing with ground-truth schema visibility.  
+- When: Run before modifying write payloads to PSL/production tables, when enrichment or other Notion writes throw validation errors, or when debugging inconsistent behavior across productions.  
+- How: Use the Admin “Generate Schema Report” tool to inspect actual property names/types; treat the output as diagnostic reference only. Do not use schema output to auto-drive writes or fixes.  
+- Instruction: For any work on Notion write logic (especially PSL enrichment), run the schema report first to confirm field/type assumptions.  
+- Locations Master title rule: LM titles must be LOC### (expanding to LOC#### after 999). Titles must never be addresses/practical names; preserve existing LOC titles and only fill when missing.  
+
+Session: 2025-12-15 - PSL Enrichment workflow
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Implemented PSL enrichment service with Google geocode/place-details/name search paths and conservative readiness/ambiguity handling.
+- Added streaming API endpoints for per-production and batch PSL enrichment, updating Locations Master rows and PSL links in-line.
+- Added Admin Tools PSL Enrichment panel for single-production and batch runs; surfaced Practical Name in normalized rows.
+
+Changes:
+- Added app/services/psl_enrichment.py for enrichment logic and Google resolution helpers.
+- Added app/api/psl_enrichment_api.py plus router registration in app/main.py.
+- Updated app/ui/admin_tools.py with PSL Enrichment streaming controls; surfaced practical_name in app/services/notion_locations.py.
+
+Testing:
+- Not run (Notion/Google credentials required in runtime).
+
+Session: 2025-12-14 - Productions creation overhaul
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Refactored production creation into `app/services/create_production.py`; `ProductionID` now auto-generates as the next `PM###` (scans Productions Master).
+- User inputs: required Abbreviation (uppercased) and Production Name; optional Nickname, ProdStatus (validated against Notion options), Client / Platform, Production Type, Studio.
+- PSL handling: duplicate attempt with schema-clone fallback; renamed to `{Abbreviation}_Locations`; writes PSL URL to `Locations Table`.
+- API: added `/api/productions/create` wrapper and `/api/productions/options` to pull ProdStatus options from Notion.
+- UI: Productions page modal now collects the fields above, loads ProdStatus options from Notion, handles errors inline, refreshes on success; table timestamps formatted (Created date-only, Last Edited local datetime); pagination/sort state synced.
+- Schema alignment: removed unused Status field; kept ProdStatus only.
+
+Changes:
+- Added `app/services/create_production.py` and updated script wrapper `scripts/create_production_from_template.py`.
+- Added API route `/api/productions/create` and `/api/productions/options`.
+- Updated `app/ui/productions.py` with Add Production dialog, option loading, and table formatting/sorting fixes.
+- Docs: added productions creation flow to PROJECT_HANDBOOK.md; noted `sed` availability in agents.md.
+
+Testing:
+- Manual run of create flow via UI and script; verified PSL clone fallback succeeds and Locations Table updated.
+- Observed server start after fixing NiceGUI select initialization; ensured table sorts/pagination work without errors.
+
+Notes:
+- ProdStatus options come from Notion; invalid values are rejected server-side.
+- PSL direct duplicate still 400s; fallback clone handles creation and rename.
 
 
 # Source: DEV_NOTES_COMPLETE.md

@@ -125,6 +125,18 @@ UI, API, and service layers must remain cleanly separated.
 
 ---
 
+# 6. Productions Creation Flow (UI / API / Service)
+
+- Endpoint: `POST /api/productions/create` → calls `app.services.create_production.create_production`.
+- ProductionID is auto-generated as the next `PM###` (scans Productions Master for the highest PM### and increments). Users do not enter ProductionID.
+- Required user inputs: Abbreviation (uppercased) and Production Name.
+- Optional user inputs (passed through to Notion when present): Nickname, ProdStatus (must match Notion options), Client / Platform, Production Type, Studio.
+- Production page write: ProductionID (title) = generated PM###; Name = user value; Abbreviation = user value; optional fields above; ProdStatus/Status left blank if not provided.
+- PSL handling: attempts Notion duplicate of the PSL template; if blocked, clones the schema and renames the new DB to `{Abbreviation}_Locations`, then writes the PSL URL to `Locations Table` on the production page.
+- UI (app/ui/productions.py): “Add Production” dialog prompts for required Abbreviation/Name plus optional fields, fetches ProdStatus options from Notion, disables controls during submit, shows inline errors, and refreshes the table on success. Created/Last Edited timestamps are formatted (date-only for Created, local datetime for Last Edited).
+
+---
+
 # 5. Environment & Secrets
 
 `.env` at the repo root, loaded automatically on app startup.
@@ -442,7 +454,7 @@ Master canonicalization and matching stability: Locations Master rows must be re
    - This work should occur after the background job system and sync service architecture are introduced.
 
 8. **Structured Address Fields (Split Address Into Components)**  
-   - Currently, all addresses for Medical Facilities and Locations are stored in a single text field (e.g., “123 Main St, City, ST 12345”).  
+   - Currently, all addresses for Medical Facilities and Locations are stored in a single text field (e.g., "123 Main St, City, ST 12345").  
    - A future milestone (v0.7.x or later) should split addresses into structured components such as Address Line 1, Address Line 2, City, State, ZIP, and optionally additional Google Place Details components.  
    - This will enable precise server-side filtering, sorting, data validation, geospatial queries, and clean integration with the planned Facility Sync service and background worker architecture.  
    - This work should occur after the backend refactor that introduces background jobs, caching, and the new search endpoint.
@@ -463,6 +475,12 @@ Master canonicalization and matching stability: Locations Master rows must be re
      - Default Status values consistent with v0.8.x enforcement rules  
      - Preconfigured layout, filters, and ready-to-sync structure for all automations  
    - This feature will ensure all future productions inherit a fully wired environment, eliminating repeated Notion configuration steps and guaranteeing schema consistency across all production-specific tables.
+
+11. **Enforce Unique Production Name (Validation at Create/Edit)**  
+    - Future validation to prevent exact duplicate Production Name values in Productions Master.  
+    - Rationale: simplifies UI selectors by allowing primitive-name dropdowns without collision risk.  
+    - Enforcement belongs at production create/edit time (validation), not in downstream workflows.  
+    - Deferred; no implementation in current scope.
 
 ---
 

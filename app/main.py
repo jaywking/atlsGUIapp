@@ -24,7 +24,17 @@ from app.ui import admin_tools, dashboard, dedup, jobs, layout, locations, medic
 
 # API router imports
 import app.api.locations_api as locations_api
-from app.api import facilities_api, jobs_api, settings_api, dashboard_api, productions_api, medicalfacilities_api, notion_admin_api
+from app.api import (
+    facilities_api,
+    jobs_api,
+    settings_api,
+    dashboard_api,
+    productions_api,
+    medicalfacilities_api,
+    notion_admin_api,
+    psl_enrichment_api,
+    schema_report_api,
+)
 from app.services import background_sync
 
 # ---------------------------------------------------------------------
@@ -38,6 +48,8 @@ fastapi_app.include_router(settings_api.router)
 fastapi_app.include_router(dashboard_api.router)
 fastapi_app.include_router(productions_api.router)
 fastapi_app.include_router(notion_admin_api.router)
+fastapi_app.include_router(psl_enrichment_api.router)
+fastapi_app.include_router(schema_report_api.router)
 
 
 @fastapi_app.on_event("startup")

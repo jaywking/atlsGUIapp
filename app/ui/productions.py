@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -16,6 +17,36 @@ ROWS_PER_PAGE = 10
 AUTO_REFRESH_SECONDS = 60
 
 
+def _parse_iso_datetime(value: Any) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        text = str(value)
+        if text.endswith("Z"):
+            text = text.replace("Z", "+00:00")
+        return datetime.fromisoformat(text)
+    except Exception:
+        return None
+
+
+def _format_date_only(value: Any) -> str:
+    dt = _parse_iso_datetime(value)
+    if not dt:
+        return str(value or "")
+    return dt.date().isoformat()
+
+
+def _format_local_datetime(value: Any) -> str:
+    dt = _parse_iso_datetime(value)
+    if not dt:
+        return str(value or "")
+    try:
+        dt = dt.astimezone()
+    except Exception:
+        pass
+    return dt.strftime("%Y-%m-%d %H:%M")
+
+
 def page_content() -> None:
     state: Dict[str, Any] = {
         "rows": [],
@@ -23,6 +54,10 @@ def page_content() -> None:
         "search": "",
         "page": 0,
         "auto_refresh": False,
+        "sort_by": "",
+        "sort_desc": False,
+        "prod_status_options": [],
+        "status_options": [],
     }
 
     with ui.row().classes(f"{PAGE_HEADER_CLASSES} min-h-[52px]"):
@@ -33,6 +68,7 @@ def page_content() -> None:
             spinner = ui.spinner(size="md").style("display: none;")
             dirty_label = ui.label("").classes("text-xs text-amber-600")
         with ui.row().classes("items-center gap-2 flex-wrap ml-auto"):
+            add_button = ui.button("Add Production").classes("bg-emerald-600 text-white hover:bg-emerald-700")
             search_input = ui.input(label="Search productions...").props("dense clearable debounce=300").classes("w-72")
             page_info = ui.label("Page 1 of 1").classes("text-sm text-slate-500")
             prev_button = ui.button("Prev").classes("bg-slate-200 text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800")
@@ -60,7 +96,7 @@ def page_content() -> None:
         table = (
             ui.table(columns=columns, rows=[], row_key="row_id")
             .classes("w-full text-sm q-table--striped min-w-[1600px]")
-            .props('flat wrap-cells square separator="horizontal"')
+            .props('flat wrap-cells square separator="horizontal" rows-per-page-options="[10]"')
         )
 
         def update_table_rows(rows: List[Dict[str, Any]]) -> None:
@@ -126,8 +162,15 @@ def page_content() -> None:
                 or search_term in _lower(r.get("ClientPlatform"))
                 or search_term in _lower(r.get("Studio"))
                 or search_term in _lower(r.get("ProdStatus"))
-            ]
+        ]
         state["filtered"] = rows
+
+        sort_by = state.get("sort_by") or ""
+        if sort_by:
+            try:
+                rows.sort(key=lambda r: (str(r.get(sort_by) or "")).lower(), reverse=state.get("sort_desc", False))
+            except Exception:
+                pass
 
         total_pages = max(1, (len(rows) + ROWS_PER_PAGE - 1) // ROWS_PER_PAGE) if rows else 1
         if state["page"] >= total_pages:
@@ -136,8 +179,15 @@ def page_content() -> None:
         end = start + ROWS_PER_PAGE
         visible = rows[start:end]
         table.update_rows(visible)  # type: ignore[attr-defined]
-        table.update()
         page_info.set_text(f"Page {state['page'] + 1} of {total_pages} ({len(rows)} rows)")
+        table._props["pagination"] = {
+            "page": state["page"] + 1,
+            "rowsPerPage": ROWS_PER_PAGE,
+            "sortBy": sort_by,
+            "descending": state.get("sort_desc", False),
+            "rowsNumber": len(rows),
+        }
+        table.update()
 
     def apply_filters() -> None:
         """Alias for apply_filter to align with expected handler naming."""
@@ -153,6 +203,18 @@ def page_content() -> None:
         if state["page"] < total_pages - 1:
             state["page"] += 1
             apply_filter()
+
+    def handle_table_request(event) -> None:
+        pagination = (event.args or {}).get("pagination") or {}
+        state["sort_by"] = pagination.get("sortBy") or ""
+        state["sort_desc"] = bool(pagination.get("descending"))
+        page = pagination.get("page")
+        if page is not None:
+            try:
+                state["page"] = max(0, int(page) - 1)
+            except Exception:
+                pass
+        apply_filter()
 
     def normalize_row(row: Dict[str, Any]) -> Dict[str, Any]:
         row_id = row.get("row_id") or row.get("id") or row.get("ProductionID")
@@ -171,8 +233,8 @@ def page_content() -> None:
             "PPFirstDate": row.get("PPFirstDate") or "",
             "PPLastDay": row.get("PPLastDay") or "",
             "LocationsTable": row.get("LocationsTable") or "",
-            "CreatedTime": row.get("CreatedTime") or "",
-            "LastEditedTime": row.get("LastEditedTime") or "",
+            "CreatedTime": _format_date_only(row.get("CreatedTime")),
+            "LastEditedTime": _format_local_datetime(row.get("LastEditedTime")),
         }
 
     async def fetch_data(show_toast: bool = False, auto_trigger: bool = False, force: bool = False) -> None:
@@ -217,6 +279,126 @@ def page_content() -> None:
     next_button.on("click", go_next)
     search_input.on_value_change(lambda e: on_search(getattr(e, "value", None)))
     auto_switch.bind_value(state, "auto_refresh")
+    table.on("request", lambda e: handle_table_request(e))
+
+    with ui.dialog() as add_dialog, ui.card().classes("min-w-[360px]"):
+        ui.label("Create Production").classes("text-lg font-semibold mb-2")
+        code_input = ui.input(label="Abbreviation", placeholder="e.g. TGD").classes("w-full").props("clearable")
+        name_input = ui.input(label="Production Name", placeholder="e.g. The Great Demo").classes("w-full").props("clearable")
+        nickname_input = ui.input(label="Nickname", placeholder="Optional").classes("w-full").props("clearable")
+        prod_status_select = ui.select(label="ProdStatus", options=[""], value="").classes("w-full").props("clearable")
+        client_platform_input = ui.input(label="Client / Platform", placeholder="Optional").classes("w-full").props("clearable")
+        production_type_input = ui.input(label="Production Type", placeholder="Optional").classes("w-full").props("clearable")
+        studio_input = ui.input(label="Studio", placeholder="Optional").classes("w-full").props("clearable")
+        error_label = ui.label("").classes("text-sm text-red-600")
+        with ui.row().classes("items-center gap-2 mt-2"):
+            create_btn = ui.button("Create", color="primary")
+            cancel_btn = ui.button("Cancel").props("flat")
+
+    def reset_add_dialog() -> None:
+        code_input.set_value("")
+        name_input.set_value("")
+        nickname_input.set_value("")
+        prod_status_select.set_value("")
+        client_platform_input.set_value("")
+        production_type_input.set_value("")
+        studio_input.set_value("")
+        error_label.set_text("")
+        create_btn.set_enabled(True)
+        cancel_btn.set_enabled(True)
+        code_input.props(remove="readonly")
+        name_input.props(remove="readonly")
+        nickname_input.props(remove="readonly")
+        prod_status_select.props(remove="readonly")
+        client_platform_input.props(remove="readonly")
+        production_type_input.props(remove="readonly")
+        studio_input.props(remove="readonly")
+
+    def set_add_loading(is_loading: bool) -> None:
+        create_btn.set_enabled(not is_loading)
+        cancel_btn.set_enabled(not is_loading)
+        if is_loading:
+            create_btn.props("loading")
+            code_input.props("readonly")
+            name_input.props("readonly")
+            nickname_input.props("readonly")
+            prod_status_select.props("readonly")
+            client_platform_input.props("readonly")
+            production_type_input.props("readonly")
+            studio_input.props("readonly")
+        else:
+            create_btn.props(remove="loading")
+            code_input.props(remove="readonly")
+            name_input.props(remove="readonly")
+            nickname_input.props(remove="readonly")
+            prod_status_select.props(remove="readonly")
+            client_platform_input.props(remove="readonly")
+            production_type_input.props(remove="readonly")
+            studio_input.props(remove="readonly")
+
+    async def load_option_lists() -> None:
+        error_label.set_text("")
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                response = await client.get(api_url("/api/productions/options"))
+            data = response.json()
+            if response.status_code != 200 or not isinstance(data, dict) or data.get("status") != "ok":
+                raise ValueError(data.get("message") if isinstance(data, dict) else "Request failed")
+            prod_opts = [opt for opt in (data.get("prod_status_options") or []) if isinstance(opt, str)]
+            status_opts = [opt for opt in (data.get("status_options") or []) if isinstance(opt, str)]
+            prod_status_select.options = [""] + prod_opts
+            prod_status_select.update()
+        except Exception as exc:
+            logger.exception("Failed to load production options: %s", exc)
+            prod_status_select.options = [""]
+            prod_status_select.update()
+            error_label.set_text("Failed to load Notion options; you can still type custom values.")
+
+    async def submit_create(_=None) -> None:
+        error_label.set_text("")
+        code = (code_input.value or "").strip()
+        name = (name_input.value or "").strip()
+        if not code or not name:
+            error_label.set_text("Abbreviation and Name are required.")
+            return
+        code = code.upper()
+        code_input.set_value(code)
+        set_add_loading(True)
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    api_url("/api/productions/create"),
+                    json={
+                        "production_code": code,
+                        "production_name": name,
+                        "nickname": (nickname_input.value or "").strip(),
+                        "prod_status": (prod_status_select.value or "").strip(),
+                        "client_platform": (client_platform_input.value or "").strip(),
+                        "production_type": (production_type_input.value or "").strip(),
+                        "studio": (studio_input.value or "").strip(),
+                    },
+                )
+            data = response.json()
+            if response.status_code != 200 or not isinstance(data, dict) or data.get("status") != "ok":
+                message = data.get("message") if isinstance(data, dict) else "Request failed"
+                error_label.set_text(message or "Request failed")
+                return
+            add_dialog.close()
+            await fetch_data(show_toast=True, force=True)
+        except Exception as exc:
+            logger.exception("Create production failed: %s", exc)
+            error_label.set_text("Failed to create production. Please try again.")
+        finally:
+            set_add_loading(False)
+
+    async def open_add_dialog() -> None:
+        reset_add_dialog()
+        await load_option_lists()
+        add_dialog.open()
+
+    create_btn.on("click", submit_create)
+    cancel_btn.on("click", lambda _: add_dialog.close())
+    add_button.on("click", open_add_dialog)
 
     async def do_periodic_fetch():
         await fetch_data(auto_trigger=True)

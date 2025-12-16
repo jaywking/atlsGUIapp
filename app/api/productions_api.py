@@ -9,11 +9,15 @@ import traceback
 from typing import Any, Dict, List
 
 from fastapi import APIRouter
+from pydantic import BaseModel, validator
+from notion_client import Client
 
 from app.services import background_sync
 from app.services.import_jobs import import_locations_for_production
 from app.services.job_manager import schedule_job
 from app.services.logger import log_job
+from app.services.create_production import CreateProductionError, create_production
+from config import Config
 
 try:  # pragma: no cover - optional dependency for local dev
     from scripts import notion_utils
@@ -44,6 +48,66 @@ async def _production_exists(production_id: str) -> bool:
         return any(str(row.get("ProductionID", "")).lower() == prod_lower for row in records)
     except Exception:
         return False
+
+
+class CreateProductionRequest(BaseModel):
+    production_code: str  # used as abbreviation
+    production_name: str
+    nickname: str | None = None
+    prod_status: str | None = None
+    client_platform: str | None = None
+    production_type: str | None = None
+    studio: str | None = None
+
+    @validator("production_code", "production_name")
+    def _not_blank(cls, v: str) -> str:
+        if not isinstance(v, str) or not v.strip():
+            raise ValueError("must be a non-empty string")
+        return v.strip()
+
+
+@router.post("/create")
+def api_create_production(payload: CreateProductionRequest) -> Dict[str, Any]:
+    try:
+        result = create_production(
+            production_code=payload.production_code,
+            production_name=payload.production_name,
+            nickname=payload.nickname,
+            prod_status=payload.prod_status,
+            client_platform=payload.client_platform,
+            production_type=payload.production_type,
+            studio=payload.studio,
+        )
+        return {"status": "ok", "result": result}
+    except CreateProductionError as exc:
+        return {"status": "error", "message": str(exc)}
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Failed to create production: %s", exc)
+        detail = str(exc) if str(exc) else "Unknown error"
+        return {"status": "error", "message": f"Failed to create production: {detail}"}
+
+
+@router.get("/options")
+def api_production_options() -> Dict[str, Any]:
+    if not Config.NOTION_TOKEN or not Config.PRODUCTIONS_MASTER_DB:
+        return {"status": "error", "message": "Missing NOTION_TOKEN or PRODUCTIONS_MASTER_DB"}
+    try:
+        client = Client(auth=Config.NOTION_TOKEN, notion_version="2022-06-28")
+        db = client.databases.retrieve(Config.PRODUCTIONS_MASTER_DB)
+        props = db.get("properties") or {}
+        prod_status_opts = []
+        prod_status_prop = props.get("ProdStatus", {})
+        for opt in prod_status_prop.get("status", {}).get("options", []) or []:
+            name = opt.get("name")
+            if name:
+                prod_status_opts.append(name)
+        return {
+            "status": "ok",
+            "prod_status_options": prod_status_opts,
+        }
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Failed to fetch production options: %s", exc)
+        return {"status": "error", "message": "Failed to fetch production options"}
 
 
 @router.post("/{production_id}/locations/import")

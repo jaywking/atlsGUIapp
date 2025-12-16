@@ -36,6 +36,16 @@ def shell(title: str, content_callable):
     font-family: Inter, Segoe UI, Arial, sans-serif;
     font-size: 15px;
 }
+/* Remove default max-width constraints so pages can span available width */
+.nicegui-content,
+.q-page,
+.q-page-container,
+.q-layout__section--main {
+    max-width: none !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
 h1, h2, h3, h4 {
     letter-spacing: -0.2px;
     font-weight: 600;

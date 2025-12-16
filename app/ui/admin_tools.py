@@ -49,6 +49,10 @@ def page_content(request: Request) -> None:
         "cache_status": "Ready.",
         "dedup_count": None,
         "productions": [],
+        "productions_raw": [],
+        "productions_master": [],
+        "productions_missing_locations": [],
+        "psl_options": [],
         "productions_loaded": False,
         "diag_result": None,
     }
@@ -72,10 +76,11 @@ def page_content(request: Request) -> None:
         ui.label("Admin Tools").classes("text-xl font-semibold")
         ui.label("DEBUG_ADMIN enabled").classes("text-sm text-slate-500")
 
-    with ui.column().classes("w-full max-w-4xl gap-3 items-stretch"):
+    # Expand to full available width (no max width constraint) for better visibility of admin panels.
+    with ui.column().classes("w-full max-w-none gap-3 items-stretch").style("width: 100%; max-width: 100%;"):
         # Section 1 - Match All Locations
         with ui.expansion("Match All Locations", icon="bolt", value=True).classes(
-            "border border-slate-200 dark:border-slate-700"
+            "border border-slate-200 dark:border-slate-700 w-full"
         ):
             progress_box = ui.textarea(
                 value="Result will appear after running Match All.",
@@ -110,7 +115,7 @@ def page_content(request: Request) -> None:
             ).classes("bg-slate-900 text-white hover:bg-slate-800 px-3 py-1")
 
         # Section 2 - Schema Update (placeholder)
-        with ui.expansion("Schema Update", icon="schema").classes("border border-slate-200 dark:border-slate-700"):
+        with ui.expansion("Schema Update", icon="schema").classes("border border-slate-200 dark:border-slate-700 w-full"):
             schema_output = ui.textarea(
                 value="Result will appear after running Schema Update.",
                 placeholder="Schema update progress will stream here...",
@@ -144,7 +149,7 @@ def page_content(request: Request) -> None:
             ).classes("bg-slate-900 text-white hover:bg-slate-800 px-3 py-1 mb-1")
 
         # Section 3 - Cache Management
-        with ui.expansion("Cache Management", icon="cached").classes("border border-slate-200 dark:border-slate-700"):
+        with ui.expansion("Cache Management", icon="cached").classes("border border-slate-200 dark:border-slate-700 w-full"):
             cache_output = ui.textarea(
                 value="Cache progress will appear here.",
                 placeholder="Cache management progress will stream here...",
@@ -191,9 +196,47 @@ def page_content(request: Request) -> None:
                 on_click=lambda e: start_task(stream_cache("/api/locations/cache_reload_stream", btn_reload)),
             ).classes("bg-amber-600 text-white hover:bg-amber-700 px-3 py-1")
 
-        # Section 4 - Address Normalization (Retired)
+        # Section 4 - Schema Report (diagnostic)
+        with ui.expansion("Generate Schema Report", icon="description").classes(
+            "border border-slate-200 dark:border-slate-700 w-full"
+        ):
+            schema_report_output = ui.textarea(
+                value="Press the button to generate a Notion schema report.",
+                placeholder="Schema report progress will stream here...",
+            ).classes("w-full text-sm h-40")
+            schema_report_output.props("readonly")
+
+            async def run_schema_report_stream() -> None:
+                schema_report_output.value = "Starting schema report...\n"
+                schema_report_output.update()
+                schema_report_btn.disable()
+                try:
+                    async with httpx.AsyncClient(base_url=str(request.base_url), timeout=None) as client:
+                        async with client.stream("GET", "/api/schema_report/stream") as response:
+                            response.raise_for_status()
+                            async for line in response.aiter_lines():
+                                if line is None:
+                                    continue
+                                schema_report_output.value += line
+                                if not line.endswith("\n"):
+                                    schema_report_output.value += "\n"
+                                schema_report_output.update()
+                except Exception as exc:  # noqa: BLE001
+                    schema_report_output.value += f"error: {exc}\n"
+                    schema_report_output.update()
+                    ui.notify(f"Schema report failed: {exc}", type="negative", position="top")
+                finally:
+                    schema_report_btn.enable()
+
+            schema_report_btn = ui.button(
+                "Generate Schema Report",
+                icon="description",
+                on_click=lambda e: start_task(run_schema_report_stream()),
+            ).classes("bg-slate-900 text-white hover:bg-slate-800 px-3 py-1")
+
+        # Section 5 - Address Normalization (Retired)
         with ui.expansion("Address Normalization", icon="home_pin").classes(
-            "border border-slate-200 dark:border-slate-700"
+            "border border-slate-200 dark:border-slate-700 w-full"
         ):
             ui.label(
                 "Address normalization is no longer available in the UI. "
@@ -201,12 +244,12 @@ def page_content(request: Request) -> None:
             ).classes("text-sm text-slate-500")
             ui.code("python -m scripts.repair_addresses").classes("w-full text-xs")
 
-        # Section 5 - Reprocess Production Locations
+        # Section 6 - Reprocess Production Locations
         with ui.expansion("Reprocess Production Locations", icon="refresh").classes(
-            "border border-slate-200 dark:border-slate-700"
+            "border border-slate-200 dark:border-slate-700 w-full"
         ):
             production_select = ui.select(
-                options={},
+                options=[],
                 label="Select Production",
                 value=None,
             ).classes("w-full")
@@ -219,43 +262,88 @@ def page_content(request: Request) -> None:
 
             async def load_productions() -> None:
                 load_status.set_text("Loading productions...")
-                ok, payload = await _request_json("get", "/api/locations/production_dbs", request)
-                if not ok:
-                    load_status.set_text(f"Failed to load productions: {payload.get('error')}")
-                    ui.notify(f"Failed to load productions: {payload.get('error')}", type="negative", position="top")
+                ok_dbs, payload_dbs = await _request_json("get", "/api/locations/production_dbs", request)
+                ok_master, payload_master = await _request_json("get", "/api/productions/fetch", request, timeout=15.0)
+                if not ok_dbs:
+                    load_status.set_text(f"Failed to load productions: {payload_dbs.get('error')}")
+                    psl_status.set_text(f"Failed to load productions: {payload_dbs.get('error')}")
+                    ui.notify(f"Failed to load productions: {payload_dbs.get('error')}", type="negative", position="top")
                     return
-                productions = payload.get("data") or []
-                options_list = []
+
+                productions = payload_dbs.get("data") or []
+                master_rows = payload_master.get("data") if ok_master else []
+                name_map = {row.get("ProductionID"): row.get("Name") for row in master_rows if row.get("ProductionID")}
+
+                name_to_db: Dict[str, str] = {}
+                missing_names: List[str] = []
+                option_labels: List[str] = []
                 for prod in productions:
                     db_id = prod.get("locations_db_id") or ""
                     if not db_id:
                         continue
-                    label = prod.get("display_name") or prod.get("production_title") or "Production"
-                    pid = prod.get("production_id")
-                    if pid and label and label != pid:
-                        label = f"{label} ({pid})"
-                    options_list.append({"label": label, "value": db_id})
-                production_select.options = options_list  # list of {label, value}
-                state["productions"] = options_list
+                    prod_id = prod.get("production_id")
+                    label = (name_map.get(prod_id) or "").strip()
+                    if not label:
+                        missing_names.append(prod_id or db_id)
+                        continue
+                    name_to_db[label] = db_id
+                    option_labels.append(label)
+
+                option_labels = sorted(option_labels, key=lambda s: s.lower())
+
+                # Build primitive options: names only (strings). Disabled option shown if names are missing.
+                options_display = list(option_labels)
+                if missing_names:
+                    options_display.append("(missing Production Name)")
+                production_select.options = options_display
+                psl_select.options = options_display
+                production_select.update()
+                psl_select.update()
+
+                state["productions"] = option_labels
+                state["productions_raw"] = productions
+                state["productions_master"] = master_rows
+                missing_locations = [row for row in master_rows if not row.get("LocationsTable")]
+                state["productions_missing_locations"] = missing_locations
+                state["psl_options"] = option_labels
+                state["name_to_db"] = name_to_db  # lookup map for selected name -> locations_db_id
+                state["missing_name_option"] = "(missing Production Name)" if missing_names else None
                 state["productions_loaded"] = True
-                if options_list:
-                    production_select.value = options_list[0]["value"]
-                    load_status.set_text(f"Loaded {len(options_list)} productions.")
+
+                total_found = len(productions)
+                if option_labels:
+                    production_select.value = option_labels[0]
+                    production_select.update()
+                    load_status.set_text(f"Loaded {total_found} productions. ({len(missing_names)} missing names skipped)")
                 else:
                     load_status.set_text("No productions found.")
 
+                if option_labels:
+                    psl_select.value = option_labels[0]
+                    psl_select.update()
+                    psl_status.set_text(f"Loaded {total_found} productions. ({len(missing_names)} missing names skipped)")
+                else:
+                    psl_status.set_text("No productions with Production Name found.")
+
             async def run_reprocess_stream() -> None:
-                selected = production_select.value
-                if not selected:
+                selected_name = production_select.value
+                missing_label = state.get("missing_name_option")
+                if not selected_name or selected_name == missing_label:
                     ui.notify("Select a production first.", type="warning", position="top")
                     return
-                selected_label = next((k for k, v in (production_select.options or {}).items() if v == selected), selected)
-                reprocess_output.value = f"Starting reprocess for {selected_label} ({selected})...\n"
+                db_map: Dict[str, str] = state.get("name_to_db") or {}
+                db_id = db_map.get(selected_name)
+                if not db_id:
+                    ui.notify("Selected production is missing a Locations Table.", type="negative", position="top")
+                    reprocess_output.value += "error: missing locations_db_id for selected production\n"
+                    reprocess_output.update()
+                    return
+                reprocess_output.value = f"Starting reprocess for {selected_name} ({db_id})...\n"
                 reprocess_output.update()
                 reprocess_btn.disable()
                 try:
                     async with httpx.AsyncClient(base_url=str(request.base_url), timeout=None) as client:
-                        async with client.stream("GET", f"/api/locations/reprocess_stream?db_id={selected}") as response:
+                        async with client.stream("GET", f"/api/locations/reprocess_stream?db_id={db_id}") as response:
                             response.raise_for_status()
                             async for line in response.aiter_lines():
                                 if line is None:
@@ -277,7 +365,164 @@ def page_content(request: Request) -> None:
                 on_click=lambda e: start_task(run_reprocess_stream()),
             ).classes("bg-amber-600 text-white hover:bg-amber-700 px-3 py-1 mt-2")
 
-        # Section 6 - Dedup Simple Admin
+        # Section 6 - PSL Enrichment
+        with ui.expansion("PSL Enrichment", icon="map").classes("border border-slate-200 dark:border-slate-700 w-full"):
+            psl_select = ui.select(
+                options=[],
+                label="Select Production",
+                value=None,
+            ).classes("w-full")
+            psl_status = ui.label(
+                "Select a production to enrich. Address/details will write to PSL only when the PSL schema has matching fields; otherwise they stay in Locations Master."
+            ).classes("text-sm text-slate-500")
+            psl_output = ui.textarea(
+                value="PSL enrichment output will appear here.",
+                placeholder="Streaming progress...",
+            ).classes("w-full text-sm h-48")
+            psl_output.props("readonly")
+
+            async def run_psl_single() -> None:
+                selected_name = psl_select.value
+                missing_label = state.get("missing_name_option")
+                if not selected_name or selected_name == missing_label:
+                    ui.notify("Select a production first.", type="warning", position="top")
+                    return
+                db_map: Dict[str, str] = state.get("name_to_db") or {}
+                db_id = db_map.get(selected_name)
+                if not db_id:
+                    ui.notify("Selected production is missing a Locations Table.", type="negative", position="top")
+                    psl_output.value += "error: missing locations_db_id for selected production\n"
+                    psl_output.update()
+                    return
+                psl_output.value = f"Starting PSL enrichment for {selected_name} ({db_id})...\n"
+                psl_output.update()
+                psl_single_btn.disable()
+                psl_batch_btn.disable()
+                try:
+                    async with httpx.AsyncClient(base_url=str(request.base_url), timeout=None) as client:
+                        async with client.stream("GET", "/api/psl/enrich_stream", params={"db_id": db_id, "production": selected_name}) as response:
+                            response.raise_for_status()
+                            async for line in response.aiter_lines():
+                                if line is None:
+                                    continue
+                                psl_output.value += line
+                                if not line.endswith("\n"):
+                                    psl_output.value += "\n"
+                                psl_output.update()
+                except Exception as exc:  # noqa: BLE001
+                    psl_output.value += f"error: {exc}\n"
+                    psl_output.update()
+                    ui.notify(f"PSL enrichment failed: {exc}", type="negative", position="top")
+                finally:
+                    psl_single_btn.enable()
+                    psl_batch_btn.enable()
+
+            async def run_psl_batch() -> None:
+                psl_output.value = "Starting PSL batch enrichment across productions...\n"
+                psl_output.update()
+                psl_single_btn.disable()
+                psl_batch_btn.disable()
+                try:
+                    async with httpx.AsyncClient(base_url=str(request.base_url), timeout=None) as client:
+                        async with client.stream("GET", "/api/psl/enrich_batch_stream") as response:
+                            response.raise_for_status()
+                            async for line in response.aiter_lines():
+                                if line is None:
+                                    continue
+                                psl_output.value += line
+                                if not line.endswith("\n"):
+                                    psl_output.value += "\n"
+                                psl_output.update()
+                except Exception as exc:  # noqa: BLE001
+                    psl_output.value += f"error: {exc}\n"
+                    psl_output.update()
+                    ui.notify(f"Batch enrichment failed: {exc}", type="negative", position="top")
+                finally:
+                    psl_single_btn.enable()
+                    psl_batch_btn.enable()
+
+            psl_single_btn = ui.button(
+                "Enrich Selected PSL",
+                icon="play_arrow",
+                on_click=lambda e: start_task(run_psl_single()),
+            ).classes("bg-slate-900 text-white hover:bg-slate-800 px-3 py-1 mt-2")
+            psl_batch_btn = ui.button(
+                "Batch Enrich All PSL",
+                icon="playlist_add_check",
+                on_click=lambda e: start_task(run_psl_batch()),
+            ).classes("bg-amber-600 text-white hover:bg-amber-700 px-3 py-1 mt-2")
+
+        # Section 7 - PSL Enrichment Debug
+        with ui.expansion("PSL Enrichment Debug", icon="bug_report").classes("border border-slate-200 dark:border-slate-700"):
+            psl_debug_counts = ui.label("Load productions to view debug data.").classes("text-sm text-slate-500")
+            psl_debug_raw = ui.textarea(
+                value="Raw /api/locations/production_dbs payload will appear here.",
+                placeholder="Run Load productions first.",
+            ).classes("w-full text-xs h-40")
+            psl_debug_raw.props("readonly")
+            psl_debug_options = ui.textarea(
+                value="Computed select options will appear here.",
+                placeholder="Run Load productions first.",
+            ).classes("w-full text-xs h-40")
+            psl_debug_options.props("readonly")
+            psl_debug_master = ui.textarea(
+                value="Raw /api/productions/fetch payload will appear here.",
+                placeholder="Run Load productions first.",
+            ).classes("w-full text-xs h-40")
+            psl_debug_master.props("readonly")
+
+            async def load_production_debug() -> None:
+                psl_debug_counts.set_text("Loading production debug...")
+                psl_debug_raw.value = ""
+                psl_debug_options.value = ""
+                psl_debug_master.value = ""
+                psl_debug_raw.update()
+                psl_debug_options.update()
+                psl_debug_master.update()
+
+                ok_master, payload_master = await _request_json("get", "/api/productions/fetch", request, timeout=30.0)
+                ok_dbs, payload_dbs = await _request_json("get", "/api/locations/production_dbs", request, timeout=30.0)
+
+                master_rows = payload_master.get("data") if ok_master else []
+                db_rows = payload_dbs.get("data") if ok_dbs else []
+
+                with_locations = [row for row in master_rows if row.get("LocationsTable")]
+                missing_locations = [row for row in master_rows if not row.get("LocationsTable")]
+
+                state["productions_master"] = master_rows
+                state["productions_missing_locations"] = missing_locations
+
+                summary = (
+                    f"production_dbs_returned={len(db_rows)} "
+                    f"master_total={len(master_rows)} "
+                    f"with_locations_table={len(with_locations)} "
+                    f"missing_locations_table={len(missing_locations)}"
+                )
+                psl_debug_counts.set_text(summary)
+
+                psl_debug_raw.value = format_json(db_rows, empty_message="No /api/locations/production_dbs data.")
+                psl_debug_raw.update()
+
+                psl_debug_options.value = format_json(
+                    {
+                        "production_select_options": state.get("productions") or [],
+                        "psl_select_options": state.get("psl_options") or [],
+                        "missing_locations_table": missing_locations,
+                    },
+                    empty_message="No options loaded. Run Load productions.",
+                )
+                psl_debug_options.update()
+
+                psl_debug_master.value = format_json(master_rows, empty_message="No /api/productions/fetch data.")
+                psl_debug_master.update()
+
+            ui.button(
+                "Load Production Debug",
+                icon="visibility",
+                on_click=lambda e: start_task(load_production_debug()),
+            ).classes("bg-slate-900 text-white hover:bg-slate-800 px-3 py-1 mt-2")
+
+        # Section 8 - Dedup Simple Admin
         with ui.expansion("Dedup Simple Admin", icon="tune").classes("border border-slate-200 dark:border-slate-700"):
             dedup_output = ui.textarea(
                 value="Dedup results will stream here.",
@@ -312,7 +557,7 @@ def page_content(request: Request) -> None:
                 on_click=lambda e: start_task(run_dedup_stream()),
             ).classes("bg-slate-900 text-white hover:bg-slate-800 px-3 py-1 mt-2")
 
-        # Section 7 - Diagnostics (streaming)
+        # Section 9 - Diagnostics (streaming)
         with ui.expansion("Diagnostics", icon="bug_report").classes("border border-slate-200 dark:border-slate-700"):
             diag_output = ui.textarea(
                 value="Diagnostics output will stream here.",
@@ -348,7 +593,7 @@ def page_content(request: Request) -> None:
                 on_click=lambda e: start_task(run_diagnostics()),
             ).classes("bg-slate-900 text-white hover:bg-slate-800 px-3 py-1")
 
-        # Section 8 - System Info
+        # Section 9 - System Info
         with ui.expansion("System Info", icon="info").classes("border border-slate-200 dark:border-slate-700"):
             sys_output = ui.code("System info will appear here.").classes("w-full text-sm")
 

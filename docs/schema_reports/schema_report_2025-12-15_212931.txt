@@ -1,0 +1,232 @@
+Notion Database Schema Report
+Generated on: 2025-12-15 21:29:31
+Summary:
+- Total databases: 19
+- Canonical databases: 4
+- PSL databases: 15
+- Productions missing PSL DB link: 11
+- Productions with invalid PSL DB link: 0
+- Fatal fetch failures: noted inline per database
+==================================================
+
+Warnings - productions missing PSL DB link:
+- ZZ Top Movie
+- ZZ Top Movie
+- jtown
+- Htown
+- ZZ Top
+- zzTOP
+- 234
+- jaywking
+- Gtoiwb
+- ZZ Top
+- Htown
+
+Database: 'Productions Master'
+ID: 20533cd66348814692d9fb9feec42692
+Source: env::NOTION_PRODUCTIONS_DB_ID
+------------------------------
+Database: UNKNOWN
+ID: 20533cd66348814692d9fb9feec42692
+Source: env::NOTION_PRODUCTIONS_DB_ID
+  - FAILED TO FETCH SCHEMA: cannot access local variable 'options' where it is not associated with a value
+
+==================================================
+
+Database: 'Locations Master'
+ID: 20633cd663488145bb62dbf0bdf4762a
+Source: env::NOTION_LOCATIONS_DB_ID
+------------------------------
+Database: UNKNOWN
+ID: 20633cd663488145bb62dbf0bdf4762a
+Source: env::NOTION_LOCATIONS_DB_ID
+  - FAILED TO FETCH SCHEMA: cannot access local variable 'options' where it is not associated with a value
+
+==================================================
+
+Database: 'Medical Facilities'
+ID: 20633cd6634881d89362f9578093ca57
+Source: env::NOTION_MEDICAL_DB_ID
+------------------------------
+Database: UNKNOWN
+ID: 20633cd6634881d89362f9578093ca57
+Source: env::NOTION_MEDICAL_DB_ID
+  - FAILED TO FETCH SCHEMA: cannot access local variable 'options' where it is not associated with a value
+
+==================================================
+
+Database: 'PSL_Template'
+ID: 2c833cd6634880b3b4c8fbdfe05fb9a0
+Source: env::PSL_TEMPLATE_DB_ID
+------------------------------
+Database: UNKNOWN
+ID: 2c833cd6634880b3b4c8fbdfe05fb9a0
+Source: env::PSL_TEMPLATE_DB_ID
+  - FAILED TO FETCH SCHEMA: cannot access local variable 'options' where it is not associated with a value
+
+==================================================
+
+Database: 'AMCL_Locations'
+ID: 20633cd663488095b1c4d21452e35ed7
+Source: PSL (PSL::American Classic)
+------------------------------
+Database: UNKNOWN
+ID: 20633cd663488095b1c4d21452e35ed7
+Source: PSL::American Classic
+  - FAILED TO FETCH SCHEMA: cannot access local variable 'options' where it is not associated with a value
+
+==================================================
+
+Database: 'YDEO_Locations'
+ID: 21333cd663488096aaf9e4788cf62ea7
+Source: PSL (PSL::You Deserve Each Other)
+------------------------------
+Database: UNKNOWN
+ID: 21333cd663488096aaf9e4788cf62ea7
+Source: PSL::You Deserve Each Other
+  - FAILED TO FETCH SCHEMA: cannot access local variable 'options' where it is not associated with a value
+
+==================================================
+
+Database: 'TGD_Locations'
+ID: 22233cd663488065a1d5ca9ffc772f5d
+Source: PSL (PSL::The Good Daughter)
+------------------------------
+Database: UNKNOWN
+ID: 22233cd663488065a1d5ca9ffc772f5d
+Source: PSL::The Good Daughter
+  - FAILED TO FETCH SCHEMA: cannot access local variable 'options' where it is not associated with a value
+
+==================================================
+
+Database: 'SAMO_Locations'
+ID: 26833cd6634880888b46f975a82baddf
+Source: PSL (PSL::SAMO Lives)
+------------------------------
+Database: UNKNOWN
+ID: 26833cd6634880888b46f975a82baddf
+Source: PSL::SAMO Lives
+  - FAILED TO FETCH SCHEMA: cannot access local variable 'options' where it is not associated with a value
+
+==================================================
+
+Database: 'TEST_ONE_Locations'
+ID: 28b33cd663488112aa67c9196b2dc399
+Source: PSL (PSL::TEST_ONE)
+------------------------------
+Database: UNKNOWN
+ID: 28b33cd663488112aa67c9196b2dc399
+Source: PSL::TEST_ONE
+  - FAILED TO FETCH SCHEMA: cannot access local variable 'options' where it is not associated with a value
+
+==================================================
+
+Database: 'I Play Rocky_Locations'
+ID: 28f33cd6634881b48a17e538aa9bf92e
+Source: PSL (PSL::I Play Rocky)
+------------------------------
+Database: UNKNOWN
+ID: 28f33cd6634881b48a17e538aa9bf92e
+Source: PSL::I Play Rocky
+  - FAILED TO FETCH SCHEMA: cannot access local variable 'options' where it is not associated with a value
+
+==================================================
+
+Database: 'RIP - Locations'
+ID: 29033cd66348818db5bcf2a836b43bf9
+Source: PSL (PSL::RIP)
+------------------------------
+Database: UNKNOWN
+ID: 29033cd66348818db5bcf2a836b43bf9
+Source: PSL::RIP
+  - FAILED TO FETCH SCHEMA: cannot access local variable 'options' where it is not associated with a value
+
+==================================================
+
+Database: 'PAR_Locations'
+ID: 29433cd6634881708306cbb2bcb9997d
+Source: PSL (PSL::Parallax)
+------------------------------
+Database: UNKNOWN
+ID: 29433cd6634881708306cbb2bcb9997d
+Source: PSL::Parallax
+  - FAILED TO FETCH SCHEMA: cannot access local variable 'options' where it is not associated with a value
+
+==================================================
+
+Database: 'TOOT_Locations'
+ID: 2c933cd66348810c9d0ad8fdf63f2b15
+Source: PSL (PSL::PPEE PPOOO)
+------------------------------
+Database: UNKNOWN
+ID: 2c933cd66348810c9d0ad8fdf63f2b15
+Source: PSL::PPEE PPOOO
+  - FAILED TO FETCH SCHEMA: cannot access local variable 'options' where it is not associated with a value
+
+==================================================
+
+Database: 'LLL_Locations'
+ID: 2c933cd6634881aab660d3fb0af47e98
+Source: PSL (PSL::Losertown)
+------------------------------
+Database: UNKNOWN
+ID: 2c933cd6634881aab660d3fb0af47e98
+Source: PSL::Losertown
+  - FAILED TO FETCH SCHEMA: cannot access local variable 'options' where it is not associated with a value
+
+==================================================
+
+Database: 'LLL_Locations'
+ID: 2c933cd6634881cfa7acf1f97edce96b
+Source: PSL (PSL::LLTown)
+------------------------------
+Database: UNKNOWN
+ID: 2c933cd6634881cfa7acf1f97edce96b
+Source: PSL::LLTown
+  - FAILED TO FETCH SCHEMA: cannot access local variable 'options' where it is not associated with a value
+
+==================================================
+
+Database: 'YDEO_Locations'
+ID: 2c933cd6634881f489e4c4b1f69fa8c5
+Source: PSL (PSL::TDEO2)
+------------------------------
+Database: UNKNOWN
+ID: 2c933cd6634881f489e4c4b1f69fa8c5
+Source: PSL::TDEO2
+  - FAILED TO FETCH SCHEMA: cannot access local variable 'options' where it is not associated with a value
+
+==================================================
+
+Database: 'RRR_Locations'
+ID: 2c933cd6634881fc8e6feee6c5cf60c9
+Source: PSL (PSL::TRtown)
+------------------------------
+Database: UNKNOWN
+ID: 2c933cd6634881fc8e6feee6c5cf60c9
+Source: PSL::TRtown
+  - FAILED TO FETCH SCHEMA: cannot access local variable 'options' where it is not associated with a value
+
+==================================================
+
+Database: 'FFF_Locations'
+ID: 2ca33cd66348814aa92de054612b6ca5
+Source: PSL (PSL::ftopia)
+------------------------------
+Database: UNKNOWN
+ID: 2ca33cd66348814aa92de054612b6ca5
+Source: PSL::ftopia
+  - FAILED TO FETCH SCHEMA: cannot access local variable 'options' where it is not associated with a value
+
+==================================================
+
+Database: 'FYA_Locations'
+ID: 2ca33cd6634881eba96beac1fabbecd3
+Source: PSL (PSL::FireTV)
+------------------------------
+Database: UNKNOWN
+ID: 2ca33cd6634881eba96beac1fabbecd3
+Source: PSL::FireTV
+  - FAILED TO FETCH SCHEMA: cannot access local variable 'options' where it is not associated with a value
+
+==================================================

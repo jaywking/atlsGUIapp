@@ -165,7 +165,8 @@ def normalize_location(page: Dict[str, Any]) -> Dict[str, Any]:
         prod_loc_id = "".join([t.get("plain_text", "") for t in prop_prod_loc.get("rich_text", []) if isinstance(t, dict)])
 
     practical_name = _rich_text_any(props, ["Practical Name", "practical_name"])
-    name = practical_name or _rich_text_any(props, ["Location Name", "location_name"]) or prod_loc_id
+    location_name = _rich_text_any(props, ["Location Name", "location_name"])
+    name = practical_name or location_name or prod_loc_id
     address1_raw = _rich_text_any(props, ["address1"])
     address2_raw = _rich_text_any(props, ["address2"])
     address3_raw = _rich_text_any(props, ["address3"])
@@ -208,6 +209,8 @@ def normalize_location(page: Dict[str, Any]) -> Dict[str, Any]:
         "id": page.get("id") or "",
         "prod_loc_id": prod_loc_id,
         "name": name or prod_loc_id or "Unnamed Location",
+        "practical_name": practical_name,
+        "location_name": location_name,
         "address": full_address,
         "address1": address1,
         "address2": address2,
@@ -251,7 +254,9 @@ def get_locations_db_id_from_url(url: str) -> str:
     """
     if not url:
         return ""
-    match = HEX_RE.search(url)
+    # Strip hyphens so we can catch IDs in both hyphenated and compact forms
+    sanitized = url.replace("-", "")
+    match = HEX_RE.search(sanitized)
     return match.group(0) if match else ""
 
 
@@ -510,13 +515,23 @@ async def update_location_page(page_id: str, properties: Dict[str, Any]) -> Dict
         if response.is_success:
             return response.json()
         # Log response body for diagnostics before raising
+        body = ""
+        try:
+            body = response.text
+        except Exception:
+            body = ""
         log_job(
             "address_writeback",
             "update_response",
             "error",
-            f"page_id={page_id} status={response.status_code} body={response.text}",
+            f"page_id={page_id} status={response.status_code} body={body}",
         )
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            # Attach raw body to the exception for upstream visibility
+            exc.args = (*exc.args, f"response_body={body}")
+            raise
         return response.json()
 
 

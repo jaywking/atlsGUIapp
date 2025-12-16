@@ -52,7 +52,7 @@ ATLSApp uses a hybrid human/AI development model. This file establishes:
 
 ### PowerShell Command Behavior (Reminder)
 
-When generating PowerShell commands, Agents must not use Unix utilities such as `sed`, `awk`, `grep`, or `cut`. Use native PowerShell equivalents only. Refer to DEV_NOTES.md for the full rule and correct command patterns.
+`sed` is available now; it can be used when helpful. Other Unix utilities (`awk`, `grep`, `cut`) may not be present—prefer native PowerShell equivalents unless you have confirmed the tool exists. Refer to DEV_NOTES.md for the full rule and correct command patterns.
 
 ## 6. Collaboration Workflow
 1. Jay provides a request.
@@ -86,6 +86,19 @@ ChatGPT manages milestones, version naming, and roadmap updates.
 - Codex linting rules.
 - Schema evolution guidelines.
 
-## 12. Summary
+## 12. UI Design Heuristic (Forward-Looking)
+- Prefer simpler, robust patterns when wiring UI/framework boundaries.
+- Use primitive data (strings/numbers) at UI edges; avoid passing rich objects unless strictly necessary.
+- Assume NiceGUI/Quasar abstractions can be leaky; design defensively and avoid complex object-binding.
+- When multiple valid approaches exist, choose the one that is easiest to reason about, debug, and maintain (even if less “elegant”).
+- This heuristic exists to prevent fragile UI behavior from hidden framework assumptions; it is a forward-looking guardrail, not a critique of prior work.
+
+## 13. Schema Report Tool (Diagnostic)
+- Use the Admin Tools “Generate Schema Report” action to pull a plain-text snapshot of Notion schemas; it’s for diagnosis only.
+- Reports include canonical databases and all PSL tables; run it for validation errors, schema drift checks, or confirming property names/types before changing write logic.
+- Run it when investigating Notion 400 validation errors, checking for schema drift across productions, or confirming property names/types before changing write logic.
+- Treat reports as guidance; writes must still rely on explicit intent-based whitelists, not live schema introspection.
+
+## 14. Summary
 Jay sets the vision, ChatGPT architected the system and maintains quality, and Codex executes implementation cleanly.
 Admin Tools UI is now at `/admin_tools` and should be the target location for future maintenance and debugging tools.
