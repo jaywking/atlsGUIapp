@@ -7,6 +7,23 @@ ATLSApp uses a hybrid human/AI development model. This file establishes:
 - How tasks flow from idea → plan → implementation → documentation.
 - Guardrails that keep the project stable and maintainable.
 
+## Environment Assumptions
+
+OS: Windows
+
+Primary shell:
+- PowerShell (`pwsh`)
+
+Additional available shell:
+- Git Bash (MINGW64)
+
+Available POSIX tools in Git Bash:
+sed, awk, grep, cut, sort, uniq, tr, xargs, find (GNU versions under /usr/bin)
+
+Rules:
+- POSIX tools may be used only in Git Bash–targeted commands.
+- PowerShell commands must use PowerShell-native utilities unless Git Bash is explicitly invoked.
+
 ## 2. Agent Overview
 | Agent | Role | Core Responsibilities |
 |-------|------|------------------------|
@@ -52,7 +69,7 @@ ATLSApp uses a hybrid human/AI development model. This file establishes:
 
 ### PowerShell Command Behavior (Reminder)
 
-`sed` is available now; it can be used when helpful. Other Unix utilities (`awk`, `grep`, `cut`) may not be present—prefer native PowerShell equivalents unless you have confirmed the tool exists. Refer to DEV_NOTES.md for the full rule and correct command patterns.
+POSIX tools are available via Git Bash; they must not be used in native PowerShell unless Git Bash is explicitly invoked. Refer to DEV_NOTES.md for the full rule and correct command patterns.
 
 ## 6. Collaboration Workflow
 1. Jay provides a request.
@@ -69,6 +86,7 @@ ATLSApp uses a hybrid human/AI development model. This file establishes:
 ## 8. Error Handling
 - ChatGPT prepares corrective prompts.
 - Codex applies corrections without architectural changes.
+- Logs and diagnostics must be reviewed when investigating unexpected behavior; logging informs troubleshooting and decision-making, not speculation.
 
 ## 9. Documentation Responsibilities
 | File | Owner | Purpose |

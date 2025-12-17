@@ -1,3 +1,18 @@
+## Global Notes (Authoritative)
+DEV_NOTES.md is a historical session log. When conflicts arise, PROJECT_HANDBOOK.md is the authoritative source of current rules and behavior.
+
+### Dark Mode Status
+Historical DEV_NOTES entries describe prior dark-mode experimentation, including Tailwind `dark:` usage and synchronization logic. These entries are historical only.
+
+Current rule (see PROJECT_HANDBOOK.md):
+Dark mode is frozen and must not be modified unless explicitly instructed. Tailwind `dark:` utilities are not permitted.
+
+### Versioning Note
+DEV_NOTES records historical version bumps as they occurred at the time.
+
+Current rule (see PROJECT_HANDBOOK.md):
+Version increments occur only at verified milestone acceptance, not during intermediate fixes, experiments, or drafts.
+
 Session: 2025-12-16 - Add Medical Facility Generation Service
 Author: Codex 5
 Milestone: v0.9.4 (no version bump)
@@ -13,6 +28,7 @@ Changes:
 - The new service integrates with the existing global debug logger (`DEBUG_TOOLS=1`) for detailed diagnostics.
 
 Testing:
+Note: Any dark-mode testing referenced below reflects historical work only. Dark mode should not be modified or re-tested unless explicitly instructed.
 - Manual testing will be required to verify the functionality with a valid Location Master ID and Google Maps API key once an invocation path is created.
 
 Notes:
@@ -141,30 +157,10 @@ Authoritative reference for Codex 5.1 rules, NiceGUI guardrails, and the human w
 
 ### PowerShell CLI Rules (Cross-Platform Guardrail)
 
-Codex must not generate Unix-only tools (`sed`, `awk`, `grep`, `cut`, etc.) in any PowerShell command. These tools are not available by default on Windows and will fail under `pwsh`.
+Unix / POSIX command-line tools (`sed`, `awk`, `grep`, `cut`, `sort`, `uniq`, `tr`, `xargs`, `find`) are available via Git Bash (MINGW64, GNU versions under /usr/bin).
 
-When extracting line ranges, searching, or transforming text in PowerShell,
-always use native PowerShell commands:
-
-- Use `Get-Content` with array slicing:
-    (Get-Content <file>)[<start_index>..<end_index>]
-
-- For safer range handling:
-    Get-Content <file> | Select-Object -Index (<start-1>)..(<end-1>)
-
-- For searching:
-    Select-String -Path <file> -Pattern <pattern>
-
-Codex must never emit calls like:
-
-    sed -n '115,190p' file.md
-
-Instead, use:
-
-    (Get-Content 'file.md')[114..189]
-
-This rule applies to all PowerShell contexts, including calls executed via
-`pwsh -Command`.
+Codex may use these tools only when commands are explicitly intended to run in a POSIX shell (Git Bash).
+They must not be used in native PowerShell (`pwsh`) commands or scripts unless Git Bash is explicitly invoked.
 
 #### ripgrep (`rg`) Usage in PowerShell 7
 
@@ -214,6 +210,7 @@ It is available to all PowerShell 7 sessions invoked by Codex.
 * Use module loggers with actionable messages (operation, count, error).
 * Ensure `logs/` exists before writing; keep severity aligned (INFO flow, WARNING/ERROR failures).
 * Add feature-specific logs when debugging (e.g., `logs/productions.log`).
+* Logs are the primary source of truth for runtime behavior; consult logs before proposing speculative fixes or architectural changes.
 
 ## Editable Tables (Productions Reference)
 
