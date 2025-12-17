@@ -46,6 +46,7 @@ Thumbs.db
 .python-version
 __pypackages__/
 node_modules/
+notion table backups/
 
 # Local scratch artifacts
 scripts/perf_logs/
