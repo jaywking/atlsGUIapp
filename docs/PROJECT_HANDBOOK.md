@@ -133,7 +133,293 @@ UI, API, and service layers must remain cleanly separated.
 - Optional user inputs (passed through to Notion when present): Nickname, ProdStatus (must match Notion options), Client / Platform, Production Type, Studio.
 - Production page write: ProductionID (title) = generated PM###; Name = user value; Abbreviation = user value; optional fields above; ProdStatus/Status left blank if not provided.
 - PSL handling: attempts Notion duplicate of the PSL template; if blocked, clones the schema and renames the new DB to `{Abbreviation}_Locations`, then writes the PSL URL to `Locations Table` on the production page.
+- PSL enrichment: when Enrich PSL runs against a production locations DB, it now stamps `ProductionID` as a relation to the production page, applies the production Abbreviation as the `ProdLocID` prefix (e.g., `TEST001`), and auto-increments per production. LOC generation in Locations Master now respects existing master titles to avoid reusing `LOC001`.
 - UI (app/ui/productions.py): “Add Production” dialog prompts for required Abbreviation/Name plus optional fields, fetches ProdStatus options from Notion, disables controls during submit, shows inline errors, and refreshes the table on success. Created/Last Edited timestamps are formatted (date-only for Created, local datetime for Last Edited).
+
+# Data Models & External Source Mappings
+
+This chapter is the authoritative contract for where data in PSL, LM, and MF comes from, and which system is allowed to write each field.
+
+## 1. PSL Schema → Source, Derived Fields & External Alignment
+
+### PSL Role & Scope
+- PSL represents production-specific usage of a location.
+- PSL rows are not canonical locations.
+- PSL captures story/production/operational context.
+- Canonical location identity and normalization live in Locations Master (LM).
+- PSL may temporarily store Google-derived data during enrichment, but LM is authoritative.
+
+### Identifier Rules (Non-Negotiable)
+- **ProdLocID**
+  - Identifier for PSL rows.
+  - Derived from production abbreviation + zero-padded sequence (e.g., `TEST001`).
+  - Unique within a production.
+  - Generated during PSL enrichment; never user-entered; never free-form.
+- **LocationsMasterID**
+  - Identifier for LM; globally unique across all LM rows.
+  - PSL may reference it via relation.
+  - PSL must never generate or modify this value.
+
+### PSL Field Categories & Write Authority
+- **User-Authored Fields**
+  - `Location Name`: Always user-entered; production-facing label (e.g., “Bad Guys Hangout”); must never be populated or overwritten by Google data.
+  - `Practical Name`
+  - `Notes`
+- **Production-Derived Fields**
+  - `ProductionID` (relation)
+  - `Abbreviation` (rollup)
+- **Derived Identifiers**
+  - `ProdLocID`
+- **Externally Populated Fields**
+  - Address and coordinate fields written during enrichment (see Google alignment).
+- **Relation Fields**
+  - PSL → LM (`LocationsMasterID`)
+
+### External Data → PSL Field Alignment (MANDATORY)
+- **Google → PSL Alignment**
+  - `place_id` → `Place_ID`
+  - `geometry.location.lat` → `Latitude`
+  - `geometry.location.lng` → `Longitude`
+  - `url` → `Google Maps URL`
+  - `formatted_address` → `formatted_address_google`
+  - `formatted_address` → `Full Address`
+- **Address Components**
+  - `street_number` + `route` → `address1`
+  - `subpremise` → `address2`
+  - (no reliable Google source) → `address3`
+  - `locality` → `city`
+  - `administrative_area_level_1` → `state`
+  - `postal_code` → `zip`
+  - `country` → `country`
+  - `administrative_area_level_2` → `county`
+  - `sublocality_level_1` → `borough` (when present)
+- **Explicit Non-Mappings**
+  - Google `name` must not map to `Location Name` or `Practical Name`.
+  - `Location Name` is always user-entered and must never be overwritten.
+  - PSL must not infer or fabricate missing address components.
+
+### Overwrite & Preservation Rules
+- **May overwrite (by enrichment):** Structured address fields, `Full Address`, `formatted_address_google`, `Place_ID`, `Latitude`, `Longitude`, `LocationsMasterID`, `ProductionID`, `ProdLocID` (when missing/wrong prefix), `Status` per matching rules.
+- **Must preserve:** `Location Name`, `Practical Name`, `Notes`, user-set `Status` outside enrichment, and any field not present in the PSL schema. Enrichment must never erase production intent.
+
+## 2. Locations Master (LM) Schema → Canonical & External Source Mapping
+
+### LM Role & Scope
+- LM is the canonical location table.
+- One LM row represents one real-world place.
+- Multiple PSL rows may reference the same LM row.
+- LM is authoritative for normalized address data, coordinates, `Place_ID`, and Google-derived location identity.
+- Downstream systems (PSL, MF, safety, reporting) must treat LM as the source of truth.
+
+### Identifier Rules (Non-Negotiable)
+- **LocationsMasterID**
+  - Identifier for LM rows; format `LOC###`.
+  - Globally unique across the entire LM table.
+  - Generated by the system; never user-entered; never reused; never derived from PSL.
+- Google `place_id` is used for deduplication and upsert; no two LM rows may share the same `place_id`.
+
+### LM Field Categories & Write Authority
+- **Canonical Identifiers:** `LocationsMasterID`, `Place_ID`.
+- **Externally Populated (Google) Fields:** Address fields, coordinates, `Google Maps URL`, `Types`.
+- **User / Operational Fields:** `Name`, `Practical Name`, `Notes`, status fields.
+- **System / Relation Fields:** `Productions Used In`, `ProductionID` (if present), medical facility relations (ER / UC fields).
+
+### External Data → LM Field Alignment (MANDATORY)
+- **Core Identity & Location**
+  - `place_id` → `Place_ID`
+  - `geometry.location.lat` → `Latitude`
+  - `geometry.location.lng` → `Longitude`
+  - `url` → `Google Maps URL`
+- **Address (Formatted + Components)**
+  - `formatted_address` → `formatted_address_google`
+  - `formatted_address` → `Full Address`
+  - `street_number` + `route` → `address1`
+  - `subpremise` → `address2`
+  - (no reliable Google source) → `address3`
+  - `locality` → `city`
+  - `administrative_area_level_1` → `state`
+  - `postal_code` → `zip`
+  - `country` → `country`
+  - `administrative_area_level_2` → `county`
+  - `sublocality_level_1` → `borough` (when present)
+- **Classification**
+  - `types[]` → `Types` (multi-select)
+- **Explicit Non-Mappings**
+  - Google `name` does not overwrite `Name` or `Practical Name`.
+  - LM does not infer or fabricate missing address components.
+  - Missing Google data results in empty LM fields.
+
+### Overwrite, Deduplication & Preservation Rules
+- LM rows are created or updated via `place_id` upsert.
+- Address and coordinate fields may be overwritten on re-enrichment.
+- User-authored fields (`Name`, `Practical Name`, `Notes`) must be preserved.
+- `LocationsMasterID` must never change once assigned.
+- LM canonical values take precedence over PSL copies.
+
+## 3. Medical Facilities (MF) Schema → Google Places API Mapping
+
+MF is populated exclusively from Google Places Nearby Search + Place Details. This mapping is the complete and authoritative alignment between Google field names and MF Notion fields. Any MF field not populated after enrichment is empty by design unless Google provides the data. Downstream consumers must not infer or fabricate MF data.
+
+---
+
+## Medical Facilities Database
+Source: `env::NOTION_MEDICAL_DB_ID`
+
+---
+
+## 1. Identity / Core Fields
+
+| MF Field | Google Places Field |
+|--------|---------------------|
+| MedicalFacilityID (title) | Internal only (not from Google) |
+| Name | `name` |
+| Place_ID | `place_id` |
+| Type | Derived from `types` + name inspection (classification logic) |
+
+**Type rules (summary):**
+- ER → `types` includes `hospital` AND explicit emergency indicators
+- Urgent Care → urgent care indicators
+- Do not classify health systems, clinics, or offices as ER
+
+---
+
+## 2. Coordinates / Geometry
+
+| MF Field | Google Places Field |
+|--------|---------------------|
+| Latitude | `geometry.location.lat` |
+| Longitude | `geometry.location.lng` |
+
+---
+
+## 3. Address (Raw)
+
+| MF Field | Google Places Field |
+|--------|---------------------|
+| formatted_address_google | `formatted_address` |
+| Full Address | `formatted_address` |
+
+---
+
+## 4. Address (Parsed from `address_components[]`)
+
+All fields below are derived from `address_components[]`.  
+If a component does not exist, leave the MF field empty.
+
+| MF Field | Google Address Component |
+|--------|--------------------------|
+| address1 | `street_number` + `route` |
+| address2 | `subpremise` |
+| address3 | Explicit component only (otherwise empty) |
+| city | `locality` |
+| borough | `sublocality` or `sublocality_level_1` |
+| county | `administrative_area_level_2` |
+| state | `administrative_area_level_1` (short_name) |
+| zip | `postal_code` |
+| country | `country` (short_name or long_name per app convention) |
+
+---
+
+## 5. Contact / Web
+
+Populate only when Google returns the value.
+
+| MF Field | Google Places Field |
+|--------|---------------------|
+| Phone | `formatted_phone_number` |
+| International Phone | `international_phone_number` |
+| Website | `website` |
+| Google Maps URL | `url` |
+
+---
+
+## 6. Hours of Operation
+
+Derived from `opening_hours.weekday_text[]`.  
+Copy values verbatim. Do not normalize or infer.
+
+| MF Field | Google Places Field |
+|--------|---------------------|
+| Monday Hours | `opening_hours.weekday_text[0]` |
+| Tuesday Hours | `opening_hours.weekday_text[1]` |
+| Wednesday Hours | `opening_hours.weekday_text[2]` |
+| Thursday Hours | `opening_hours.weekday_text[3]` |
+| Friday Hours | `opening_hours.weekday_text[4]` |
+| Saturday Hours | `opening_hours.weekday_text[5]` |
+| Sunday Hours | `opening_hours.weekday_text[6]` |
+
+If `opening_hours` or `weekday_text` is missing → leave all day fields empty.
+
+---
+
+## 7. Relations / System-Managed Fields
+
+| MF Field | Source |
+|--------|--------|
+| LocationsMasterID | Internal relation (LM → MF bidirectional write) |
+| Notes | Not populated automatically |
+| Created Time | Managed by Notion |
+| Updated | Managed by Notion |
+
+---
+
+## 8. Required Google Place Details `fields` Parameter
+
+To populate the MF schema correctly, the Place Details request **must explicitly include**:
+
+```
+place_id,
+name,
+formatted_address,
+address_components,
+geometry/location,
+formatted_phone_number,
+international_phone_number,
+website,
+opening_hours/weekday_text,
+types,
+url
+```
+
+If a field is not requested here, Google will **not return it**, even if data exists.
+
+---
+
+## 9. Key Constraints (Non-Negotiable)
+
+- Do not infer missing data
+- Do not fabricate hours, addresses, or contact info
+- Leave fields empty if Google does not provide them
+- Do not modify schema or field names
+- MF completeness depends entirely on Place Details response
+
+---
+
+## 10. Validation Checklist
+
+After implementation:
+- MF rows populate all available fields from Google
+- Empty fields correspond only to missing Google data
+- No schema fields are silently ignored
+- Debug logs clearly show populated vs missing fields
+
+This mapping is authoritative for MF population logic.
+
+### Field Completeness & Expected Google Data Gaps
+- Nearby Search does not return formatted address, address components, hours, phone numbers, or website.
+- Place Details may return these fields, but they are often missing.
+- MF fields may legitimately remain empty when opening hours are unpublished, phone numbers are not provided, website is absent, or address components are incomplete.
+- Empty MF fields do not indicate an error if Google did not return the data.
+
+### Classification Authority (ER vs Urgent Care)
+- MF `Type` is derived from Google `types[]` plus explicit hospital/emergency department signals.
+- Only true hospital emergency departments qualify as `ER`.
+- Clinics, physician offices, and non-hospital facilities must never be classified as `ER`.
+- Misclassification of `Type` is a data integrity bug.
+
+### Identifier Rules
+- **MedicalFacilityID (MF###):** internal MF identifier; system-generated; globally unique.
+- **Place_ID:** external canonical identifier; used for deduplication and upsert; no two MF rows may share the same `Place_ID`.
 
 ---
 

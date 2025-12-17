@@ -7,6 +7,7 @@ import time
 from typing import Any, Dict, List
 
 from fastapi import APIRouter
+from fastapi.responses import StreamingResponse
 
 from app.services.cache_utils import DEFAULT_MAX_AGE_SECONDS, is_cache_stale
 from app.services.logger import log_job
@@ -15,6 +16,7 @@ from app.services.notion_medical_facilities import (
     fetch_and_cache_medical_facilities,
     get_cached_medical_facilities,
 )
+from app.services.medical_facilities_runner import stream_generate_medical_facilities_all
 from scripts import fetch_medical_facilities as run_fetch_medical_facilities
 
 router = APIRouter(prefix="/api/medicalfacilities", tags=["medical facilities"])
@@ -195,3 +197,14 @@ async def all_medical_facilities(limit: int = 1000) -> Dict[str, Any]:
     message = f"Returned {len(records)} facilities in {duration_ms} ms (limit {validated_limit})"
     log_job("facilities", "all", "success", message)
     return {"status": "success", "message": message, "data": records}
+
+
+@router.get("/generate_all_stream")
+async def generate_medical_facilities_all_stream() -> StreamingResponse:
+    async def _generator():
+        async for line in stream_generate_medical_facilities_all():
+            if line is None:
+                continue
+            yield line if line.endswith("\n") else line + "\n"
+
+    return StreamingResponse(_generator(), media_type="text/plain")

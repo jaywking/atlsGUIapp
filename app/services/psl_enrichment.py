@@ -17,6 +17,7 @@ from app.services.notion_locations import (
     fetch_production_locations,
     resolve_status,
     update_location_page,
+    resolve_production_for_locations_db,
 )
 from config import Config
 
@@ -27,6 +28,8 @@ PLACE_SEARCH_URL = "https://maps.googleapis.com/maps/api/place/textsearch/json"
 MASTER_SCHEMA_CACHE: Dict[str, Any] | None = None
 MASTER_TITLE_PROP: Optional[str] = None
 PSL_SCHEMA_FIELDS: Dict[str, Dict[str, str]] = {}
+
+PRODLOC_RE = re.compile(r"^([A-Za-z0-9]+?)(\d+)$")
 
 
 def _rt(value: str) -> Dict[str, Any]:
@@ -57,6 +60,26 @@ LOC_RE = re.compile(r"^LOC(\d+)$")
 
 def _loc_title_from_row(row: Dict[str, Any]) -> str:
     return (row.get("prod_loc_id") or row.get("name") or "").strip()
+
+
+def _build_prodloc_counters(rows: List[Dict[str, Any]], prefix: str | None) -> Dict[str, int]:
+    """Return prefix -> highest numeric suffix seen for ProdLocID values."""
+    counters: Dict[str, int] = {}
+    if not prefix:
+        return counters
+    prefix_upper = prefix.upper()
+    for row in rows:
+        value = (row.get("prod_loc_id") or "").strip()
+        match = PRODLOC_RE.match(value)
+        if not match:
+            continue
+        if match.group(1).upper() != prefix_upper:
+            continue
+        try:
+            counters[prefix_upper] = max(counters.get(prefix_upper, 0), int(match.group(2)))
+        except ValueError:
+            continue
+    return counters
 
 
 def _next_loc_title(master_cache: Dict[str, Any]) -> str:
@@ -244,7 +267,12 @@ def _build_master_properties(google_fields: Dict[str, Any], schema: Dict[str, An
     return props
 
 
-def _build_psl_update_properties(google_fields: Dict[str, Any], matched_master_id: str | None) -> Dict[str, Any]:
+def _build_psl_update_properties(
+    google_fields: Dict[str, Any],
+    matched_master_id: str | None,
+    production_page_id: str | None = None,
+    prodloc_id: str | None = None,
+) -> Dict[str, Any]:
     """Build PSL payload; actual write filters by schema/types later."""
     if "international_phone" in google_fields or "International Phone" in google_fields:
         google_fields = {k: v for k, v in google_fields.items() if k not in {"international_phone", "International Phone"}}
@@ -253,6 +281,10 @@ def _build_psl_update_properties(google_fields: Dict[str, Any], matched_master_i
         props["Place_ID"] = _rt(str(google_fields["place_id"]))
     if matched_master_id:
         props["LocationsMasterID"] = {"relation": [{"id": matched_master_id}]}
+    if production_page_id:
+        props["ProductionID"] = {"relation": [{"id": production_page_id}]}
+    if prodloc_id:
+        props["ProdLocID"] = {"title": [{"text": {"content": prodloc_id}}]}
     if google_fields.get("practical_name"):
         props["Practical Name"] = _rt(str(google_fields["practical_name"]))
     if google_fields.get("full_address"):
@@ -378,6 +410,8 @@ def _filter_psl_payload(payload: Dict[str, Any], schema_props: Dict[str, str]) -
     expected_types: Dict[str, set[str]] = {
         "Place_ID": {"rich_text", "title"},
         "LocationsMasterID": {"relation"},
+        "ProductionID": {"relation"},
+        "ProdLocID": {"title"},
         "Practical Name": {"rich_text", "title"},
         "Full Address": {"rich_text"},
         "formatted_address_google": {"rich_text"},
@@ -433,10 +467,21 @@ async def _enrich_row(
     psl_schema_props: Dict[str, str],
     production_name: str,
     db_id: str,
+    production_page_id: str | None,
+    prodloc_prefix: str | None,
+    prodloc_counters: Dict[str, int],
 ) -> Tuple[str, str]:
     anchors = _anchors_from_row(row)
     page_id = row.get("id") or ""
     label = row.get("prod_loc_id") or row.get("name") or ""
+    prodloc_id_to_apply: str | None = None
+    if prodloc_prefix:
+        current = (row.get("prod_loc_id") or "").strip()
+        match = PRODLOC_RE.match(current)
+        if not match or match.group(1).upper() != prodloc_prefix.upper():
+            next_num = prodloc_counters.get(prodloc_prefix.upper(), 0) + 1
+            prodloc_counters[prodloc_prefix.upper()] = next_num
+            prodloc_id_to_apply = f"{prodloc_prefix}{next_num:03d}"
     
     def log_request(props: Dict[str, Any]):
         if not debug_enabled():
@@ -469,7 +514,15 @@ async def _enrich_row(
             if not google_fields.get("anchors_match"):
                 return "ambiguous", "place_id locality mismatch"
             master_id = await _upsert_master_row(google_fields, master_cache, master_schema)
-            psl_props, skipped_fields = _filter_psl_payload(_build_psl_update_properties(google_fields, master_id), psl_schema_props)
+            psl_props, skipped_fields = _filter_psl_payload(
+                _build_psl_update_properties(
+                    google_fields,
+                    master_id,
+                    production_page_id=production_page_id,
+                    prodloc_id=prodloc_id_to_apply,
+                ),
+                psl_schema_props,
+            )
             if not psl_props:
                 reason = "no writable fields in PSL schema"
                 if skipped_fields:
@@ -514,7 +567,15 @@ async def _enrich_row(
                 details = await _place_details(str(google_fields["place_id"]))
                 google_fields = _extract_google_fields(details, anchors)
             master_id = await _upsert_master_row(google_fields, master_cache, master_schema)
-            psl_props, skipped_fields = _filter_psl_payload(_build_psl_update_properties(google_fields, master_id), psl_schema_props)
+            psl_props, skipped_fields = _filter_psl_payload(
+                _build_psl_update_properties(
+                    google_fields,
+                    master_id,
+                    production_page_id=production_page_id,
+                    prodloc_id=prodloc_id_to_apply,
+                ),
+                psl_schema_props,
+            )
             if not psl_props:
                 reason = "no writable fields in PSL schema"
                 if skipped_fields:
@@ -554,7 +615,15 @@ async def _enrich_row(
                 details = await _place_details(str(google_fields["place_id"]))
                 google_fields = _extract_google_fields(details, anchors)
             master_id = await _upsert_master_row(google_fields, master_cache, master_schema)
-            psl_props, skipped_fields = _filter_psl_payload(_build_psl_update_properties(google_fields, master_id), psl_schema_props)
+            psl_props, skipped_fields = _filter_psl_payload(
+                _build_psl_update_properties(
+                    google_fields,
+                    master_id,
+                    production_page_id=production_page_id,
+                    prodloc_id=prodloc_id_to_apply,
+                ),
+                psl_schema_props,
+            )
             if not psl_props:
                 reason = "no writable fields in PSL schema"
                 if skipped_fields:
@@ -616,6 +685,18 @@ async def stream_enrich_psl(db_id: str, production_label: str | None = None) -> 
         yield f"error: failed to load PSL rows: {exc}"
         return
 
+    production_page_id: str | None = None
+    prodloc_prefix: str | None = None
+    try:
+        production_page_id, prodloc_prefix = await resolve_production_for_locations_db(db_id)
+    except Exception:
+        production_page_id, prodloc_prefix = None, None
+    if not prodloc_prefix:
+        prodloc_prefix = (production_label or "").strip()
+    if prodloc_prefix:
+        prodloc_prefix = re.sub(r"\s+", "", prodloc_prefix).upper()
+    prodloc_counters = _build_prodloc_counters(rows, prodloc_prefix)
+
     master_cache = await load_master_cache(refresh=True)
     total = len(rows)
     enriched = skipped_not_ready = ambiguous = errors = 0
@@ -628,7 +709,17 @@ async def stream_enrich_psl(db_id: str, production_label: str | None = None) -> 
             skipped_not_ready += 1
             yield "skipped (not ready)"
             continue
-        status, reason = await _enrich_row(row, master_cache, master_schema, psl_schema_props, label, db_id)
+        status, reason = await _enrich_row(
+            row,
+            master_cache,
+            master_schema,
+            psl_schema_props,
+            label,
+            db_id,
+            production_page_id,
+            prodloc_prefix,
+            prodloc_counters,
+        )
         if status == "enriched":
             enriched += 1
             yield f"enriched via {reason}"

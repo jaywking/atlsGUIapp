@@ -163,6 +163,10 @@ def normalize_location(page: Dict[str, Any]) -> Dict[str, Any]:
         prod_loc_id = "".join([t.get("plain_text", "") for t in prop_prod_loc.get("title", []) if isinstance(t, dict)])
     elif prop_prod_loc.get("rich_text"):
         prod_loc_id = "".join([t.get("plain_text", "") for t in prop_prod_loc.get("rich_text", []) if isinstance(t, dict)])
+    # Locations Master uses a title column (e.g., LocationsMasterID) as the primary ID;
+    # fall back to whatever title property exists when ProdLocID is absent.
+    if not prod_loc_id:
+        prod_loc_id = _extract_title_generic(props)
 
     practical_name = _rich_text_any(props, ["Practical Name", "practical_name"])
     location_name = _rich_text_any(props, ["Location Name", "location_name"])
@@ -343,6 +347,31 @@ async def list_production_location_databases(productions_master_db_id: str) -> L
         except Exception:
             pass
     return records
+
+
+async def resolve_production_for_locations_db(locations_db_id: str) -> tuple[str | None, str | None]:
+    """
+    Given a locations database id, return (production_page_id, abbreviation_or_title).
+    Useful for stamping ProductionID relations and ProdLocID prefixes.
+    """
+    if not locations_db_id or not Config.PRODUCTIONS_MASTER_DB:
+        return None, None
+
+    try:
+        productions = await _query_productions_master(Config.PRODUCTIONS_MASTER_DB)
+    except Exception:
+        return None, None
+
+    for prod in productions:
+        props = prod.get("properties", {}) or {}
+        locations_table_prop = props.get("Locations Table") or {}
+        locations_url = locations_table_prop.get("url") or ""
+        resolved_id = get_locations_db_id_from_url(locations_url)
+        if resolved_id and resolved_id.replace("-", "") == locations_db_id.replace("-", ""):
+            abbr = _rich_text_any(props, [Config.PROD_MASTER_ABBR_PROP, "Abbreviation"])
+            title = _extract_title_generic(props)
+            return prod.get("id"), (abbr or title or "").strip() or None
+    return None, None
 
 
 async def load_all_production_locations(productions_master_db_id: str, refresh: bool = False) -> List[Dict[str, Any]]:

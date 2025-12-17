@@ -522,7 +522,46 @@ def page_content(request: Request) -> None:
                 on_click=lambda e: start_task(load_production_debug()),
             ).classes("bg-slate-900 text-white hover:bg-slate-800 px-3 py-1 mt-2")
 
-        # Section 8 - Dedup Simple Admin
+        # Section 8 - Generate Medical Facilities
+        with ui.expansion("Generate Medical Facilities", icon="local_hospital").classes(
+            "border border-slate-200 dark:border-slate-700"
+        ):
+            medfac_output = ui.textarea(
+                value="Run to generate medical facilities for all eligible Locations Master rows.\n"
+                "Output shows counts only.",
+                placeholder="Generation output...",
+            ).classes("w-full text-sm h-32")
+            medfac_output.props("readonly")
+
+            async def run_medfac_stream() -> None:
+                medfac_output.value = "Starting medical facilities generation...\n"
+                medfac_output.update()
+                medfac_btn.disable()
+                try:
+                    async with httpx.AsyncClient(base_url=str(request.base_url), timeout=None) as client:
+                        async with client.stream("GET", "/api/medicalfacilities/generate_all_stream") as response:
+                            response.raise_for_status()
+                            async for line in response.aiter_lines():
+                                if line is None:
+                                    continue
+                                medfac_output.value += line
+                                if not line.endswith("\n"):
+                                    medfac_output.value += "\n"
+                                medfac_output.update()
+                except Exception as exc:  # noqa: BLE001
+                    medfac_output.value += f"error: {exc}\n"
+                    medfac_output.update()
+                    ui.notify(f"Medical facilities generation failed: {exc}", type="negative", position="top")
+                finally:
+                    medfac_btn.enable()
+
+            medfac_btn = ui.button(
+                "Generate Medical Facilities (All Eligible Locations)",
+                icon="play_circle",
+                on_click=lambda e: start_task(run_medfac_stream()),
+            ).classes("bg-slate-900 text-white hover:bg-slate-800 px-3 py-1 mt-2")
+
+        # Section 9 - Dedup Simple Admin
         with ui.expansion("Dedup Simple Admin", icon="tune").classes("border border-slate-200 dark:border-slate-700"):
             dedup_output = ui.textarea(
                 value="Dedup results will stream here.",

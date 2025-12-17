@@ -3109,3 +3109,20 @@ Testing
 Known Issues
 - Production selector/reprocess mapping still has instability: labels can surface DB IDs and reprocess may misalign db_id; this remains in the Parking Lot.
 - Diagnostics v2 and Dedup v2 (near-duplicate heuristics, remediation workflow) are pending.
+
+Date: 2025-12-16 16:10 -0500 (Session 103.1)
+Author: Codex 5
+Milestone: v0.9.5 - PSL Enrichment Production Stamping
+
+Summary
+- Fixed PSL enrichment to stamp `ProductionID` as a relation and generate `ProdLocID` values using the production abbreviation prefix (e.g., TEST001+), ensuring every new row carries ProductionID/Abbreviation and sequential ProdLocID.
+- Prevented duplicate `LocationsMasterID` titles by honoring existing master titles when generating new LOC IDs, avoiding repeat `LOC001` rows.
+
+Changes
+- `app/services/notion_locations.py`
+- `app/services/psl_enrichment.py`
+- `docs/PROJECT_HANDBOOK.md`
+- `docs/DEV_NOTES.md`
+
+Testing
+- Not run (not requested).
