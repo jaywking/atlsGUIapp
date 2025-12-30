@@ -1,0 +1,238 @@
+Notion Database Schema Report
+Generated on: 2025-12-30 13:25:27
+Summary:
+- Total databases: 7
+- Canonical databases: 4
+- PSL databases: 3
+- Productions missing PSL DB link: 0
+- Productions with invalid PSL DB link: 0
+- Fatal fetch failures: noted inline per database
+==================================================
+
+Database: 'Productions Master'
+ID: 20533cd66348814692d9fb9feec42692
+Source: env::NOTION_PRODUCTIONS_DB_ID
+------------------------------
+  - Abbreviation (Type: rich_text)
+  - Client / Platform (Type: rich_text)
+  - Created time (Type: created_time)
+  - Last edited time (Type: last_edited_time)
+  - Locations Master (Type: relation)
+  - Locations Table (Type: url)
+  - Name (Type: rich_text)
+  - Nickname (Type: rich_text)
+  - Notes (Type: rich_text)
+  - PPFirstDate (Type: date)
+  - PPLastDay (Type: date)
+  - ProdStatus (Type: status) (Options: 'Pre-Prep', 'Prep', 'Principal', 'Done')
+  - Production Type (Type: rich_text)
+  - ProductionID (Type: title)
+  - ProductionID 1 (Type: relation)
+  - Studio (Type: rich_text)
+
+==================================================
+
+Database: 'Locations Master'
+ID: 20633cd663488145bb62dbf0bdf4762a
+Source: env::NOTION_LOCATIONS_DB_ID
+------------------------------
+  - Created Time (Type: created_time)
+  - ER (Type: relation)
+  - Full Address (Type: rich_text)
+  - Google Maps URL (Type: url)
+  - International Phone (Type: phone_number)
+  - Latitude (Type: number)
+  - Location Op Status (Type: status) (Options: 'OPERATIONAL', 'CLOSED_TEMPORARILY', 'CLOSED_PERMANENTLY')
+  - LocationsMasterID (Type: title)
+  - Longitude (Type: number)
+  - Name (Type: rich_text)
+  - Notes (Type: rich_text)
+  - Place_ID (Type: rich_text)
+  - Practical Name (Type: rich_text)
+  - ProductionID (Type: relation)
+  - Productions Used In (Type: relation)
+  - Status (Type: status) (Options: 'Ready', 'Matched', 'Unresolved')
+  - Types (Type: multi_select) (Options: 'intersection', 'route', 'funeral_home', 'premise', 'lodging', 'bar', 'restaurant', 'food', 'city_hall', 'local_government_office', 'movie_theater', 'subpremise', 'street_address', 'locality', 'political', 'university', 'park', 'cafe', 'bakery', 'store', 'subway_station', 'transit_station', 'liquor_store', 'train_station', 'museum', 'tourist_attraction', 'light_rail_station', 'neighborhood', 'florist', 'hair_care', 'health', 'grocery_or_supermarket', 'supermarket', 'natural_feature', 'courthouse', 'general_contractor', 'church', 'place_of_worship', 'real_estate_agency')
+  - UC1 (Type: relation)
+  - UC2 (Type: relation)
+  - UC3 (Type: relation)
+  - Updated (Type: last_edited_time)
+  - Vicinity (Type: rich_text)
+  - Website (Type: url)
+  - address1 (Type: rich_text)
+  - address2 (Type: rich_text)
+  - address3 (Type: rich_text)
+  - borough (Type: rich_text)
+  - city (Type: rich_text)
+  - country (Type: rich_text)
+  - county (Type: rich_text)
+  - formatted_address_google (Type: rich_text)
+  - state (Type: rich_text)
+  - zip (Type: rich_text)
+
+==================================================
+
+Database: 'Medical Facilities'
+ID: 20633cd6634881d89362f9578093ca57
+Source: env::NOTION_MEDICAL_FACILITIES_DB_ID
+------------------------------
+  - Created Time (Type: created_time)
+  - Friday Hours (Type: rich_text)
+  - Full Address (Type: rich_text)
+  - Google Maps URL (Type: url)
+  - International Phone (Type: phone_number)
+  - Latitude (Type: number)
+  - LocationsMasterID (Type: relation)
+  - Longitude (Type: number)
+  - MedicalFacilityID (Type: title)
+  - Monday Hours (Type: rich_text)
+  - Name (Type: rich_text)
+  - Notes (Type: rich_text)
+  - Phone (Type: phone_number)
+  - Place_ID (Type: rich_text)
+  - Saturday Hours (Type: rich_text)
+  - Status (Type: status) (Options: 'Ready', 'Unresolved', 'Matched')
+  - Sunday Hours (Type: rich_text)
+  - Thursday Hours (Type: rich_text)
+  - Tuesday Hours (Type: rich_text)
+  - Type (Type: select) (Options: 'Doctor', 'ER', 'Health', 'Store', 'Urgent Care', 'Veterinary Care')
+  - Updated (Type: last_edited_time)
+  - Website (Type: url)
+  - Wednesday Hours (Type: rich_text)
+  - address1 (Type: rich_text)
+  - address2 (Type: rich_text)
+  - address3 (Type: rich_text)
+  - borough (Type: rich_text)
+  - city (Type: rich_text)
+  - country (Type: rich_text)
+  - county (Type: rich_text)
+  - formatted_address_google (Type: rich_text)
+  - state (Type: rich_text)
+  - zip (Type: rich_text)
+
+==================================================
+
+Database: 'PSL_Template'
+ID: 2c833cd6634880b3b4c8fbdfe05fb9a0
+Source: env::PSL_TEMPLATE_DB_ID
+------------------------------
+  - Abbreviation (Type: rollup)
+  - Created time (Type: created_time)
+  - Full Address (Type: rich_text)
+  - Google Maps URL (Type: url)
+  - Last edited time (Type: last_edited_time)
+  - Latitude (Type: number)
+  - Location Name (Type: rich_text)
+  - LocationsMasterID (Type: relation)
+  - Longitude (Type: number)
+  - Notes (Type: rich_text)
+  - Place_ID (Type: rich_text)
+  - Practical Name (Type: rich_text)
+  - ProdLocID (Type: title)
+  - ProductionID (Type: relation)
+  - Status (Type: status) (Options: 'Ready', 'In progress', 'Matched')
+  - address1 (Type: rich_text)
+  - address2 (Type: rich_text)
+  - address3 (Type: rich_text)
+  - borough (Type: rich_text)
+  - city (Type: rich_text)
+  - country (Type: rich_text)
+  - county (Type: rich_text)
+  - formatted_address_google (Type: rich_text)
+  - state (Type: rich_text)
+  - zip (Type: rich_text)
+
+==================================================
+
+Database: 'TEST_Locations'
+ID: 2cc33cd66348817aae29d810362e3ab1
+Source: PSL (PSL::TEST Production)
+------------------------------
+  - Abbreviation (Type: rollup)
+  - Created time (Type: created_time)
+  - Full Address (Type: rich_text)
+  - Google Maps URL (Type: url)
+  - Last edited time (Type: last_edited_time)
+  - Latitude (Type: number)
+  - Location Name (Type: rich_text)
+  - LocationsMasterID (Type: relation)
+  - Longitude (Type: number)
+  - Notes (Type: rich_text)
+  - Place_ID (Type: rich_text)
+  - Practical Name (Type: rich_text)
+  - ProdLocID (Type: title)
+  - ProductionID (Type: relation)
+  - address1 (Type: rich_text)
+  - address2 (Type: rich_text)
+  - address3 (Type: rich_text)
+  - borough (Type: rich_text)
+  - city (Type: rich_text)
+  - country (Type: rich_text)
+  - county (Type: rich_text)
+  - formatted_address_google (Type: rich_text)
+  - state (Type: rich_text)
+  - zip (Type: rich_text)
+
+==================================================
+
+Database: 'TSTE_Locations'
+ID: 2d933cd663488151b533f8431ea5b026
+Source: PSL (PSL::TEST2TOO)
+------------------------------
+  - Abbreviation (Type: rollup)
+  - Created time (Type: created_time)
+  - Full Address (Type: rich_text)
+  - Google Maps URL (Type: url)
+  - Last edited time (Type: last_edited_time)
+  - Latitude (Type: number)
+  - Location Name (Type: rich_text)
+  - LocationsMasterID (Type: relation)
+  - Longitude (Type: number)
+  - Notes (Type: rich_text)
+  - Place_ID (Type: rich_text)
+  - Practical Name (Type: rich_text)
+  - ProdLocID (Type: title)
+  - ProductionID (Type: relation)
+  - address1 (Type: rich_text)
+  - address2 (Type: rich_text)
+  - address3 (Type: rich_text)
+  - borough (Type: rich_text)
+  - city (Type: rich_text)
+  - country (Type: rich_text)
+  - county (Type: rich_text)
+  - formatted_address_google (Type: rich_text)
+  - state (Type: rich_text)
+  - zip (Type: rich_text)
+
+==================================================
+
+Database: 'AMCL_Locations'
+ID: 2d933cd6634881bc8606d07ec041c54d
+Source: PSL (PSL::American Classic)
+------------------------------
+  - Abbreviation (Type: rollup)
+  - Created time (Type: created_time)
+  - Full Address (Type: rich_text)
+  - Google Maps URL (Type: url)
+  - Last edited time (Type: last_edited_time)
+  - Latitude (Type: number)
+  - Location Name (Type: rich_text)
+  - LocationsMasterID (Type: relation)
+  - Longitude (Type: number)
+  - Notes (Type: rich_text)
+  - Place_ID (Type: rich_text)
+  - Practical Name (Type: rich_text)
+  - ProdLocID (Type: title)
+  - ProductionID (Type: relation)
+  - address1 (Type: rich_text)
+  - address2 (Type: rich_text)
+  - address3 (Type: rich_text)
+  - borough (Type: rich_text)
+  - city (Type: rich_text)
+  - country (Type: rich_text)
+  - county (Type: rich_text)
+  - formatted_address_google (Type: rich_text)
+  - state (Type: rich_text)
+  - zip (Type: rich_text)
+
+==================================================

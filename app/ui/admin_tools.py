@@ -15,7 +15,6 @@ from fastapi import Request
 from nicegui import ui
 
 from app.core.settings import settings
-from app.ui.layout import PAGE_HEADER_CLASSES
 
 
 async def _request_json(
@@ -72,26 +71,39 @@ def page_content(request: Request) -> None:
         except Exception:
             return str(data)
 
-    with ui.row().classes(f"{PAGE_HEADER_CLASSES} min-h-[52px] items-center justify-between"):
-        ui.label("Admin Tools").classes("text-xl font-semibold")
-        ui.label("DEBUG_ADMIN enabled").classes("text-sm text-slate-500")
-
     # Expand to full available width (no max width constraint) for better visibility of admin panels.
     with ui.column().classes("w-full max-w-none gap-3 items-stretch").style("width: 100%; max-width: 100%;"):
         # Section 1 - Match All Locations
-        with ui.expansion("Match All Locations", icon="bolt", value=True).classes(
+        with ui.expansion("Match All Locations", icon="bolt", value=False).classes(
             "border border-slate-200 dark:border-slate-700 w-full"
         ):
+            ui.label(
+                "Matches all Locations Master rows against known places and writes match results to Notion."
+            ).classes("text-sm text-slate-500")
+            match_timer = {"start": None, "running": False}
+            match_timer_label = ui.label("Elapsed: 0s").classes("text-sm text-slate-500")
+
             progress_box = ui.textarea(
                 value="Result will appear after running Match All.",
                 placeholder="Progress will stream here...",
             ).classes("w-full text-sm h-48")
             progress_box.props("readonly")
 
+            def _update_match_timer() -> None:
+                if not match_timer["running"] or match_timer["start"] is None:
+                    return
+                elapsed = int(time.time() - match_timer["start"])
+                match_timer_label.set_text(f"Elapsed: {elapsed}s")
+
+            ui.timer(1.0, _update_match_timer, active=True)
+
             async def run_match_all_stream() -> None:
                 progress_box.value = "Starting...\n"
                 progress_box.update()
                 btn.disable()
+                match_timer["start"] = time.time()
+                match_timer["running"] = True
+                match_timer_label.set_text("Elapsed: 0s")
                 try:
                     async with httpx.AsyncClient(base_url=str(request.base_url), timeout=None) as client:
                         async with client.stream("GET", "/api/locations/match_all_stream") as response:
@@ -106,6 +118,10 @@ def page_content(request: Request) -> None:
                     progress_box.update()
                     ui.notify(f"Match All failed: {exc}", type="negative", position="top")
                 finally:
+                    if match_timer["start"] is not None:
+                        elapsed = int(time.time() - match_timer["start"])
+                        match_timer_label.set_text(f"Elapsed: {elapsed}s")
+                    match_timer["running"] = False
                     btn.enable()
 
             btn = ui.button(
@@ -116,16 +132,33 @@ def page_content(request: Request) -> None:
 
         # Section 2 - Schema Update (placeholder)
         with ui.expansion("Schema Update", icon="schema").classes("border border-slate-200 dark:border-slate-700 w-full"):
+            ui.label(
+                "Ensures Locations Master and production tables include canonical schema fields."
+            ).classes("text-sm text-slate-500")
+            schema_timer = {"start": None, "running": False}
+            schema_timer_label = ui.label("Elapsed: 0s").classes("text-sm text-slate-500")
+
             schema_output = ui.textarea(
                 value="Result will appear after running Schema Update.",
                 placeholder="Schema update progress will stream here...",
             ).classes("w-full text-sm h-48")
             schema_output.props("readonly")
 
+            def _update_schema_timer() -> None:
+                if not schema_timer["running"] or schema_timer["start"] is None:
+                    return
+                elapsed = int(time.time() - schema_timer["start"])
+                schema_timer_label.set_text(f"Elapsed: {elapsed}s")
+
+            ui.timer(1.0, _update_schema_timer, active=True)
+
             async def run_schema_stream() -> None:
                 schema_output.value = "Starting schema update...\n"
                 schema_output.update()
                 schema_btn.disable()
+                schema_timer["start"] = time.time()
+                schema_timer["running"] = True
+                schema_timer_label.set_text("Elapsed: 0s")
                 try:
                     async with httpx.AsyncClient(base_url=str(request.base_url), timeout=None) as client:
                         async with client.stream("GET", "/api/locations/schema_update_stream") as response:
@@ -140,6 +173,10 @@ def page_content(request: Request) -> None:
                     schema_output.update()
                     ui.notify(f"Schema update failed: {exc}", type="negative", position="top")
                 finally:
+                    if schema_timer["start"] is not None:
+                        elapsed = int(time.time() - schema_timer["start"])
+                        schema_timer_label.set_text(f"Elapsed: {elapsed}s")
+                    schema_timer["running"] = False
                     schema_btn.enable()
 
             schema_btn = ui.button(
@@ -150,16 +187,33 @@ def page_content(request: Request) -> None:
 
         # Section 3 - Cache Management
         with ui.expansion("Cache Management", icon="cached").classes("border border-slate-200 dark:border-slate-700 w-full"):
+            ui.label(
+                "Refreshes or purges cached Notion data used by the app."
+            ).classes("text-sm text-slate-500")
+            cache_timer = {"start": None, "running": False}
+            cache_timer_label = ui.label("Elapsed: 0s").classes("text-sm text-slate-500")
+
             cache_output = ui.textarea(
                 value="Cache progress will appear here.",
                 placeholder="Cache management progress will stream here...",
             ).classes("w-full text-sm h-40")
             cache_output.props("readonly")
 
+            def _update_cache_timer() -> None:
+                if not cache_timer["running"] or cache_timer["start"] is None:
+                    return
+                elapsed = int(time.time() - cache_timer["start"])
+                cache_timer_label.set_text(f"Elapsed: {elapsed}s")
+
+            ui.timer(1.0, _update_cache_timer, active=True)
+
             async def stream_cache(endpoint: str, btn_ref) -> None:
                 cache_output.value = "Starting...\n"
                 cache_output.update()
                 btn_ref.disable()
+                cache_timer["start"] = time.time()
+                cache_timer["running"] = True
+                cache_timer_label.set_text("Elapsed: 0s")
                 try:
                     async with httpx.AsyncClient(base_url=str(request.base_url), timeout=None) as client:
                         async with client.stream("GET", endpoint) as response:
@@ -176,6 +230,10 @@ def page_content(request: Request) -> None:
                     cache_output.update()
                     ui.notify(f"Cache action failed: {exc}", type="negative", position="top")
                 finally:
+                    if cache_timer["start"] is not None:
+                        elapsed = int(time.time() - cache_timer["start"])
+                        cache_timer_label.set_text(f"Elapsed: {elapsed}s")
+                    cache_timer["running"] = False
                     btn_ref.enable()
 
             btn_refresh = ui.button(
@@ -200,16 +258,33 @@ def page_content(request: Request) -> None:
         with ui.expansion("Generate Schema Report", icon="description").classes(
             "border border-slate-200 dark:border-slate-700 w-full"
         ):
+            ui.label(
+                "Generates a read-only report of current Notion schema fields for key tables."
+            ).classes("text-sm text-slate-500")
+            report_timer = {"start": None, "running": False}
+            report_timer_label = ui.label("Elapsed: 0s").classes("text-sm text-slate-500")
+
             schema_report_output = ui.textarea(
                 value="Press the button to generate a Notion schema report.",
                 placeholder="Schema report progress will stream here...",
             ).classes("w-full text-sm h-40")
             schema_report_output.props("readonly")
 
+            def _update_report_timer() -> None:
+                if not report_timer["running"] or report_timer["start"] is None:
+                    return
+                elapsed = int(time.time() - report_timer["start"])
+                report_timer_label.set_text(f"Elapsed: {elapsed}s")
+
+            ui.timer(1.0, _update_report_timer, active=True)
+
             async def run_schema_report_stream() -> None:
                 schema_report_output.value = "Starting schema report...\n"
                 schema_report_output.update()
                 schema_report_btn.disable()
+                report_timer["start"] = time.time()
+                report_timer["running"] = True
+                report_timer_label.set_text("Elapsed: 0s")
                 try:
                     async with httpx.AsyncClient(base_url=str(request.base_url), timeout=None) as client:
                         async with client.stream("GET", "/api/schema_report/stream") as response:
@@ -226,6 +301,10 @@ def page_content(request: Request) -> None:
                     schema_report_output.update()
                     ui.notify(f"Schema report failed: {exc}", type="negative", position="top")
                 finally:
+                    if report_timer["start"] is not None:
+                        elapsed = int(time.time() - report_timer["start"])
+                        report_timer_label.set_text(f"Elapsed: {elapsed}s")
+                    report_timer["running"] = False
                     schema_report_btn.enable()
 
             schema_report_btn = ui.button(
@@ -238,6 +317,12 @@ def page_content(request: Request) -> None:
         with ui.expansion("Reprocess Production Locations", icon="refresh").classes(
             "border border-slate-200 dark:border-slate-700 w-full"
         ):
+            ui.label(
+                "Re-runs enrichment and matching for a single production locations table."
+            ).classes("text-sm text-slate-500")
+            reprocess_timer = {"start": None, "running": False}
+            reprocess_timer_label = ui.label("Elapsed: 0s").classes("text-sm text-slate-500")
+
             production_select = ui.select(
                 options=[],
                 label="Select Production",
@@ -249,6 +334,14 @@ def page_content(request: Request) -> None:
                 placeholder="Streaming progress...",
             ).classes("w-full text-sm h-48")
             reprocess_output.props("readonly")
+
+            def _update_reprocess_timer() -> None:
+                if not reprocess_timer["running"] or reprocess_timer["start"] is None:
+                    return
+                elapsed = int(time.time() - reprocess_timer["start"])
+                reprocess_timer_label.set_text(f"Elapsed: {elapsed}s")
+
+            ui.timer(1.0, _update_reprocess_timer, active=True)
 
             async def load_productions() -> None:
                 load_status.set_text("Loading productions...")
@@ -331,6 +424,9 @@ def page_content(request: Request) -> None:
                 reprocess_output.value = f"Starting reprocess for {selected_name} ({db_id})...\n"
                 reprocess_output.update()
                 reprocess_btn.disable()
+                reprocess_timer["start"] = time.time()
+                reprocess_timer["running"] = True
+                reprocess_timer_label.set_text("Elapsed: 0s")
                 try:
                     async with httpx.AsyncClient(base_url=str(request.base_url), timeout=None) as client:
                         async with client.stream("GET", f"/api/locations/reprocess_stream?db_id={db_id}") as response:
@@ -347,6 +443,10 @@ def page_content(request: Request) -> None:
                     reprocess_output.update()
                     ui.notify(f"Reprocess failed: {exc}", type="negative", position="top")
                 finally:
+                    if reprocess_timer["start"] is not None:
+                        elapsed = int(time.time() - reprocess_timer["start"])
+                        reprocess_timer_label.set_text(f"Elapsed: {elapsed}s")
+                    reprocess_timer["running"] = False
                     reprocess_btn.enable()
 
             reprocess_btn = ui.button(
@@ -357,6 +457,9 @@ def page_content(request: Request) -> None:
 
         # Section 6 - PSL Enrichment
         with ui.expansion("PSL Enrichment", icon="map").classes("border border-slate-200 dark:border-slate-700 w-full"):
+            ui.label(
+                "Enriches PSL rows from Google and links them to Locations Master when possible."
+            ).classes("text-sm text-slate-500")
             psl_timer = {"start": None, "running": False}
             psl_timer_label = ui.label("Elapsed: 0s").classes("text-sm text-slate-500")
 
@@ -469,6 +572,12 @@ def page_content(request: Request) -> None:
 
         # Section 7 - PSL Enrichment Debug
         with ui.expansion("PSL Enrichment Debug", icon="bug_report").classes("border border-slate-200 dark:border-slate-700"):
+            ui.label(
+                "Shows raw payloads and computed options used by PSL enrichment for troubleshooting."
+            ).classes("text-sm text-slate-500")
+            psl_debug_timer = {"start": None, "running": False}
+            psl_debug_timer_label = ui.label("Elapsed: 0s").classes("text-sm text-slate-500")
+
             psl_debug_counts = ui.label("Load productions to view debug data.").classes("text-sm text-slate-500")
             psl_debug_raw = ui.textarea(
                 value="Raw /api/locations/production_dbs payload will appear here.",
@@ -495,8 +604,21 @@ def page_content(request: Request) -> None:
                 psl_debug_options.update()
                 psl_debug_master.update()
 
-                ok_master, payload_master = await _request_json("get", "/api/productions/fetch", request, timeout=30.0)
-                ok_dbs, payload_dbs = await _request_json("get", "/api/locations/production_dbs", request, timeout=30.0)
+                psl_debug_timer["start"] = time.time()
+                psl_debug_timer["running"] = True
+                psl_debug_timer_label.set_text("Elapsed: 0s")
+                try:
+                    ok_master, payload_master = await _request_json(
+                        "get", "/api/productions/fetch", request, timeout=30.0
+                    )
+                    ok_dbs, payload_dbs = await _request_json(
+                        "get", "/api/locations/production_dbs", request, timeout=30.0
+                    )
+                finally:
+                    if psl_debug_timer["start"] is not None:
+                        elapsed = int(time.time() - psl_debug_timer["start"])
+                        psl_debug_timer_label.set_text(f"Elapsed: {elapsed}s")
+                    psl_debug_timer["running"] = False
 
                 master_rows = payload_master.get("data") if ok_master else []
                 db_rows = payload_dbs.get("data") if ok_dbs else []
@@ -541,6 +663,9 @@ def page_content(request: Request) -> None:
         with ui.expansion("Generate Medical Facilities", icon="local_hospital").classes(
             "border border-slate-200 dark:border-slate-700"
         ):
+            ui.label(
+                "Finds nearby ER and Urgent Care locations and links them to each Locations Master row."
+            ).classes("text-sm text-slate-500")
             medfac_timer = {"start": None, "running": False}
             medfac_timer_label = ui.label("Elapsed: 0s").classes("text-sm text-slate-500")
 
@@ -594,18 +719,94 @@ def page_content(request: Request) -> None:
                 on_click=lambda e: start_task(run_medfac_stream()),
             ).classes("bg-slate-900 text-white hover:bg-slate-800 px-3 py-1 mt-2")
 
+        # Section 8.5 - Medical Facilities Maintenance
+        with ui.expansion("Medical Facilities Maintenance", icon="build").classes(
+            "border border-slate-200 dark:border-slate-700"
+        ):
+            ui.label(
+                "Backfills missing Medical Facilities fields from Google (fills blanks only)."
+            ).classes("text-sm text-slate-500")
+            medfac_maint_timer = {"start": None, "running": False}
+            medfac_maint_timer_label = ui.label("Elapsed: 0s").classes("text-sm text-slate-500")
+
+            medfac_maint_output = ui.textarea(
+                value="Run to backfill missing Medical Facilities fields from Google (no overwrites).",
+                placeholder="Maintenance output...",
+            ).classes("w-full text-sm h-32")
+            medfac_maint_output.props("readonly")
+
+            def _update_medfac_maint_timer() -> None:
+                if not medfac_maint_timer["running"] or medfac_maint_timer["start"] is None:
+                    return
+                elapsed = int(time.time() - medfac_maint_timer["start"])
+                medfac_maint_timer_label.set_text(f"Elapsed: {elapsed}s")
+
+            ui.timer(1.0, _update_medfac_maint_timer, active=True)
+
+            async def run_medfac_maintenance_stream() -> None:
+                medfac_maint_output.value = "Starting Medical Facilities maintenance...\n"
+                medfac_maint_output.update()
+                medfac_maint_btn.disable()
+                medfac_maint_timer["start"] = time.time()
+                medfac_maint_timer["running"] = True
+                medfac_maint_timer_label.set_text("Elapsed: 0s")
+                try:
+                    async with httpx.AsyncClient(base_url=str(request.base_url), timeout=None) as client:
+                        async with client.stream("GET", "/api/medicalfacilities/maintenance_stream") as response:
+                            response.raise_for_status()
+                            async for line in response.aiter_lines():
+                                if line is None:
+                                    continue
+                                medfac_maint_output.value += line
+                                if not line.endswith("\n"):
+                                    medfac_maint_output.value += "\n"
+                                medfac_maint_output.update()
+                except Exception as exc:  # noqa: BLE001
+                    medfac_maint_output.value += f"error: {exc}\n"
+                    medfac_maint_output.update()
+                    ui.notify(f"MF maintenance failed: {exc}", type="negative", position="top")
+                finally:
+                    if medfac_maint_timer["start"] is not None:
+                        elapsed = int(time.time() - medfac_maint_timer["start"])
+                        medfac_maint_timer_label.set_text(f"Elapsed: {elapsed}s")
+                    medfac_maint_timer["running"] = False
+                    medfac_maint_btn.enable()
+
+            medfac_maint_btn = ui.button(
+                "Backfill Missing MF Fields",
+                icon="build",
+                on_click=lambda e: start_task(run_medfac_maintenance_stream()),
+            ).classes("bg-slate-900 text-white hover:bg-slate-800 px-3 py-1 mt-2")
+
         # Section 9 - Dedup Simple Admin
         with ui.expansion("Dedup Simple Admin", icon="tune").classes("border border-slate-200 dark:border-slate-700"):
+            ui.label(
+                "Scans Locations Master for duplicates and streams a dedup summary."
+            ).classes("text-sm text-slate-500")
+            dedup_timer = {"start": None, "running": False}
+            dedup_timer_label = ui.label("Elapsed: 0s").classes("text-sm text-slate-500")
+
             dedup_output = ui.textarea(
                 value="Dedup results will stream here.",
                 placeholder="Streaming dedup scan...",
             ).classes("w-full text-sm h-40")
             dedup_output.props("readonly")
 
+            def _update_dedup_timer() -> None:
+                if not dedup_timer["running"] or dedup_timer["start"] is None:
+                    return
+                elapsed = int(time.time() - dedup_timer["start"])
+                dedup_timer_label.set_text(f"Elapsed: {elapsed}s")
+
+            ui.timer(1.0, _update_dedup_timer, active=True)
+
             async def run_dedup_stream() -> None:
                 dedup_output.value = "Starting dedup scan...\n"
                 dedup_output.update()
                 dedup_btn.disable()
+                dedup_timer["start"] = time.time()
+                dedup_timer["running"] = True
+                dedup_timer_label.set_text("Elapsed: 0s")
                 try:
                     async with httpx.AsyncClient(base_url=str(request.base_url), timeout=None) as client:
                         async with client.stream("GET", "/api/locations/dedup_stream") as response:
@@ -621,6 +822,10 @@ def page_content(request: Request) -> None:
                     dedup_output.value += f"error: {exc}\n"
                     dedup_output.update()
                 finally:
+                    if dedup_timer["start"] is not None:
+                        elapsed = int(time.time() - dedup_timer["start"])
+                        dedup_timer_label.set_text(f"Elapsed: {elapsed}s")
+                    dedup_timer["running"] = False
                     dedup_btn.enable()
 
             dedup_btn = ui.button(
@@ -631,16 +836,33 @@ def page_content(request: Request) -> None:
 
         # Section 9 - Diagnostics (streaming)
         with ui.expansion("Diagnostics", icon="bug_report").classes("border border-slate-200 dark:border-slate-700"):
+            ui.label(
+                "Runs a health check across key services and streams diagnostic output."
+            ).classes("text-sm text-slate-500")
+            diag_timer = {"start": None, "running": False}
+            diag_timer_label = ui.label("Elapsed: 0s").classes("text-sm text-slate-500")
+
             diag_output = ui.textarea(
                 value="Diagnostics output will stream here.",
                 placeholder="Streaming diagnostics...",
             ).classes("w-full text-sm h-40")
             diag_output.props("readonly")
 
+            def _update_diag_timer() -> None:
+                if not diag_timer["running"] or diag_timer["start"] is None:
+                    return
+                elapsed = int(time.time() - diag_timer["start"])
+                diag_timer_label.set_text(f"Elapsed: {elapsed}s")
+
+            ui.timer(1.0, _update_diag_timer, active=True)
+
             async def run_diagnostics() -> None:
                 diag_output.value = "Starting diagnostics...\n"
                 diag_output.update()
                 diag_btn.disable()
+                diag_timer["start"] = time.time()
+                diag_timer["running"] = True
+                diag_timer_label.set_text("Elapsed: 0s")
                 try:
                     async with httpx.AsyncClient(base_url=str(request.base_url), timeout=None) as client:
                         async with client.stream("GET", "/api/locations/diagnostics_stream") as response:
@@ -657,6 +879,10 @@ def page_content(request: Request) -> None:
                     diag_output.update()
                     ui.notify(f"Diagnostics failed: {exc}", type="negative", position="top")
                 finally:
+                    if diag_timer["start"] is not None:
+                        elapsed = int(time.time() - diag_timer["start"])
+                        diag_timer_label.set_text(f"Elapsed: {elapsed}s")
+                    diag_timer["running"] = False
                     diag_btn.enable()
 
             diag_btn = ui.button(
@@ -667,18 +893,43 @@ def page_content(request: Request) -> None:
 
         # Section 9 - System Info
         with ui.expansion("System Info", icon="info").classes("border border-slate-200 dark:border-slate-700"):
+            ui.label(
+                "Loads current system configuration and runtime environment details."
+            ).classes("text-sm text-slate-500")
+            sys_timer = {"start": None, "running": False}
+            sys_timer_label = ui.label("Elapsed: 0s").classes("text-sm text-slate-500")
+
             sys_output = ui.code("System info will appear here.").classes("w-full text-sm")
+
+            def _update_sys_timer() -> None:
+                if not sys_timer["running"] or sys_timer["start"] is None:
+                    return
+                elapsed = int(time.time() - sys_timer["start"])
+                sys_timer_label.set_text(f"Elapsed: {elapsed}s")
+
+            ui.timer(1.0, _update_sys_timer, active=True)
 
             async def load_system_info() -> None:
                 sys_output.content = "Loading system info..."
                 sys_output.update()
+                sys_timer["start"] = time.time()
+                sys_timer["running"] = True
+                sys_timer_label.set_text("Elapsed: 0s")
                 ok, payload = await _request_json("get", "/api/locations/system_info", request)
                 if not ok:
                     sys_output.content = f"error: {payload.get('error')}"
                     sys_output.update()
+                    if sys_timer["start"] is not None:
+                        elapsed = int(time.time() - sys_timer["start"])
+                        sys_timer_label.set_text(f"Elapsed: {elapsed}s")
+                    sys_timer["running"] = False
                     return
                 sys_output.content = format_json(payload)
                 sys_output.update()
+                if sys_timer["start"] is not None:
+                    elapsed = int(time.time() - sys_timer["start"])
+                    sys_timer_label.set_text(f"Elapsed: {elapsed}s")
+                sys_timer["running"] = False
 
             ui.button(
                 "Load System Info",

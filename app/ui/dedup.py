@@ -203,7 +203,6 @@ def page_content() -> None:
             debug(f"preview render failed for {group_id}: {exc}")
 
     with ui.row().classes(f"{PAGE_HEADER_CLASSES} min-h-[52px]"):
-        ui.label("Locations Master - Dedup Resolution").classes("text-xl font-semibold")
         ui.button("Refresh", on_click=lambda e=None: asyncio.create_task(load_groups())).classes("px-3 py-1")
 
     ui.separator()

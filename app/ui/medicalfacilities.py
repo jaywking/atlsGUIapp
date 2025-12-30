@@ -426,7 +426,7 @@ def page_content() -> None:
         state["facility_rows"] = {r.get("medical_facility_id") or r.get("id") or r.get("row_id"): r for r in page_rows}
         table.rows = page_rows
         table.update()
-        status_label.set_text(f"Returned {total} facilities (page {current} of {total_pages})")
+        status_label.set_text(f"Returned {total} facilities")
         refresh_pagination_controls()
         if show_toast:
             ui.notify(status_label.text, type="positive")

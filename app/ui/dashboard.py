@@ -19,7 +19,7 @@ SUMMARY_ENDPOINT = "/api/dashboard/summary"
 def page_content() -> None:
     """Render the dashboard shell with async data loading."""
 
-    with ui.row().classes(f"{PAGE_HEADER_CLASSES} atls-header-tight min-h-[52px] justify-between items-center"):
+    with ui.row().classes(f"{PAGE_HEADER_CLASSES} min-h-[52px] justify-between items-center"):
         with ui.row().classes('items-center gap-2 flex-wrap'):
             status_spinner = ui.spinner(size='sm').style('display: none;')
             header_refresh = ui.button('Refresh Overview').classes('bg-slate-800 text-white hover:bg-slate-900 dark:hover:bg-slate-800')

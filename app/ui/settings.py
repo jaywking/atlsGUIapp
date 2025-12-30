@@ -4,13 +4,9 @@ from nicegui import ui
 
 from app.services.api_client import api_url
 from app.services import background_sync
-from app.ui.layout import PAGE_HEADER_CLASSES
 
 
 def page_content() -> None:
-    with ui.row().classes(f"{PAGE_HEADER_CLASSES} min-h-[52px] items-center"):
-        ui.space()
-
     with ui.card().classes('w-full max-w-2xl mt-4'):
         ui.label('Connection Tests').classes('text-lg font-semibold')
         ui.label('Validate Notion and Google Maps credentials stored in the server environment.').classes('text-sm text-slate-500 mb-4')

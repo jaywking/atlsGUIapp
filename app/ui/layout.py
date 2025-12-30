@@ -5,9 +5,8 @@ from app.core.settings import settings
 
 PAGE_HEADER_CLASSES = (
     "atls-page-header w-full items-center flex-wrap gap-3 mb-4 "
-    "px-4 py-2.5 bg-white text-slate-900 "
-    "dark:bg-slate-900 dark:text-slate-200 "
-    "border-b border-slate-200 dark:border-slate-700"
+    "py-2.5 bg-white text-slate-900 "
+    "dark:bg-slate-900 dark:text-slate-200"
 )
 
 SIDEBAR_LINKS = [
@@ -197,20 +196,17 @@ h1, h2, h3, h4 {
     border-color: #334155 !important;
 }
 
-/* Header alignment */
-.atls-header-tight {
-    padding-left: 4px !important;
-    padding-right: 4px !important;
-}
-
 </style>
 """
     )
 
-    with ui.row().classes('w-full min-h-screen no-wrap items-start'):
+    with ui.row().classes('w-full h-screen no-wrap items-stretch'):
         # sidebar
-        with ui.column().classes('w-56 min-h-screen bg-slate-100 text-slate-900 gap-1.5 py-3 px-3 dark:bg-slate-800 dark:text-white'):
-            ui.label('ATLSApp').classes('text-xl font-semibold pb-3 text-slate-900 dark:text-white')
+        with ui.column().classes(
+            'w-56 h-screen sticky top-0 self-start bg-slate-100 text-slate-900 gap-1.5 py-4 px-3 '
+            'dark:bg-slate-800 dark:text-white'
+        ):
+            ui.label('ATLSApp').classes('text-2xl font-semibold leading-none mb-3 text-slate-900 dark:text-white')
             links = list(SIDEBAR_LINKS)
             if DEBUG_ADMIN:
                 links.append(('Admin Tools', '/admin_tools', 'admin_panel_settings'))
@@ -219,17 +215,19 @@ h1, h2, h3, h4 {
                     ui.icon(icon).classes('text-slate-700 dark:text-slate-100')
                     ui.link(text, link).classes('flex-1 text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white')
         # main area
-        with ui.column().classes('flex-1 min-h-screen overflow-x-auto'):
+        with ui.column().classes('flex-1 h-screen overflow-y-auto overflow-x-auto px-3'):
             # header
-            with ui.row().classes("atls-global-header w-full justify-between items-center px-1 py-4 bg-white text-slate-900 border-b border-slate-200 shadow-sm sticky top-0 z-10 dark:bg-slate-900 dark:text-white dark:border-slate-700"):
-                ui.label(title).classes('text-2xl font-semibold text-slate-900 dark:text-white')
+            with ui.row().classes("atls-global-header w-full justify-between items-center py-4 bg-white text-slate-900 border-b border-slate-200 sticky top-0 z-10 dark:bg-slate-900 dark:text-white dark:border-slate-700"):
+                ui.label(title).classes('text-2xl font-semibold leading-none text-slate-900 dark:text-white')
                 with ui.row().classes('items-center gap-3'):
                     ui.label('DEV').classes('text-sm text-slate-500 dark:text-slate-200')
+                    if settings.DEBUG_ADMIN:
+                        ui.label('DEBUG_ADMIN enabled').classes('text-sm text-slate-500 dark:text-slate-200')
                     toggle_btn = ui.button(on_click=dark_mode.toggle).classes('px-4 py-1 rounded bg-slate-200 text-slate-900 hover:bg-slate-300 dark:bg-slate-700 dark:text-white dark:hover:bg-slate-600')
                     toggle_btn.bind_text_from(dark_mode, 'value', lambda v: "Switch to Light" if v else "Dark Mode")
             # page content
             with ui.column().classes(
-                'flex-1 overflow-y-visible px-1 py-4 gap-4 '
+                'flex-1 w-full max-w-none overflow-y-visible py-4 gap-4 '
                 'bg-white text-slate-900 '
                 'dark:bg-slate-900 dark:text-slate-200'
             ):

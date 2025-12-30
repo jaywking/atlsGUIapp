@@ -13,6 +13,269 @@ DEV_NOTES records historical version bumps as they occurred at the time.
 Current rule (see PROJECT_HANDBOOK.md):
 Version increments occur only at verified milestone acceptance, not during intermediate fixes, experiments, or drafts.
 
+Session: 2025-12-30 - Medical Facilities maintenance tool
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Added an Admin Tools action to backfill missing Medical Facilities fields from Google Place Details without overwriting existing values.
+
+Changes:
+- `app/services/medical_facilities_runner.py`: stream backfill for missing fields; requires Place_ID and writes only blanks.
+- `app/api/medicalfacilities_api.py`: added `/api/medicalfacilities/maintenance_stream`.
+- `app/ui/admin_tools.py`: added the Medical Facilities Maintenance panel and streaming output.
+
+Testing:
+- Not run (requires Notion/Google credentials).
+
+Notes:
+- MedicalFacilityID is generated only when missing.
+
+Session: 2025-12-30 - Medical Facilities hours cleanup on write
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Stripped weekday prefixes from Google weekday_text before writing MF hours fields.
+
+Changes:
+- `app/services/medical_facilities.py`: remove leading weekday labels (e.g., "Monday:") from hours before Notion writes.
+- `docs/PROJECT_HANDBOOK.md`: document hours field storage without weekday labels.
+
+Testing:
+- Not run (requires Notion/Google credentials).
+
+Notes:
+- Use `scripts/clean_medical_facility_hours.py` to clean existing rows that still include weekday labels.
+
+Session: 2025-12-30 - Sidebar full-height fix
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Ensured the left sidebar background stretches to match long page content.
+
+Changes:
+- `app/ui/layout.py`: set the main shell row to stretch items; sidebar and main column now use full height.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - Sidebar fixed layout
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Made the left sidebar sticky so it stays fixed while scrolling long pages.
+
+Changes:
+- `app/ui/layout.py`: set the shell to `h-screen`, make sidebar `sticky top-0 h-screen`, and move vertical scrolling to the main content column.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - Admin Tools full-width layout fix
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Ensured page content spans full width so Admin Tools is no longer constrained to a narrow column.
+
+Changes:
+- `app/ui/layout.py`: set the content column to `w-full max-w-none`.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - Content padding balance
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Balanced the main content padding so left and right edges match.
+
+Changes:
+- `app/ui/layout.py`: adjusted content container padding to `px-3`.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - Header/content alignment
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Aligned the global header padding with the main content padding.
+
+Changes:
+- `app/ui/layout.py`: header padding updated to `px-3`.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - Page header alignment
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Aligned page headers with the main content/table edge padding.
+
+Changes:
+- `app/ui/layout.py`: reduced `PAGE_HEADER_CLASSES` horizontal padding to `px-3`.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - Admin Tools header padding override
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Removed extra left padding on the Admin Tools page header to align with the table edge.
+
+Changes:
+- `app/ui/admin_tools.py`: override header padding to `px-0` for the Admin Tools title row.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - Canonical layout padding owner
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Moved horizontal padding ownership to the main scroll column and removed header/page padding to match the canonical layout pattern.
+
+Changes:
+- `app/ui/layout.py`: main scroll column now owns `px-3`; global header and page header classes are padding-neutral.
+- `app/ui/admin_tools.py`: removed the page-header padding override to avoid compensating hacks.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - Global header border/shadow removal
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Removed the global header border and shadow for a flatter top bar.
+
+Changes:
+- `app/ui/layout.py`: dropped `border-b` and `shadow-sm` from the global header.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - Global header divider line
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Restored a thin divider under the global header to match page header styling.
+
+Changes:
+- `app/ui/layout.py`: re-added `border-b` to the global header (no shadow).
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - Global debug label + page header line removal
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Moved the DEBUG_ADMIN indicator to the global header and removed the thin divider line under page headers.
+
+Changes:
+- `app/ui/layout.py`: page headers no longer add a bottom border; global header shows DEBUG_ADMIN when enabled.
+- `app/ui/admin_tools.py`: removed page-level DEBUG_ADMIN label.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - Canonical layout alignment cleanup
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Removed header padding overrides on non-Admin pages to comply with the canonical layout pattern.
+
+Changes:
+- `app/ui/dashboard.py`: removed `atls-header-tight` from the page header.
+- `app/ui/productions.py`: removed `atls-header-tight` from the page header.
+- `app/ui/layout.py`: deleted the `atls-header-tight` CSS rule.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - Remove duplicate page titles
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Removed redundant page titles in the content area where the global header already shows the page name.
+
+Changes:
+- `app/ui/admin_tools.py`: removed the content-area Admin Tools title row.
+- `app/ui/dedup_simple.py`: removed the "Dedup Simple Admin UI" title from the content header.
+- `app/ui/dedup.py`: removed the "Locations Master - Dedup Resolution" content title.
+- `app/ui/settings.py`: removed the empty page header spacer row.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - Sidebar/header title alignment
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Matched the sidebar "ATLSApp" heading typography to the global header title.
+
+Changes:
+- `app/ui/layout.py`: sidebar heading now uses `text-2xl font-semibold leading-none`; global header title uses the same line-height.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - Sidebar title vertical alignment
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Matched the sidebar top padding to the global header so the ATLSApp title sits on the same vertical rhythm.
+
+Changes:
+- `app/ui/layout.py`: sidebar padding updated from `py-3` to `py-4`.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - Admin Tools default collapse
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Defaulted the Match All Locations panel to collapsed.
+
+Changes:
+- `app/ui/admin_tools.py`: set Match All Locations expansion `value=False`.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - Admin Tools descriptions and timers
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Added plain-English descriptions and elapsed-time timers to each Admin Tools panel.
+
+Changes:
+- `app/ui/admin_tools.py`: added per-panel descriptions and timers for Match All, Schema Update, Cache Management, Schema Report, Reprocess, PSL debug, MF maintenance, Dedup, Diagnostics, and System Info.
+
+Testing:
+- Not run (UI change only).
+
 Session: 2025-12-29 - Admin tools cleanup, MF selection, timers, and debug logging
 Author: Codex 5
 Milestone: v0.9.4 (no version bump)

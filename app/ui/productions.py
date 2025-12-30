@@ -64,7 +64,7 @@ def page_content() -> None:
         "status_options": [],
     }
 
-    with ui.row().classes(f"{PAGE_HEADER_CLASSES} atls-header-tight min-h-[52px]"):
+    with ui.row().classes(f"{PAGE_HEADER_CLASSES} min-h-[52px]"):
         with ui.row().classes("items-center gap-2 flex-wrap"):
             refresh_button = ui.button("Refresh").classes("bg-blue-500 text-white hover:bg-slate-100 dark:hover:bg-slate-800")
             sync_button = ui.button("Sync to Notion").classes("bg-slate-800 text-white hover:bg-slate-900 dark:hover:bg-slate-800")

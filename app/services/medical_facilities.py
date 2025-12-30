@@ -21,6 +21,17 @@ PLACE_DETAILS_URL = "https://maps.googleapis.com/maps/api/place/details/json"
 TEXT_SEARCH_URL = "https://maps.googleapis.com/maps/api/place/textsearch/json"
 MF_RE = re.compile(r"^MF(\d+)$")
 _mf_id_state: Dict[str, Any] = {"next_num": None, "used_ids": set()}
+_WEEKDAY_PREFIX_RE = re.compile(
+    r"^\s*(mon|monday|tue|tuesday|wed|wednesday|thu|thursday|fri|friday|sat|saturday|sun|sunday)\s*:\s*",
+    re.IGNORECASE,
+)
+
+
+def _strip_weekday_prefix(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return value
+    cleaned = _WEEKDAY_PREFIX_RE.sub("", value).strip()
+    return cleaned or None
 
 
 async def _get_next_mf_id() -> str:
@@ -208,7 +219,7 @@ def _build_mf_properties_from_google_place(
     hours = {day: None for day in ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]}
     for idx, day in enumerate(hours.keys()):
         if idx < len(weekday_text):
-            hours[day] = weekday_text[idx]
+            hours[day] = _strip_weekday_prefix(weekday_text[idx])
 
     # --- Property Dictionary Construction ---
     props = {

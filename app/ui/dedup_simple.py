@@ -23,7 +23,6 @@ def page_content(request: Request) -> None:
     state: Dict[str, Optional[Any]] = {"selected_group_id": None, "preview_data": None, "master_lookup": {}}
 
     with ui.row().classes(f"{PAGE_HEADER_CLASSES} min-h-[52px] items-center justify-between"):
-        ui.label("Dedup Simple Admin UI").classes("text-xl font-semibold")
         refresh_button = ui.button(
             "Refresh Groups",
         ).classes("px-3 py-1 bg-slate-900 text-white dark:bg-slate-800 hover:bg-slate-800")

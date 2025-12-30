@@ -352,7 +352,7 @@ Populate only when Google returns the value.
 ## 6. Hours of Operation
 
 Derived from `opening_hours.weekday_text[]`.  
-Copy values verbatim. Do not normalize or infer.
+Store times only (strip the leading weekday label like "Monday:").
 
 | MF Field | Google Places Field |
 |--------|---------------------|
@@ -546,6 +546,7 @@ Short milestone summary posted back to ChatGPT to align PM + Dev agent context.
 - Hover/focus: use `hover:bg-slate-100` on buttons and links for consistent feedback.
 - New Admin Tools page (v0.8.4): replaces Dedup Simple in the sidebar, centralizes admin/debug/maintenance operations, is visible only when `DEBUG_ADMIN=true`, and uses collapsible sections for each tool.
 - Address Normalization UI is retired; normalization now runs only during ingestion (imports/repair pipelines). Do not re-enable the panel.
+- Medical Facilities Maintenance (Admin Tools): backfills missing MF fields from Google Place Details, fills blanks only (no overwrites), and requires `Place_ID`.
 - All ingestion paths (master, productions, facilities, dedup writebacks) must call the canonical ingestion normalizer before Notion writes; no post-hoc bulk normalization.
 - Notion Address Repair Tool (backend-only, headless): `scripts/repair_addresses.py` (targets: master, productions, facilities, or all). It performs in-place normalization of existing Notion rows, never deletes or recreates pages, and preserves identifiers/relations/status values.
 
