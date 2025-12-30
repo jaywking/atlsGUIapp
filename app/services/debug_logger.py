@@ -3,7 +3,7 @@ import os
 from datetime import datetime, timezone
 
 LOG_DIR = "logs"
-DEBUG_LOG_FILE = os.path.join(LOG_DIR, "debug_tools.log")
+DEBUG_LOG_BASENAME = "debug_tools"
 _DEBUG_ENABLED = os.environ.get("DEBUG_TOOLS", "false").lower() in ("true", "1", "t")
 
 def debug_enabled() -> bool:
@@ -22,6 +22,9 @@ def debug_log(tool: str, message: str) -> None:
     if not _DEBUG_ENABLED:
         return
     os.makedirs(LOG_DIR, exist_ok=True)
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    with open(DEBUG_LOG_FILE, "a", encoding="utf-8") as f:
+    now = datetime.now(timezone.utc)
+    timestamp = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    log_date = now.strftime("%Y-%m-%d")
+    log_file = os.path.join(LOG_DIR, f"{DEBUG_LOG_BASENAME}_{log_date}.log")
+    with open(log_file, "a", encoding="utf-8") as f:
         f.write(f"[{timestamp}] [{tool.upper()}]\n{message}\n\n")

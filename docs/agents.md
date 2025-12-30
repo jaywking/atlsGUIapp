@@ -118,7 +118,7 @@ ChatGPT manages milestones, version naming, and roadmap updates.
 - Treat reports as guidance; writes must still rely on explicit intent-based whitelists, not live schema introspection.
 
 ## 14. Global Debug Logging
-ATLSApp supports an opt-in debug logging mechanism for service-level tools. Set `DEBUG_TOOLS=1` to enable append-only diagnostics written to `logs/debug_tools.log`. Logs are not automatically inspected and must be explicitly referenced when requesting debugging assistance.
+ATLSApp supports an opt-in debug logging mechanism for service-level tools. Set `DEBUG_TOOLS=1` to enable append-only diagnostics written to daily files named `logs/debug_tools_YYYY-MM-DD.log`. Logs are not automatically inspected and must be explicitly referenced when requesting debugging assistance.
 
 ## 15. Summary
 Jay sets the vision, ChatGPT architected the system and maintains quality, and Codex executes implementation cleanly.

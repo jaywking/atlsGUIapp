@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 import httpx
 import json
+import math
 import re
 
 from app.services.debug_logger import debug_log, debug_enabled
@@ -9,38 +10,51 @@ from app.services.notion_locations import get_location_page, update_location_pag
 from app.services.notion_medical_facilities import (
     create_medical_facility_page,
     find_medical_facility_by_place_id,
+    fetch_and_cache_medical_facilities,
     update_medical_facility_page,
     normalize_facility,
-    fetch_all_medical_facilities,
 )
 from config import Config
 
 NEARBY_SEARCH_URL = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
 PLACE_DETAILS_URL = "https://maps.googleapis.com/maps/api/place/details/json"
+TEXT_SEARCH_URL = "https://maps.googleapis.com/maps/api/place/textsearch/json"
 MF_RE = re.compile(r"^MF(\d+)$")
+_mf_id_state: Dict[str, Any] = {"next_num": None, "used_ids": set()}
 
 
 async def _get_next_mf_id() -> str:
-    """Generate the next available MF### ID based on existing rows (skipping any duplicates)."""
-    all_facilities = await fetch_all_medical_facilities(limit=9999)  # large limit to get all
-    used_ids: set[str] = set()
-    max_num = 0
-    for facility in all_facilities:
-        mf_id = (facility.get("medical_facility_id") or "").strip()
-        if mf_id:
-            used_ids.add(mf_id)
-        m = MF_RE.match(mf_id)
-        if m:
-            try:
-                max_num = max(max_num, int(m.group(1)))
-            except (ValueError, TypeError):
-                continue
-    next_num = max_num + 1
+    """
+    Generate the next available MF### ID based on authoritative current rows (not stale cache).
+    Persists the counter for the life of the process to avoid reuse within a run.
+    """
+    global _mf_id_state
+
+    if _mf_id_state["next_num"] is None:
+        # Force-refresh to avoid stale on-disk cache
+        all_facilities = await fetch_and_cache_medical_facilities()
+        used_ids: set[str] = set()
+        max_num = 0
+        for facility in all_facilities:
+            mf_id = (facility.get("medical_facility_id") or "").strip()
+            if mf_id:
+                used_ids.add(mf_id)
+            m = MF_RE.match(mf_id)
+            if m:
+                try:
+                    max_num = max(max_num, int(m.group(1)))
+                except (ValueError, TypeError):
+                    continue
+        _mf_id_state["used_ids"] = used_ids
+        _mf_id_state["next_num"] = max_num + 1
+
+    # Increment until we find an unused ID (guards against duplicates discovered mid-run)
     while True:
-        candidate = f"MF{next_num:03d}"
-        if candidate not in used_ids:
+        candidate = f"MF{_mf_id_state['next_num']:03d}"
+        _mf_id_state["next_num"] += 1
+        if candidate not in _mf_id_state["used_ids"]:
+            _mf_id_state["used_ids"].add(candidate)
             return candidate
-        next_num += 1
 
 
 async def _google_request(url: str, params: Dict[str, Any], *, allow_zero: bool = False) -> Dict[str, Any]:
@@ -74,6 +88,24 @@ async def _find_nearby_places(latitude: float, longitude: float, keyword: str, r
         debug_log("MEDICAL_FACILITIES", f"Google Places Nearby Search query: {json.dumps(params)}")
 
     data = await _google_request(NEARBY_SEARCH_URL, params, allow_zero=True)
+    return data.get("results", [])
+
+async def _text_search_places(
+    query: str,
+    *,
+    location: Optional[Tuple[float, float]] = None,
+    radius_meters: Optional[int] = None,
+) -> List[Dict[str, Any]]:
+    """Find places using Google Places Text Search API."""
+    params = {"query": query}
+    if location and radius_meters:
+        params["location"] = f"{location[0]},{location[1]}"
+        params["radius"] = radius_meters
+
+    if debug_enabled():
+        debug_log("MEDICAL_FACILITIES", f"Google Places Text Search query: {json.dumps(params)}")
+
+    data = await _google_request(TEXT_SEARCH_URL, params, allow_zero=True)
     return data.get("results", [])
 
 async def _get_place_details(place_id: str) -> Dict[str, Any]:
@@ -113,7 +145,11 @@ async def _enrich_place_with_details(place: Dict[str, Any]) -> Dict[str, Any]:
             debug_log("MEDICAL_FACILITIES", f"Failed to fetch Place Details for {pid}: {exc}")
         return place
 
-def _build_mf_properties_from_google_place(place: Dict[str, Any], facility_type: str, mf_id: Optional[str] = None) -> Dict[str, Any]:
+def _build_mf_properties_from_google_place(
+    place: Dict[str, Any],
+    facility_type: str,
+    mf_id: Optional[str] = None,
+) -> Dict[str, Any]:
     """Build Notion properties for a medical facility from a Google Place result."""
     
     # --- Data Extraction ---
@@ -206,7 +242,6 @@ def _build_mf_properties_from_google_place(place: Dict[str, Any], facility_type:
     }
     if mf_id:
         props["MedicalFacilityID"] = {"title": [{"text": {"content": mf_id}}]}
-
     # --- Final Filtering & Logging ---
     final_props = {}
     populated_fields = []
@@ -249,7 +284,11 @@ def _build_mf_properties_from_google_place(place: Dict[str, Any], facility_type:
     return final_props
 
 
-async def _upsert_medical_facility(place: Dict[str, Any], facility_type: str, location_master_id: str) -> Optional[Dict[str, Any]]:
+async def _upsert_medical_facility(
+    place: Dict[str, Any],
+    facility_type: str,
+    location_master_id: str,
+) -> Optional[Dict[str, Any]]:
     """Upsert a medical facility and link it to the location master."""
     place_id = place.get("place_id")
     if not place_id:
@@ -310,15 +349,96 @@ def _is_er(place: Dict[str, Any]) -> bool:
     """Check if a place is an Emergency Room."""
     if "hospital" not in place.get("types", []):
         return False
-    
+
     name = place.get("name", "").lower()
-    er_keywords = ["emergency", "er", "emergency room", "emergency department"]
-    
-    for keyword in er_keywords:
+    types = place.get("types", [])
+
+    emergency_signals = [
+        "emergency room",
+        "emergency department",
+        "emergency",
+        "trauma center",
+    ]
+
+    if "emergency_room" in types:
+        return True
+
+    for keyword in emergency_signals:
         if keyword in name:
             return True
-            
+
     return False
+
+
+def _is_urgent_care(place: Dict[str, Any]) -> bool:
+    """Check if a place is an Urgent Care (explicit urgent-care signals only)."""
+    name = place.get("name", "").lower()
+    types = place.get("types", [])
+
+    urgent_signals = [
+        "urgent care",
+        "immediate care",
+        "express care",
+        "walk-in care",
+    ]
+
+    if "urgent_care" in types:
+        return True
+
+    for keyword in urgent_signals:
+        if keyword in name:
+            return True
+
+    return False
+
+
+def _looks_like_hospital_name(name: str) -> bool:
+    """Heuristic for hospital campus naming when types are missing."""
+    lowered = name.lower()
+    if any(term in lowered for term in ["urgent care", "clinic", "physician", "doctors", "family practice"]):
+        return False
+    return any(term in lowered for term in ["hospital", "medical center", "medical centre"])
+
+
+def _distance_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Haversine distance in miles."""
+    rad = math.pi / 180.0
+    dlat = (lat2 - lat1) * rad
+    dlon = (lon2 - lon1) * rad
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(lat1 * rad) * math.cos(lat2 * rad) * math.sin(dlon / 2) ** 2
+    )
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return 3958.8 * c
+
+
+def _place_distance_miles(place: Dict[str, Any], lat: float, lon: float) -> float:
+    loc = place.get("geometry", {}).get("location", {})
+    plat = loc.get("lat")
+    plon = loc.get("lng")
+    if plat is None or plon is None:
+        return float("inf")
+    return _distance_miles(lat, lon, float(plat), float(plon))
+
+
+async def _infer_er_from_text_search(lat: float, lon: float) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Find an ER candidate via text search when strict ER rules yield none."""
+    query = f"Emergency Department near {lat},{lon}"
+    results = await _text_search_places(query, location=(lat, lon), radius_meters=50000)
+
+    candidates: List[Dict[str, Any]] = []
+    for place in results:
+        name = place.get("name", "")
+        types = place.get("types", []) or []
+        if "hospital" in types or _looks_like_hospital_name(name):
+            candidates.append(place)
+
+    if not candidates:
+        return None, results
+
+    selected = min(candidates, key=lambda p: _place_distance_miles(p, lat, lon))
+    return selected, results
 
 async def generate_nearby_medical_facilities(location_master_id: str):
     """Generate and link nearby medical facilities for a Location Master row."""
@@ -364,11 +484,18 @@ async def generate_nearby_medical_facilities(location_master_id: str):
 
     # 4. Classification and Deduplication
     er_facilities = [p for p in hospitals if _is_er(p)]
-    uc_facilities = [p for p in urgent_cares if "health" in p.get("types", []) or "doctor" in p.get("types", [])]
-    
-    # Simple deduplication
-    er_place_ids = {p["place_id"] for p in er_facilities}
-    uc_facilities = [p for p in uc_facilities if p["place_id"] not in er_place_ids]
+    er_place_ids = {p.get("place_id") for p in er_facilities if p.get("place_id")}
+
+    uc_facilities: List[Dict[str, Any]] = []
+    seen_uc_place_ids: set[str] = set()
+    for p in urgent_cares:
+        pid = p.get("place_id")
+        if not pid or pid in er_place_ids:
+            continue
+        if _is_urgent_care(p):
+            if pid not in seen_uc_place_ids:
+                uc_facilities.append(p)
+                seen_uc_place_ids.add(pid)
 
 
     # 5. Upsert and Link
@@ -376,14 +503,48 @@ async def generate_nearby_medical_facilities(location_master_id: str):
     selected_uc_ids = []
 
     if er_facilities:
-        # For simplicity, we pick the first one (closest)
-        er_place = await _enrich_place_with_details(er_facilities[0])
+        er_place = await _enrich_place_with_details(
+            min(er_facilities, key=lambda p: _place_distance_miles(p, lat, lon))
+        )
         mf_page = await _upsert_medical_facility(er_place, "ER", location_master_id)
         if mf_page:
             selected_er_id = mf_page["id"]
+    else:
+        # Inferred ER path (Google Maps text search)
+        inferred_reason = "no explicit ER candidates after strict ER filter"
+        inferred_candidate, text_results = await _infer_er_from_text_search(lat, lon)
+        if debug_enabled():
+            debug_log(
+                "MEDICAL_FACILITIES",
+                "[ER_INFERRED] lm_id={lm} query=\"Emergency Department near {lat},{lon}\" reason=\"{reason}\"".format(
+                    lm=location_master_id, lat=lat, lon=lon, reason=inferred_reason
+                ),
+            )
+            debug_log(
+                "MEDICAL_FACILITIES",
+                "[ER_INFERRED] candidates={candidates}".format(
+                    candidates=", ".join(
+                        f"{p.get('name','')} ({','.join(p.get('types', []) or [])})" for p in text_results
+                    )
+                ),
+            )
+        if inferred_candidate:
+            if debug_enabled():
+                debug_log(
+                    "MEDICAL_FACILITIES",
+                    "[ER_INFERRED] selected name={name} place_id={pid}".format(
+                        name=inferred_candidate.get("name", ""),
+                        pid=inferred_candidate.get("place_id", ""),
+                    ),
+                )
+            inferred_place = await _enrich_place_with_details(inferred_candidate)
+            mf_page = await _upsert_medical_facility(inferred_place, "ER", location_master_id)
+            if mf_page:
+                selected_er_id = mf_page["id"]
 
     if uc_facilities:
-        for uc_place in uc_facilities[:3]: # Max 3 urgent cares
+        uc_sorted = sorted(uc_facilities, key=lambda p: _place_distance_miles(p, lat, lon))
+        for uc_place in uc_sorted[:3]: # Max 3 urgent cares
             uc_place = await _enrich_place_with_details(uc_place)
             mf_page = await _upsert_medical_facility(uc_place, "Urgent Care", location_master_id)
             if mf_page:
@@ -394,7 +555,11 @@ async def generate_nearby_medical_facilities(location_master_id: str):
     if selected_er_id:
         lm_update_props["ER"] = {"relation": [{"id": selected_er_id}]}
     if selected_uc_ids:
+        used_slot_ids: set[str] = set()
         for i, uc_id in enumerate(selected_uc_ids):
+            if uc_id in used_slot_ids:
+                continue
+            used_slot_ids.add(uc_id)
             lm_update_props[f"UC{i+1}"] = {"relation": [{"id": uc_id}]}
     
     if lm_update_props:

@@ -13,6 +13,285 @@ DEV_NOTES records historical version bumps as they occurred at the time.
 Current rule (see PROJECT_HANDBOOK.md):
 Version increments occur only at verified milestone acceptance, not during intermediate fixes, experiments, or drafts.
 
+Session: 2025-12-29 - Admin tools cleanup, MF selection, timers, and debug logging
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Removed the retired Address Normalization panel from Admin Tools.
+- Added elapsed-time timers for Medical Facilities and PSL enrichment runs.
+- Improved MF selection to choose nearest ER/UC (distance-sorted) and biased ER inference to local results.
+- Switched DEBUG_TOOLS logging to daily files and updated docs.
+
+Changes:
+- `app/ui/admin_tools.py`: removed Address Normalization section; added timers to Medical Facilities + PSL Enrichment panels.
+- `app/services/medical_facilities.py`: select nearest ER/UC; ER inference text search now uses location+radius bias.
+- `app/services/debug_logger.py`: write daily `logs/debug_tools_YYYY-MM-DD.log` files.
+- `docs/AGENTS.md`: updated debug log filename pattern.
+
+Testing:
+- MF generation run observed in logs; user verified correct ER/UC associations.
+
+Notes:
+- Address normalization remains available via CLI: `python -m scripts.repair_addresses`.
+
+Session: 2025-12-29 - Dashboard avatar restyle
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Restyled the dashboard avatar to align with app typography and spacing.
+
+Changes:
+- `app/ui/layout.py`: updated avatar styles to inherit global font and center initials cleanly.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-29 - Dashboard refresh cleanup and alignment
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Removed the redundant dashboard refresh button and aligned the header refresh with page content.
+
+Changes:
+- `app/ui/dashboard.py`: removed the secondary Refresh button; added dashboard header alignment class.
+- `app/ui/layout.py`: added `.atls-dashboard-header` padding override to match content alignment.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-29 - Dashboard metric cards sizing polish
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Normalized dashboard metric card typography and reduced whitespace for tighter layout.
+
+Changes:
+- `app/ui/dashboard.py`: adjusted card padding/min height, heading/value sizes, status text sizing, and recent jobs spacing.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-29 - Dashboard metric cards sizing follow-up
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Increased metric card heading size and reduced card height for better balance.
+
+Changes:
+- `app/ui/dashboard.py`: raised heading text to `text-sm` and tightened card min-height.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-29 - Productions header alignment
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Aligned the Productions page header controls with the left content edge.
+
+Changes:
+- `app/ui/layout.py`: generalized header padding override class.
+- `app/ui/dashboard.py`: updated to new header alignment class.
+- `app/ui/productions.py`: applied header alignment class to the page header row.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-29 - Productions local time display
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Displayed Production Created dates in local time to match Last Edited formatting.
+
+Changes:
+- `app/ui/productions.py`: convert Created timestamps to local timezone before date-only formatting.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-29 - Medical Facilities header cleanup
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Removed duplicate Medical Facilities wording in the status line and let the table span full width.
+
+Changes:
+- `app/ui/medicalfacilities.py`: simplified status label text and removed minimum table width.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-29 - Medical Facilities duplicate header removal
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Removed the extra Medical Facilities header inside the page body.
+
+Changes:
+- `app/ui/medicalfacilities.py`: dropped the in-page header row so only the global header remains.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-29 - Medical Facilities table sorting
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Enabled sorting on all Medical Facilities table columns.
+
+Changes:
+- `app/ui/medicalfacilities.py`: added `sortable=True` to each column.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-29 - Medical Facilities address formatting
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Formatted Medical Facilities addresses from structured fields for consistent comma placement.
+
+Changes:
+- `app/ui/medicalfacilities.py`: build display address from address1/2/3 + city/state/zip, fallback to raw address.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-29 - Medical Facilities phone + Notion link
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Read phone_number fields for MF detail display and added a Notion link under hours.
+
+Changes:
+- `app/services/notion_medical_facilities.py`: read `phone_number` fields and expose `notion_url`.
+- `app/ui/medicalfacilities.py`: display Notion icon link in the details panel.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-29 - Medical Facilities Notion icon link fix
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Fixed the Notion icon link in MF details to render as a clickable anchor.
+
+Changes:
+- `app/ui/medicalfacilities.py`: replaced `ui.link` with an anchor element for the icon.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-29 - Medical Facilities cache version bump
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Forced MF cache refresh when schema-normalization changes require new fields (phone/notion URL).
+
+Changes:
+- `app/services/notion_medical_facilities.py`: added cache schema version and invalidation on version mismatch.
+
+Testing:
+- Not run (requires MF cache refresh at runtime).
+
+Session: 2025-12-29 - Medical Facilities address2 parse guard
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Avoided copying parsed address2 when it duplicates the city.
+
+Changes:
+- `app/services/notion_medical_facilities.py`: skip parsed address2 if it matches city; bumped MF cache schema version.
+
+Testing:
+- Not run (requires MF cache refresh at runtime).
+
+Session: 2025-12-29 - Medical Facilities hours formatting
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Removed duplicate weekday labels from MF hours display.
+
+Changes:
+- `app/services/notion_medical_facilities.py`: strip leading weekday name from hours before prefixing with Mon/Tue/etc.
+
+Testing:
+- Not run (requires MF cache refresh at runtime).
+
+Session: 2025-12-29 - Medical Facilities hours cleanup script
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Added a script to strip weekday prefixes from Medical Facilities hours fields in Notion.
+
+Changes:
+- `scripts/clean_medical_facility_hours.py`: scans MF rows and removes leading day labels from hours.
+
+Testing:
+- Not run (manual run required).
+
+Session: 2025-12-29 - Medical Facilities cache refresh button
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Added a Refresh Cache button to force MF cache rebuild from Notion.
+
+Changes:
+- `app/api/medicalfacilities_api.py`: optional `refresh` query param on `/list` to bypass cache.
+- `app/ui/medicalfacilities.py`: added Refresh Cache button and force-refresh path.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-29 - Medical Facilities address dedupe
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Suppressed duplicate city when address2 matches the city value.
+
+Changes:
+- `app/ui/medicalfacilities.py`: drop address2 when it equals city (case-insensitive).
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-29 - Location Op Status mapping fix
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Corrected Google operational status handling so business_status is stored in Location Op Status, not Status.
+- Documented the separation between pipeline Status and business operational status.
+
+Changes:
+- `app/services/psl_enrichment.py`: request Google business_status and map it to Location Op Status when the LM schema supports it.
+- `docs/PROJECT_HANDBOOK.md`: clarified Status vs Location Op Status and added the Google mapping.
+
+Testing:
+- Not run (Notion/Google credentials required).
+
+Notes:
+- No migration performed; re-enrich or manually correct any LM rows that previously stored Google operational values in Status.
+
 Session: 2025-12-16 - Add Medical Facility Generation Service
 Author: Codex 5
 Milestone: v0.9.4 (no version bump)

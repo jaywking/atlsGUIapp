@@ -15,6 +15,7 @@ def configure_logging() -> None:
     """Attach a file handler that writes to ./logs/app.log."""
 
     LOG_DIR.mkdir(parents=True, exist_ok=True)
+    LOG_FILE.write_text("", encoding="utf-8")  # reset per run for clean dev diagnostics
 
     root = logging.getLogger()
     root.setLevel(logging.INFO)

@@ -232,7 +232,9 @@ This chapter is the authoritative contract for where data in PSL, LM, and MF com
 ### LM Field Categories & Write Authority
 - **Canonical Identifiers:** `LocationsMasterID`, `Place_ID`.
 - **Externally Populated (Google) Fields:** Address fields, coordinates, `Google Maps URL`, `Types`.
-- **User / Operational Fields:** `Name`, `Practical Name`, `Notes`, status fields.
+- **User / Operational Fields:** `Name`, `Practical Name`, `Notes`.
+- **Pipeline Status:** `Status` is reserved for pipeline state only (`Ready`, `Unresolved`, `Matched`).
+- **Business Operational Status:** `Location Op Status` stores Google operational state (`business_status`) and must never write to `Status`.
 - **System / Relation Fields:** `Productions Used In`, `ProductionID` (if present), medical facility relations (ER / UC fields).
 
 ### External Data → LM Field Alignment (MANDATORY)
@@ -255,8 +257,11 @@ This chapter is the authoritative contract for where data in PSL, LM, and MF com
   - `sublocality_level_1` → `borough` (when present)
 - **Classification**
   - `types[]` → `Types` (multi-select)
+- **Operational State**
+  - `business_status` → `Location Op Status`
 - **Explicit Non-Mappings**
   - Google `name` does not overwrite `Name` or `Practical Name`.
+  - Google `business_status` must not map to `Status` (pipeline only).
   - LM does not infer or fabricate missing address components.
   - Missing Google data results in empty LM fields.
 

@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from nicegui import ui
 from pathlib import Path
@@ -15,9 +16,16 @@ _ENV = _ROOT / ".env"
 load_dotenv(dotenv_path=_ENV if _ENV.exists() else None)
 
 # ---------------------------------------------------------------------
-# Initialize FastAPI
+# Initialize FastAPI with lifespan (startup/shutdown)
 # ---------------------------------------------------------------------
-fastapi_app = FastAPI(title='ATLSApp')
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    background_sync.ensure_started()
+    yield
+
+
+fastapi_app = FastAPI(title='ATLSApp', lifespan=_lifespan)
 
 # UI page imports
 from app.ui import admin_tools, dashboard, dedup, jobs, layout, locations, medicalfacilities, productions, settings
@@ -50,11 +58,6 @@ fastapi_app.include_router(productions_api.router)
 fastapi_app.include_router(notion_admin_api.router)
 fastapi_app.include_router(psl_enrichment_api.router)
 fastapi_app.include_router(schema_report_api.router)
-
-
-@fastapi_app.on_event("startup")
-async def _start_background_sync() -> None:
-    background_sync.ensure_started()
 
 
 # ---------------------------------------------------------------------

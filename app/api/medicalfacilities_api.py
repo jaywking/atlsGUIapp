@@ -16,7 +16,10 @@ from app.services.notion_medical_facilities import (
     fetch_and_cache_medical_facilities,
     get_cached_medical_facilities,
 )
-from app.services.medical_facilities_runner import stream_generate_medical_facilities_all
+from app.services.medical_facilities_runner import (
+    stream_backfill_medical_facilities_missing,
+    stream_generate_medical_facilities_all,
+)
 from scripts import fetch_medical_facilities as run_fetch_medical_facilities
 
 router = APIRouter(prefix="/api/medicalfacilities", tags=["medical facilities"])
@@ -74,12 +77,16 @@ def _apply_filters(records: List[Dict[str, Any]], filters: Dict[str, str], sort:
 
 
 @router.get("/list")
-async def list_medical_facilities(page: int = 1, limit: int = 25) -> Dict[str, Any]:
+async def list_medical_facilities(page: int = 1, limit: int = 25, refresh: bool = False) -> Dict[str, Any]:
     page = max(1, page)
     limit = min(100, max(1, limit))
 
     try:
-        facilities, source = await _load_facilities()
+        if refresh:
+            facilities = await fetch_and_cache_medical_facilities()
+            source = "refreshed"
+        else:
+            facilities, source = await _load_facilities()
     except Exception as exc:  # noqa: BLE001
         err = f"Unable to load medical facilities: {exc}"
         log_job("facilities", "list", "error", err)
@@ -203,6 +210,17 @@ async def all_medical_facilities(limit: int = 1000) -> Dict[str, Any]:
 async def generate_medical_facilities_all_stream() -> StreamingResponse:
     async def _generator():
         async for line in stream_generate_medical_facilities_all():
+            if line is None:
+                continue
+            yield line if line.endswith("\n") else line + "\n"
+
+    return StreamingResponse(_generator(), media_type="text/plain")
+
+
+@router.get("/maintenance_stream")
+async def medical_facilities_maintenance_stream() -> StreamingResponse:
+    async def _generator():
+        async for line in stream_backfill_medical_facilities_missing():
             if line is None:
                 continue
             yield line if line.endswith("\n") else line + "\n"

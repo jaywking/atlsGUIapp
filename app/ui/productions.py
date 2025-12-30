@@ -33,6 +33,10 @@ def _format_date_only(value: Any) -> str:
     dt = _parse_iso_datetime(value)
     if not dt:
         return str(value or "")
+    try:
+        dt = dt.astimezone()
+    except Exception:
+        pass
     return dt.date().isoformat()
 
 
@@ -60,20 +64,19 @@ def page_content() -> None:
         "status_options": [],
     }
 
-    with ui.row().classes(f"{PAGE_HEADER_CLASSES} min-h-[52px]"):
+    with ui.row().classes(f"{PAGE_HEADER_CLASSES} atls-header-tight min-h-[52px]"):
         with ui.row().classes("items-center gap-2 flex-wrap"):
             refresh_button = ui.button("Refresh").classes("bg-blue-500 text-white hover:bg-slate-100 dark:hover:bg-slate-800")
             sync_button = ui.button("Sync to Notion").classes("bg-slate-800 text-white hover:bg-slate-900 dark:hover:bg-slate-800")
             auto_switch = ui.switch("Auto-refresh (60s)").classes("text-sm text-slate-600")
             spinner = ui.spinner(size="md").style("display: none;")
             dirty_label = ui.label("").classes("text-xs text-amber-600")
-        with ui.row().classes("items-center gap-2 flex-wrap ml-auto"):
+        with ui.row().classes("items-center gap-2 flex-wrap ml-4"):
             add_button = ui.button("Add Production").classes("bg-emerald-600 text-white hover:bg-emerald-700")
             search_input = ui.input(label="Search productions...").props("dense clearable debounce=300").classes("w-72")
             page_info = ui.label("Page 1 of 1").classes("text-sm text-slate-500")
             prev_button = ui.button("Prev").classes("bg-slate-200 text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800")
             next_button = ui.button("Next").classes("bg-slate-200 text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800")
-            status_label = ui.label("No data loaded yet.").classes("text-sm text-slate-500")
 
     columns = [
         {"name": "ProductionID", "label": "ProductionID", "field": "ProductionID", "sortable": True},
@@ -252,12 +255,10 @@ def page_content() -> None:
             state["page"] = 0
             apply_filters()
             message = payload.get("message") or f"Loaded {len(state['rows'])} productions"
-            status_label.set_text(message)
             if show_toast:
                 ui.notify(message, type="positive")
         except Exception as exc:
             logger.exception("Productions fetch failed: %s", exc)
-            status_label.set_text(f"Error: {exc}")
             ui.notify(f"Fetch error: {exc}", type="negative")
         finally:
             set_loading(False)

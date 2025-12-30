@@ -234,16 +234,6 @@ def page_content(request: Request) -> None:
                 on_click=lambda e: start_task(run_schema_report_stream()),
             ).classes("bg-slate-900 text-white hover:bg-slate-800 px-3 py-1")
 
-        # Section 5 - Address Normalization (Retired)
-        with ui.expansion("Address Normalization", icon="home_pin").classes(
-            "border border-slate-200 dark:border-slate-700 w-full"
-        ):
-            ui.label(
-                "Address normalization is no longer available in the UI. "
-                "All new data is normalized at ingest. To repair existing Notion data, use:"
-            ).classes("text-sm text-slate-500")
-            ui.code("python -m scripts.repair_addresses").classes("w-full text-xs")
-
         # Section 6 - Reprocess Production Locations
         with ui.expansion("Reprocess Production Locations", icon="refresh").classes(
             "border border-slate-200 dark:border-slate-700 w-full"
@@ -367,6 +357,9 @@ def page_content(request: Request) -> None:
 
         # Section 6 - PSL Enrichment
         with ui.expansion("PSL Enrichment", icon="map").classes("border border-slate-200 dark:border-slate-700 w-full"):
+            psl_timer = {"start": None, "running": False}
+            psl_timer_label = ui.label("Elapsed: 0s").classes("text-sm text-slate-500")
+
             psl_select = ui.select(
                 options=[],
                 label="Select Production",
@@ -380,6 +373,14 @@ def page_content(request: Request) -> None:
                 placeholder="Streaming progress...",
             ).classes("w-full text-sm h-48")
             psl_output.props("readonly")
+
+            def _update_psl_timer() -> None:
+                if not psl_timer["running"] or psl_timer["start"] is None:
+                    return
+                elapsed = int(time.time() - psl_timer["start"])
+                psl_timer_label.set_text(f"Elapsed: {elapsed}s")
+
+            ui.timer(1.0, _update_psl_timer, active=True)
 
             async def run_psl_single() -> None:
                 selected_name = psl_select.value
@@ -398,6 +399,9 @@ def page_content(request: Request) -> None:
                 psl_output.update()
                 psl_single_btn.disable()
                 psl_batch_btn.disable()
+                psl_timer["start"] = time.time()
+                psl_timer["running"] = True
+                psl_timer_label.set_text("Elapsed: 0s")
                 try:
                     async with httpx.AsyncClient(base_url=str(request.base_url), timeout=None) as client:
                         async with client.stream("GET", "/api/psl/enrich_stream", params={"db_id": db_id, "production": selected_name}) as response:
@@ -414,6 +418,10 @@ def page_content(request: Request) -> None:
                     psl_output.update()
                     ui.notify(f"PSL enrichment failed: {exc}", type="negative", position="top")
                 finally:
+                    if psl_timer["start"] is not None:
+                        elapsed = int(time.time() - psl_timer["start"])
+                        psl_timer_label.set_text(f"Elapsed: {elapsed}s")
+                    psl_timer["running"] = False
                     psl_single_btn.enable()
                     psl_batch_btn.enable()
 
@@ -422,6 +430,9 @@ def page_content(request: Request) -> None:
                 psl_output.update()
                 psl_single_btn.disable()
                 psl_batch_btn.disable()
+                psl_timer["start"] = time.time()
+                psl_timer["running"] = True
+                psl_timer_label.set_text("Elapsed: 0s")
                 try:
                     async with httpx.AsyncClient(base_url=str(request.base_url), timeout=None) as client:
                         async with client.stream("GET", "/api/psl/enrich_batch_stream") as response:
@@ -438,6 +449,10 @@ def page_content(request: Request) -> None:
                     psl_output.update()
                     ui.notify(f"Batch enrichment failed: {exc}", type="negative", position="top")
                 finally:
+                    if psl_timer["start"] is not None:
+                        elapsed = int(time.time() - psl_timer["start"])
+                        psl_timer_label.set_text(f"Elapsed: {elapsed}s")
+                    psl_timer["running"] = False
                     psl_single_btn.enable()
                     psl_batch_btn.enable()
 
@@ -526,6 +541,9 @@ def page_content(request: Request) -> None:
         with ui.expansion("Generate Medical Facilities", icon="local_hospital").classes(
             "border border-slate-200 dark:border-slate-700"
         ):
+            medfac_timer = {"start": None, "running": False}
+            medfac_timer_label = ui.label("Elapsed: 0s").classes("text-sm text-slate-500")
+
             medfac_output = ui.textarea(
                 value="Run to generate medical facilities for all eligible Locations Master rows.\n"
                 "Output shows counts only.",
@@ -533,10 +551,21 @@ def page_content(request: Request) -> None:
             ).classes("w-full text-sm h-32")
             medfac_output.props("readonly")
 
+            def _update_medfac_timer() -> None:
+                if not medfac_timer["running"] or medfac_timer["start"] is None:
+                    return
+                elapsed = int(time.time() - medfac_timer["start"])
+                medfac_timer_label.set_text(f"Elapsed: {elapsed}s")
+
+            ui.timer(1.0, _update_medfac_timer, active=True)
+
             async def run_medfac_stream() -> None:
                 medfac_output.value = "Starting medical facilities generation...\n"
                 medfac_output.update()
                 medfac_btn.disable()
+                medfac_timer["start"] = time.time()
+                medfac_timer["running"] = True
+                medfac_timer_label.set_text("Elapsed: 0s")
                 try:
                     async with httpx.AsyncClient(base_url=str(request.base_url), timeout=None) as client:
                         async with client.stream("GET", "/api/medicalfacilities/generate_all_stream") as response:
@@ -553,6 +582,10 @@ def page_content(request: Request) -> None:
                     medfac_output.update()
                     ui.notify(f"Medical facilities generation failed: {exc}", type="negative", position="top")
                 finally:
+                    if medfac_timer["start"] is not None:
+                        elapsed = int(time.time() - medfac_timer["start"])
+                        medfac_timer_label.set_text(f"Elapsed: {elapsed}s")
+                    medfac_timer["running"] = False
                     medfac_btn.enable()
 
             medfac_btn = ui.button(

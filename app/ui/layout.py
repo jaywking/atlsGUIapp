@@ -197,6 +197,12 @@ h1, h2, h3, h4 {
     border-color: #334155 !important;
 }
 
+/* Header alignment */
+.atls-header-tight {
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+}
+
 </style>
 """
     )
@@ -220,8 +226,7 @@ h1, h2, h3, h4 {
                 with ui.row().classes('items-center gap-3'):
                     ui.label('DEV').classes('text-sm text-slate-500 dark:text-slate-200')
                     toggle_btn = ui.button(on_click=dark_mode.toggle).classes('px-4 py-1 rounded bg-slate-200 text-slate-900 hover:bg-slate-300 dark:bg-slate-700 dark:text-white dark:hover:bg-slate-600')
-                    toggle_btn.bind_text_from(dark_mode, 'value', lambda v: "Switch to Light" if v else "Switch to Dark")
-                    ui.avatar('JA').classes('bg-blue-500 text-white')
+                    toggle_btn.bind_text_from(dark_mode, 'value', lambda v: "Switch to Light" if v else "Dark Mode")
             # page content
             with ui.column().classes(
                 'flex-1 overflow-y-visible px-1 py-4 gap-4 '

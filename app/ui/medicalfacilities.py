@@ -98,10 +98,6 @@ def page_content() -> None:
 """
     )
 
-    with ui.row().classes(f"{PAGE_HEADER_CLASSES} min-h-[52px] items-center").style("padding-left: 0; padding-right: 0;"):
-        ui.icon("home_work").classes("text-slate-500")
-        ui.label("Medical Facilities").classes("text-xl font-semibold")
-
     # Search panel
     with ui.column().classes("w-full gap-1"):
         with ui.row().classes("items-end gap-2 flex-wrap"):
@@ -142,11 +138,14 @@ def page_content() -> None:
             reset_button = ui.button("Reset", icon="refresh").classes(
                 "bg-slate-200 text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800"
             )
+            refresh_button = ui.button("Refresh Cache", icon="cached").classes(
+                "bg-slate-800 text-white hover:bg-slate-900 dark:hover:bg-slate-800"
+            )
             spinner = ui.spinner(size="md").props("color=primary").style("display: none;")
 
     ui.separator().classes("w-full")
 
-    status_label = ui.label("Use the search tool above to find Medical Facilities.").classes("text-sm text-slate-500")
+    status_label = ui.label("Use the search tool above to find facilities.").classes("text-sm text-slate-500")
 
     with ui.row().classes("items-center gap-2 flex-wrap w-full"):
         prev_button = ui.button("Prev").classes("bg-slate-200 text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800")
@@ -155,17 +154,17 @@ def page_content() -> None:
         page_meta = ui.label("Page 1 of 1").classes("text-sm text-slate-500")
 
     columns = [
-        {"name": "medical_facility_id", "label": "ID", "field": "medical_facility_id"},
-        {"name": "name", "label": "Name", "field": "name"},
-        {"name": "address", "label": "Address", "field": "address"},
-        {"name": "facility_type", "label": "Type", "field": "facility_type"},
-        {"name": "website", "label": "Website", "field": "website"},
+        {"name": "medical_facility_id", "label": "ID", "field": "medical_facility_id", "sortable": True},
+        {"name": "name", "label": "Name", "field": "name", "sortable": True},
+        {"name": "address", "label": "Address", "field": "address", "sortable": True},
+        {"name": "facility_type", "label": "Type", "field": "facility_type", "sortable": True},
+        {"name": "website", "label": "Website", "field": "website", "sortable": True},
     ]
 
     with ui.element("div").classes("w-full overflow-x-auto py-2").style("display: none;") as table_container:
         table = (
             ui.table(columns=columns, rows=[], row_key="row_id")
-            .classes("w-full text-sm q-table--flat min-w-[1100px] facilities-table")
+            .classes("w-full text-sm q-table--flat facilities-table")
             .props('wrap-cells flat square separator="horizontal"')
         )
 
@@ -223,7 +222,7 @@ def page_content() -> None:
             """,
         )
 
-    details_dialog = ui.dialog().props('position="right" maximized').classes("w-[440px]")
+    details_dialog = ui.dialog().props('position="right" transition-show="none" transition-hide="none"').classes("w-[440px]")
     with details_dialog, ui.card().classes("w-full h-full shadow-lg"):
         with ui.column().classes("gap-3 p-4 h-full"):
             with ui.row().classes("items-center justify-between"):
@@ -249,6 +248,16 @@ def page_content() -> None:
             with ui.row().classes("items-start gap-2"):
                 ui.icon("schedule").classes("text-slate-500")
                 hours_value = ui.column().classes("text-sm gap-1")
+            with ui.row().classes("items-center gap-2"):
+                notion_link = ui.element("a").classes("text-slate-500 hover:text-slate-800 dark:text-slate-300")
+                notion_link.props("target=_blank aria-label='Open in Notion'")
+                with notion_link:
+                    ui.html(
+                        "<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"currentColor\" aria-hidden=\"true\">"
+                        "<path d=\"M6.5 3.5h11c1.7 0 3 1.3 3 3v11c0 1.7-1.3 3-3 3h-11c-1.7 0-3-1.3-3-3v-11c0-1.7 1.3-3 3-3zm.6 3.5v10c0 .6.4 1 1 1h8.8c.6 0 1-.4 1-1v-10c0-.6-.4-1-1-1H8.1c-.6 0-1 .4-1 1zm2 .7h1.9l4.2 6.4V7.7h1.8v8.6h-1.9l-4.2-6.3v6.3H9.1V7.7z\"/>"
+                        "</svg>",
+                        sanitize=False,
+                    )
             ui.space()
             ui.space()
 
@@ -256,6 +265,7 @@ def page_content() -> None:
         spinner.style("display: inline-block;" if is_loading else "display: none;")
         search_button.set_enabled(not is_loading)
         reset_button.set_enabled(not is_loading)
+        refresh_button.set_enabled(not is_loading)
 
     def format_distance(raw: Any) -> str:
         if raw is None or raw == "":
@@ -274,9 +284,39 @@ def page_content() -> None:
                 return token
         return None
 
+    def _format_address(raw: Dict[str, Any]) -> str:
+        address1 = (raw.get("address1") or "").strip()
+        address2 = (raw.get("address2") or "").strip()
+        address3 = (raw.get("address3") or "").strip()
+        city = (raw.get("city") or "").strip()
+        state = (raw.get("state") or "").strip()
+        zip_code = (raw.get("zip") or "").strip()
+        country = (raw.get("country") or "").strip()
+
+        if address2 and city and address2.strip().lower() == city.strip().lower():
+            address2 = ""
+
+        parts = [p for p in [address1, address2, address3] if p]
+        city_line = ""
+        if city:
+            city_line = city
+        if state:
+            city_line = f"{city_line}, {state}" if city_line else state
+        if zip_code:
+            city_line = f"{city_line} {zip_code}".strip()
+        if city_line:
+            parts.append(city_line)
+        if country and country.upper() not in {"US", "USA"}:
+            parts.append(country.upper())
+
+        formatted = ", ".join(parts).strip()
+        if formatted:
+            return formatted
+        return (raw.get("address") or "").strip()
+
     def normalize_row(raw: Dict[str, Any], idx: int) -> Dict[str, Any]:
-        addr = raw.get("address") or ""
-        state_code = _extract_state_code(addr)
+        addr = _format_address(raw)
+        state_code = (raw.get("state") or "").strip().upper() or _extract_state_code(addr)
         return {
             "row_id": raw.get("row_id") or raw.get("id") or f"facility-{idx}",
             "medical_facility_id": raw.get("medical_facility_id") or raw.get("MedicalFacilityID") or "",
@@ -287,6 +327,7 @@ def page_content() -> None:
             "hours": raw.get("hours") or "",
             "website": raw.get("website") or "",
             "google_maps_url": raw.get("google_maps_url") or "",
+            "notion_url": raw.get("notion_url") or raw.get("url") or "",
             "distance": format_distance(raw.get("distance")),
             "place_types": raw.get("place_types") or [],
             "state_code": state_code or "",
@@ -364,7 +405,7 @@ def page_content() -> None:
         if not state.get("filtered_rows"):
             table.rows = []
             table.update()
-            status_label.set_text("No facilities found." if state.get("search_initiated") else "Use the search tool above to find Medical Facilities.")
+            status_label.set_text("No facilities found." if state.get("search_initiated") else "Use the search tool above to find facilities.")
             return
 
         if page is not None:
@@ -390,7 +431,7 @@ def page_content() -> None:
         if show_toast:
             ui.notify(status_label.text, type="positive")
 
-    async def load_facilities(show_toast: bool = True) -> None:
+    async def load_facilities(show_toast: bool = True, force_refresh: bool = False) -> None:
         set_loading(True)
         try:
             all_items: List[Dict[str, Any]] = []
@@ -399,10 +440,11 @@ def page_content() -> None:
             limit = 100  # API caps at 100 per call
 
             while True:
+                refresh_flag = "true" if force_refresh and page_num == 1 else "false"
                 script = (
                     "const controller = new AbortController();"
                     "const timer = setTimeout(() => controller.abort(), 8000);"
-                    f"try {{ const response = await fetch('/api/medicalfacilities/list?page={page_num}&limit={limit}', {{ method: 'GET', signal: controller.signal }});"
+                    f"try {{ const response = await fetch('/api/medicalfacilities/list?page={page_num}&limit={limit}&refresh={refresh_flag}', {{ method: 'GET', signal: controller.signal }});"
                     "clearTimeout(timer);"
                     "if (!response.ok) { return { __error: `HTTP ${response.status}` }; }"
                     "return await response.json();"
@@ -476,12 +518,15 @@ def page_content() -> None:
                 ui.label("--")
         website_url = row.get("website") or ""
         maps_url = row.get("google_maps_url") or ""
+        notion_url = row.get("notion_url") or ""
         website_link.text = "Website" if website_url else "No website"
         website_link.props(f'href="{website_url or "#"}" target=_blank')
         website_link.update()
         maps_link.text = "Map" if maps_url else "No map link"
         maps_link.props(f'href="{maps_url or "#"}" target=_blank')
         maps_link.update()
+        notion_link.props(f'href="{notion_url or "#"}" target=_blank')
+        notion_link.update()
 
     async def handle_row_click(event) -> None:
         event_args = getattr(event, "args", None)
@@ -519,6 +564,9 @@ def page_content() -> None:
             apply_filters_and_sort()
             paginate_and_render(page=1, show_toast=True)
 
+    async def on_refresh_cache() -> None:
+        await load_facilities(show_toast=True, force_refresh=True)
+
     def on_reset() -> None:
         state["filters"] = {"name": "", "address": "", "state": "", "facility_type": "All"}
         state["sort"] = "name_asc"
@@ -537,12 +585,13 @@ def page_content() -> None:
         table_container.style("display: none;")
         table.rows = []
         table.update()
-        status_label.set_text("Use the search tool above to find Medical Facilities.")
+        status_label.set_text("Use the search tool above to find facilities.")
 
     prev_button.on_click(lambda _: paginate_and_render(page=state["page"] - 1))
     next_button.on_click(lambda _: paginate_and_render(page=state["page"] + 1))
     search_button.on_click(on_search)
     reset_button.on_click(on_reset)
+    refresh_button.on_click(on_refresh_cache)
     sort_select.on("update:model-value", lambda e: (state.update({"sort": e.value or "name_asc"}), apply_filters_and_sort(), paginate_and_render(page=1)))
     name_input.on("keydown.enter", lambda _: on_search())
     address_input.on("keydown.enter", lambda _: on_search())

@@ -155,7 +155,7 @@ async def _geocode(address: str) -> Dict[str, Any] | None:
 async def _place_details(place_id: str) -> Dict[str, Any]:
     data = await _google_request(
         PLACE_DETAILS_URL,
-        {"place_id": place_id, "fields": "place_id,name,formatted_address,address_component,geometry,url,vicinity,international_phone_number,website,types"},
+        {"place_id": place_id, "fields": "place_id,name,formatted_address,address_component,geometry,url,vicinity,international_phone_number,website,types,business_status"},
     )
     result = data.get("result") or {}
     if not result:
@@ -211,6 +211,7 @@ def _extract_google_fields(result: Dict[str, Any], anchors: Dict[str, str]) -> D
         "international_phone": result.get("international_phone_number"),
         "website": result.get("website"),
         "types": filtered_types,
+        "business_status": result.get("business_status"),
         "anchors_match": _matches_anchor(components, anchors),
     }
 
@@ -221,6 +222,20 @@ def _build_master_properties(google_fields: Dict[str, Any], schema: Dict[str, An
     def add(prop: str, payload: Dict[str, Any]) -> None:
         if prop in schema:
             props[prop] = payload
+
+    def add_op_status(value: str | None) -> None:
+        if not value:
+            return
+        prop = "Location Op Status"
+        if prop not in schema:
+            return
+        prop_type = schema.get(prop, {}).get("type")
+        if prop_type == "select":
+            props[prop] = {"select": {"name": value}}
+        elif prop_type == "status":
+            props[prop] = {"status": {"name": value}}
+        elif prop_type == "rich_text":
+            props[prop] = _rt(str(value))
 
     if google_fields.get("full_address"):
         add("Full Address", _rt(str(google_fields["full_address"])))
@@ -260,6 +275,8 @@ def _build_master_properties(google_fields: Dict[str, Any], schema: Dict[str, An
             props["International Phone"] = {"phone_number": str(google_fields["international_phone"])}
     if google_fields.get("types"):
         add("Types", _multi(list(google_fields["types"])))
+    if google_fields.get("business_status"):
+        add_op_status(str(google_fields["business_status"]))
     if google_fields.get("latitude") is not None:
         add("Latitude", {"number": float(google_fields["latitude"])})
     if google_fields.get("longitude") is not None:

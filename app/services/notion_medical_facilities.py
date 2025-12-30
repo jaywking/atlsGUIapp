@@ -12,6 +12,7 @@ from config import Config
 NOTION_VERSION = "2022-06-28"
 PAGE_SIZE = 100
 DEFAULT_COUNTRY = "US"
+CACHE_SCHEMA_VERSION = 3
 
 
 def _rich_text(props: Dict[str, Any], key: str) -> str:
@@ -41,6 +42,10 @@ def _number(props: Dict[str, Any], *keys: str) -> float | None:
     return None
 
 
+def _phone(props: Dict[str, Any], key: str) -> str:
+    return props.get(key, {}).get("phone_number") or ""
+
+
 def _build_hours(props: Dict[str, Any]) -> str:
     days = [
         ("Monday Hours", "Mon"),
@@ -55,7 +60,12 @@ def _build_hours(props: Dict[str, Any]) -> str:
     for prop_name, label in days:
         val = _rich_text(props, prop_name)
         if val:
-            parts.append(f"{label}: {val}")
+            cleaned = val.strip()
+            for day_name in ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"):
+                if cleaned.lower().startswith(day_name.lower() + ":"):
+                    cleaned = cleaned[len(day_name) + 1 :].strip()
+                    break
+            parts.append(f"{label}: {cleaned}")
     return "; ".join(parts)
 
 
@@ -90,7 +100,7 @@ def normalize_facility(page: Dict[str, Any]) -> Dict[str, Any]:
     name = _rich_text(props, "Name") or facility_id
     facility_type = _select(props, "Type")
     distance_val = _number(props, "Distance", "Distance (mi)")
-    phone_val = _rich_text(props, "Phone") or _rich_text(props, "International Phone")
+    phone_val = _phone(props, "Phone") or _phone(props, "International Phone") or _rich_text(props, "Phone") or _rich_text(props, "International Phone")
     state_val = _select(props, "State")
     full_address_raw = _rich_text(props, "Full Address") or _rich_text(props, "Address")
     address1 = _rich_text(props, "address1") or _rich_text(props, "Address 1") or _rich_text(props, "Address1")
@@ -113,7 +123,11 @@ def normalize_facility(page: Dict[str, Any]) -> Dict[str, Any]:
     if not address1 and parsed.get("address1"):
         address1 = parsed.get("address1")
     if not address2 and parsed.get("address2"):
-        address2 = parsed.get("address2")
+        candidate = parsed.get("address2") or ""
+        if city and candidate.strip().lower() == city.strip().lower():
+            candidate = ""
+        if candidate:
+            address2 = candidate
     if not address3 and parsed.get("address3"):
         address3 = parsed.get("address3")
     if not country and parsed.get("country"):
@@ -156,6 +170,7 @@ def normalize_facility(page: Dict[str, Any]) -> Dict[str, Any]:
         "distance": distance_val,
         "place_types": [facility_type] if facility_type else [],
         "place_id": _rich_text(props, "Place_ID"),
+        "notion_url": page.get("url") or "",
     }
 
 
@@ -300,6 +315,11 @@ async def find_medical_facility_by_place_id(place_id: str) -> Optional[Dict[str,
     return None
 
 
+async def fetch_medical_facility_pages_raw() -> List[Dict[str, Any]]:
+    """Return raw Medical Facilities pages for maintenance workflows."""
+    return await _query_notion(filter_block=None, sorts=[])
+
+
 async def search_medical_facilities(filters: Dict[str, str], sorts: List[str]) -> List[Dict[str, Any]]:
     filter_block = _build_filter(filters)
     sort_blocks = _build_sorts(sorts)
@@ -313,6 +333,7 @@ async def fetch_and_cache_medical_facilities() -> List[Dict[str, Any]]:
     normalized = [normalize_facility(p) for p in pages]
     payload = {
         "timestamp": _utc_now(),
+        "version": CACHE_SCHEMA_VERSION,
         "normalized": normalized,
         "raw": pages,
     }
@@ -329,6 +350,14 @@ async def fetch_and_cache_medical_facilities() -> List[Dict[str, Any]]:
 async def get_cached_medical_facilities(max_age_seconds: int = 3600) -> Dict[str, Any]:
     _ = max_age_seconds  # placeholder for future staleness-aware logic
     cache = await load_facilities_cache()
+    if cache and cache.get("version") != CACHE_SCHEMA_VERSION:
+        log_job(
+            "facilities",
+            "cache_version_mismatch",
+            "error",
+            f"operation=facilities_cache_load version={cache.get('version')} expected={CACHE_SCHEMA_VERSION}",
+        )
+        return {}
     if cache:
         log_job(
             "facilities",
