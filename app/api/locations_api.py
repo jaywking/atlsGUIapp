@@ -22,12 +22,14 @@ from app.services.notion_locations import (
     get_locations_master_cached,
     list_production_location_databases,
     fetch_production_locations,
+    fetch_master_by_id,
     load_all_production_locations,
     load_locations_master,
     search_locations,
     update_location_page,
     resolve_status,
 )
+from app.services.notion_medical_facilities import get_cached_medical_facilities, fetch_and_cache_medical_facilities
 from app.services.notion_schema_utils import search_location_databases, ensure_schema
 from app.services.notion_writeback import archive_master_rows, update_master_fields, update_production_master_links, write_address_updates
 from app.services.validation_service import validate_links
@@ -37,6 +39,8 @@ from scripts import process_new_locations
 print("DEBUG: locations_api imported successfully")
 
 router = APIRouter(prefix="/api/locations", tags=["locations"])
+_detail_cache: Dict[str, Dict[str, Any]] = {}
+_DETAIL_CACHE_TTL = 60  # seconds
 
 
 async def _load_locations(max_age_seconds: int = DEFAULT_MAX_AGE_SECONDS) -> tuple[List[Dict[str, Any]], str]:
@@ -95,6 +99,44 @@ def _validate_limit(limit: int, default: int = 1000, max_limit: int = 10_000) ->
     return limit
 
 
+def _clean_term(value: str | None) -> str:
+    return (value or "").strip()
+
+
+def _lower_term(value: str | None) -> str:
+    return _clean_term(value).lower()
+
+
+def _contains(haystack: str, needle: str) -> bool:
+    if not needle:
+        return True
+    return needle in (haystack or "").lower()
+
+
+def _equals(haystack: str, needle: str) -> bool:
+    if not needle:
+        return True
+    return (haystack or "").lower() == needle
+
+
+def _serialize_master_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    types = row.get("types") or []
+    place_type = types[0] if isinstance(types, list) and types else ""
+    return {
+        "row_id": row.get("row_id") or row.get("id") or "",
+        "master_id": row.get("prod_loc_id") or "",
+        "name": row.get("name") or row.get("location_name") or row.get("practical_name") or "",
+        "city": row.get("city") or "",
+        "state": row.get("state") or "",
+        "country": row.get("country") or "",
+        "place_id": row.get("place_id") or "",
+        "status": row.get("status") or "",
+        "place_type": place_type,
+        "location_op_status": row.get("location_op_status") or "",
+        "google_maps_url": row.get("google_maps_url") or "",
+    }
+
+
 @router.get("/all")
 async def all_locations(limit: int = 1000, refresh: bool = Query(False)) -> Dict[str, Any]:
     try:
@@ -124,6 +166,316 @@ async def all_locations(limit: int = 1000, refresh: bool = Query(False)) -> Dict
     message = f"Returned {len(sliced)} production locations in {duration_ms} ms (limit {validated_limit})"
     log_job("locations", "all", "success", message)
     return {"status": "success", "message": message, "data": sliced}
+
+
+@router.get("/search_master")
+async def search_master_locations(
+    production_name: str | None = None,
+    location_name: str | None = None,
+    full_address: str | None = None,
+    city: str | None = None,
+    state: str | None = None,
+    country: str | None = None,
+    zip_code: str | None = None,
+    county: str | None = None,
+    borough: str | None = None,
+    place_type: str | None = None,
+    status: str | None = None,
+    location_op_status: str | None = None,
+    place_id: str | None = None,
+    master_id: str | None = None,
+    limit: int = 500,
+) -> Dict[str, Any]:
+    start = time.perf_counter()
+    try:
+        validated_limit = _validate_limit(limit, default=500, max_limit=5_000)
+    except ValueError as exc:
+        err = f"Invalid limit: {exc}"
+        log_job("locations", "search_master", "error", err)
+        return {"status": "error", "message": err, "data": {"items": [], "total": 0, "truncated": False}}
+
+    prod_term = _lower_term(production_name)
+    filters = {
+        "location_name": _lower_term(location_name),
+        "full_address": _lower_term(full_address),
+        "city": _lower_term(city),
+        "state": _lower_term(state),
+        "country": _lower_term(country),
+        "zip": _lower_term(zip_code),
+        "county": _lower_term(county),
+        "borough": _lower_term(borough),
+        "place_type": _lower_term(place_type),
+        "status": _lower_term(status),
+        "location_op_status": _lower_term(location_op_status),
+        "place_id": _lower_term(place_id),
+        "master_id": _lower_term(master_id),
+    }
+
+    log_job(
+        "locations",
+        "search_master",
+        "start",
+        f"production_name={prod_term} filters={filters} limit={validated_limit}",
+    )
+
+    try:
+        master_rows = await get_locations_master_cached(refresh=False)
+    except Exception as exc:  # noqa: BLE001
+        err = f"Failed to load Locations Master: {exc}"
+        log_job("locations", "search_master", "error", err)
+        return {"status": "error", "message": err, "data": {"items": [], "total": 0, "truncated": False}}
+
+    master_by_id = {r.get("row_id") or r.get("id"): r for r in master_rows}
+
+    results: List[Dict[str, Any]] = []
+
+    if prod_term:
+        productions_db_id = Config.PRODUCTIONS_MASTER_DB or Config.PRODUCTIONS_DB_ID or Config.NOTION_PRODUCTIONS_DB_ID
+        if not productions_db_id:
+            err = "Missing productions master database id"
+            log_job("locations", "search_master", "error", err)
+            return {"status": "error", "message": err, "data": {"items": [], "total": 0, "truncated": False}}
+
+        try:
+            prod_entries = await list_production_location_databases(productions_db_id)
+        except Exception as exc:  # noqa: BLE001
+            err = f"Failed to list production databases: {exc}"
+            log_job("locations", "search_master", "error", err)
+            return {"status": "error", "message": err, "data": {"items": [], "total": 0, "truncated": False}}
+
+        matched_entries = []
+        for entry in prod_entries:
+            hay = " ".join(
+                [
+                    entry.get("display_name") or "",
+                    entry.get("production_title") or "",
+                    entry.get("production_id") or "",
+                    entry.get("db_title") or "",
+                ]
+            ).lower()
+            if prod_term in hay:
+                matched_entries.append(entry)
+
+        if not matched_entries:
+            duration_ms = int((time.perf_counter() - start) * 1000)
+            message = f"No productions matched '{production_name}'"
+            log_job("locations", "search_master", "success", f"{message} duration_ms={duration_ms}")
+            return {"status": "success", "message": message, "data": {"items": [], "total": 0, "truncated": False}}
+
+        seen_ids: set[str] = set()
+        for entry in matched_entries:
+            db_id = entry.get("locations_db_id") or ""
+            if not db_id:
+                continue
+            prod_rows = await fetch_production_locations(db_id, production_id=entry.get("production_id"))
+            for row in prod_rows:
+                for master_id_rel in row.get("locations_master_ids") or []:
+                    if master_id_rel in seen_ids:
+                        continue
+                    master_row = master_by_id.get(master_id_rel)
+                    if not master_row:
+                        continue
+                    seen_ids.add(master_id_rel)
+                    if len(results) < validated_limit:
+                        results.append(_serialize_master_row(master_row))
+
+        total_found = len(seen_ids)
+        truncated = total_found > len(results)
+    else:
+        for row in master_rows:
+            name_val = (row.get("name") or row.get("location_name") or row.get("practical_name") or "").lower()
+            full_addr_val = (row.get("address") or "").lower()
+            city_val = (row.get("city") or "").lower()
+            state_val = (row.get("state") or "").lower()
+            country_val = (row.get("country") or "").lower()
+            zip_val = (row.get("zip") or "").lower()
+            county_val = (row.get("county") or "").lower()
+            borough_val = (row.get("borough") or "").lower()
+            status_val = (row.get("status") or "").lower()
+            op_status_val = (row.get("location_op_status") or "").lower()
+            place_val = (row.get("place_id") or "").lower()
+            master_val = (row.get("prod_loc_id") or "").lower()
+            types_val = row.get("types") or []
+            types_lower = [
+                t.lower() for t in types_val if isinstance(t, str)
+            ] if isinstance(types_val, list) else []
+
+            if not _contains(name_val, filters["location_name"]):
+                continue
+            if not _contains(full_addr_val, filters["full_address"]):
+                continue
+            if not _contains(city_val, filters["city"]):
+                continue
+            if not _contains(state_val, filters["state"]):
+                continue
+            if not _equals(country_val, filters["country"]):
+                continue
+            if not _contains(zip_val, filters["zip"]):
+                continue
+            if not _contains(county_val, filters["county"]):
+                continue
+            if not _contains(borough_val, filters["borough"]):
+                continue
+            if filters["status"] and not _equals(status_val, filters["status"]):
+                continue
+            if filters["location_op_status"] and not _equals(op_status_val, filters["location_op_status"]):
+                continue
+            if filters["place_id"] and not _equals(place_val, filters["place_id"]):
+                continue
+            if filters["master_id"] and not _equals(master_val, filters["master_id"]):
+                continue
+            if filters["place_type"]:
+                requested_types = [t.strip() for t in filters["place_type"].split(",") if t.strip()]
+                if requested_types and not any(rt in types_lower for rt in requested_types):
+                    continue
+
+            results.append(_serialize_master_row(row))
+            if len(results) >= validated_limit:
+                break
+
+        total_found = len(results)
+        truncated = False
+
+    results.sort(key=lambda r: (r.get("master_id") or "").lower())
+    duration_ms = int((time.perf_counter() - start) * 1000)
+    message = f"Returned {len(results)} Locations Master rows in {duration_ms} ms"
+    log_job(
+        "locations",
+        "search_master",
+        "success",
+        f"{message} total={total_found} truncated={truncated} production={bool(prod_term)}",
+    )
+    return {
+        "status": "success",
+        "message": message,
+        "data": {"items": results, "total": total_found, "truncated": truncated},
+    }
+
+
+@router.get("/detail")
+async def get_location_detail(master_id: str | None = None) -> Dict[str, Any]:
+    master_id = (master_id or "").strip()
+    if not master_id:
+        return {"status": "error", "message": "master_id is required", "data": {}}
+
+    cached = _detail_cache.get(master_id)
+    if cached and (time.time() - cached.get("ts", 0)) < _DETAIL_CACHE_TTL:
+        return cached.get("payload", {})
+
+    try:
+        master_row = await fetch_master_by_id(master_id)
+    except Exception as exc:  # noqa: BLE001
+        err = f"Failed to load Locations Master: {exc}"
+        log_job("locations", "detail", "error", err)
+        return {"status": "error", "message": err, "data": {}}
+    if not master_row:
+        return {"status": "error", "message": f"Location {master_id} not found", "data": {}}
+
+    productions_db_id = Config.PRODUCTIONS_MASTER_DB or Config.PRODUCTIONS_DB_ID or Config.NOTION_PRODUCTIONS_DB_ID
+    productions: List[Dict[str, str]] = []
+    if productions_db_id:
+        try:
+            prod_entries = await list_production_location_databases(productions_db_id)
+            master_page_id = master_row.get("row_id") or master_row.get("id") or ""
+            seen_productions: set[str] = set()
+            for entry in prod_entries:
+                db_id = entry.get("locations_db_id") or ""
+                if not db_id:
+                    continue
+                prod_rows = await fetch_production_locations(db_id, production_id=entry.get("production_id"))
+                if not master_page_id:
+                    continue
+                linked = any(master_page_id in (row.get("locations_master_ids") or []) for row in prod_rows)
+                if not linked:
+                    continue
+                prod_name = entry.get("display_name") or entry.get("production_title") or entry.get("production_id") or "Production"
+                prod_id = entry.get("production_id") or prod_name
+                if prod_id in seen_productions:
+                    continue
+                seen_productions.add(prod_id)
+                productions.append({"production_name": prod_name, "production_id": prod_id})
+        except Exception as exc:  # noqa: BLE001
+            log_job("locations", "detail", "error", f"production_usage_failed: {exc}")
+
+    facilities: Dict[str, Any] = {"er": None, "ucs": []}
+    try:
+        facilities_cache = await get_cached_medical_facilities()
+        normalized = facilities_cache.get("normalized") if isinstance(facilities_cache, dict) else None
+        if not isinstance(normalized, list) or not normalized:
+            normalized = await fetch_and_cache_medical_facilities()
+        facility_by_id = {f.get("row_id") or f.get("id"): f for f in normalized if f.get("row_id") or f.get("id")}
+
+        er_ids = master_row.get("er_ids") or []
+        uc_ids: List[str] = []
+        for key in ("uc1_ids", "uc2_ids", "uc3_ids"):
+            uc_ids.extend(master_row.get(key) or [])
+
+        er_id = er_ids[0] if er_ids else ""
+        if er_id:
+            er = facility_by_id.get(er_id)
+            if er:
+                facilities["er"] = {
+                    "name": er.get("name") or "",
+                    "facility_type": er.get("facility_type") or "",
+                    "address": er.get("address") or "",
+                    "phone": er.get("phone") or "",
+                    "google_maps_url": er.get("google_maps_url") or "",
+                    "notion_url": er.get("notion_url") or "",
+                }
+
+        for uc_id in uc_ids[:2]:
+            facility = facility_by_id.get(uc_id)
+            if not facility:
+                continue
+            facilities["ucs"].append(
+                {
+                    "name": facility.get("name") or "",
+                    "facility_type": facility.get("facility_type") or "",
+                    "address": facility.get("address") or "",
+                    "phone": facility.get("phone") or "",
+                    "google_maps_url": facility.get("google_maps_url") or "",
+                    "notion_url": facility.get("notion_url") or "",
+                }
+            )
+    except Exception as exc:  # noqa: BLE001
+        log_job("locations", "detail", "error", f"facilities_lookup_failed: {exc}")
+
+    types = master_row.get("types") or []
+    detail = {
+        "master_id": master_id,
+        "name": master_row.get("name") or "",
+        "practical_name": master_row.get("practical_name") or "",
+        "location_name": master_row.get("location_name") or "",
+        "full_address": master_row.get("address") or "",
+        "address1": master_row.get("address1") or "",
+        "address2": master_row.get("address2") or "",
+        "address3": master_row.get("address3") or "",
+        "city": master_row.get("city") or "",
+        "state": master_row.get("state") or "",
+        "zip": master_row.get("zip") or "",
+        "country": master_row.get("country") or "",
+        "county": master_row.get("county") or "",
+        "borough": master_row.get("borough") or "",
+        "latitude": master_row.get("latitude"),
+        "longitude": master_row.get("longitude"),
+        "place_id": master_row.get("place_id") or "",
+        "place_types": types if isinstance(types, list) else [],
+        "status": master_row.get("status") or "",
+        "location_op_status": master_row.get("location_op_status") or "",
+        "google_maps_url": master_row.get("google_maps_url") or "",
+        "formatted_address_google": master_row.get("formatted_address_google") or "",
+        "created_time": master_row.get("created_time") or "",
+        "updated_time": master_row.get("updated_time") or "",
+        "notion_page_id": master_row.get("row_id") or master_row.get("id") or "",
+    }
+
+    payload = {
+        "status": "success",
+        "message": f"Loaded {master_id}",
+        "data": {"location": detail, "productions": productions, "medical_facilities": facilities},
+    }
+    _detail_cache[master_id] = {"ts": time.time(), "payload": payload}
+    return payload
 
 
 @router.get("/master")
@@ -915,9 +1267,9 @@ async def list_production_dbs() -> Dict[str, Any]:
         entries: List[Dict[str, Any]] = []
         for entry in entries_raw:
             production_title = entry.get("production_title") or entry.get("production_id") or ""
-            db_title = entry.get("display_name") or ""
+            db_title = entry.get("db_title") or ""
             db_id = entry.get("locations_db_id") or ""
-            display_name = production_title or db_title or entry.get("abbreviation") or "Production"
+            display_name = entry.get("display_name") or production_title or db_title or entry.get("abbreviation") or "Production"
             if display_name == db_id or not display_name.strip():
                 display_name = production_title or "Production"
             entries.append(

@@ -28,7 +28,7 @@ async def _lifespan(app: FastAPI):
 fastapi_app = FastAPI(title='ATLSApp', lifespan=_lifespan)
 
 # UI page imports
-from app.ui import admin_tools, dashboard, dedup, jobs, layout, locations, medicalfacilities, productions, settings
+from app.ui import admin_tools, dashboard, dedup, jobs, layout, locations, location_detail, medicalfacilities, productions, production_detail, psl_detail, settings
 
 # API router imports
 import app.api.locations_api as locations_api
@@ -79,9 +79,24 @@ def productions_page():
     layout.shell('Productions', productions.page_content)
 
 
+@ui.page('/productions/{production_id}')
+def production_detail_page(production_id: str):
+    layout.shell('Production Details', lambda: production_detail.page_content(production_id))
+
+
+@ui.page('/psl/{production_id}/{master_id}')
+def psl_detail_page(production_id: str, master_id: str):
+    layout.shell('PSL Details', lambda: psl_detail.page_content(production_id, master_id))
+
+
 @ui.page('/locations')
 def locations_page():
     layout.shell('Locations', locations.page_content)
+
+
+@ui.page('/locations/{master_id}')
+def location_detail_page(master_id: str):
+    layout.shell('Location Details', lambda: location_detail.page_content(master_id))
 
 
 @ui.page('/facilities')

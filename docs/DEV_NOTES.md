@@ -276,6 +276,315 @@ Changes:
 Testing:
 - Not run (UI change only).
 
+Session: 2025-12-30 - Locations search UI (production-aware)
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Replaced the placeholder Locations page with a read-only search UI for Locations Master, including production-name lookup.
+
+Changes:
+- `app/api/locations_api.py`: added `/api/locations/search_master` for production-aware and direct LM search.
+- `app/ui/locations.py`: built a search form and results table with LM ID links and place-id truncation.
+
+Testing:
+- Not run (requires Notion credentials for live data).
+
+Session: 2025-12-30 - Locations search table tweaks
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Adjusted Locations search table columns and exposed place type from Locations Master.
+
+Changes:
+- `app/services/notion_locations.py`: include LM Types multi-select in normalized rows.
+- `app/api/locations_api.py`: expose `place_type` in search results.
+- `app/ui/locations.py`: rename Location Name to Practical Name, narrow LM ID column, remove Country, add Place Type.
+
+Testing:
+- Not run (UI/Notion data required).
+
+Session: 2025-12-30 - Locations page header removal
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Removed the duplicate Locations page title from the content area to match the canonical layout.
+
+Changes:
+- `app/ui/locations.py`: dropped the content-area page header row.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - Locations search advanced filters
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Split Locations search into standard vs advanced filters and expanded backend filtering to support those fields.
+
+Changes:
+- `app/ui/locations.py`: added an Advanced Filters panel (full address, zip, country, county, borough, types, status, op status, place/master IDs).
+- `app/api/locations_api.py`: extended `/api/locations/search_master` to filter on full address, zip, county, borough, status, op status, and place type.
+- `app/services/notion_locations.py`: exposed Location Op Status on normalized master rows.
+
+Testing:
+- Not run (requires Notion data for search).
+
+Session: 2025-12-30 - Production name search fix
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Fixed production-name matching for Locations search by preserving production display names and tracking DB titles separately.
+
+Changes:
+- `app/services/notion_locations.py`: keep production display_name, add `db_title` without overwriting.
+- `app/api/locations_api.py`: production search includes `db_title`; production list uses `display_name` + `db_title`.
+
+Testing:
+- Not run (requires Notion data for search).
+
+Session: 2025-12-30 - Locations table map link
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Replaced Place ID and Status columns with a Google Map link column in the Locations results table.
+
+Changes:
+- `app/services/notion_locations.py`: exposed `Google Maps URL` in normalized rows.
+- `app/api/locations_api.py`: include `google_maps_url` in search results.
+- `app/ui/locations.py`: removed Place ID/Status columns and added a "Google Map" link column.
+
+Testing:
+- Not run (UI/Notion data required).
+
+Session: 2025-12-30 - Locations result label tweak
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Simplified the Locations search result label text.
+
+Changes:
+- `app/ui/locations.py`: changed "Returned n Locations Master rows." to "Returned n Locations."
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - Location detail page (read-only)
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Added a read-only Location Details page and API endpoint for Locations Master records.
+
+Changes:
+- `app/api/locations_api.py`: added `/api/locations/detail` with production-usage lookup.
+- `app/services/notion_locations.py`: exposed created/updated timestamps and Google Maps URL in normalized rows.
+- `app/ui/location_detail.py`: built the Location Details UI with summary, address, classification, production usage, and metadata sections.
+- `app/main.py`: added `/locations/{LocationMasterID}` route.
+
+Testing:
+- Not run (requires Notion data for lookup).
+
+Session: 2025-12-30 - Location detail lookup optimization
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Switched Location Detail to query Locations Master by ID instead of loading the full master cache.
+
+Changes:
+- `app/services/notion_locations.py`: added `fetch_master_by_id` (title lookup on LocationsMasterID).
+- `app/api/locations_api.py`: detail endpoint now uses `fetch_master_by_id`.
+
+Testing:
+- Not run (requires Notion data for lookup).
+
+Session: 2025-12-30 - Location detail classification rendering guard
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Guarded Location Detail classification rendering to avoid blank sections when place types are missing or non-string.
+
+Changes:
+- `app/ui/location_detail.py`: added safe list join for place types in Classification & Status.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - Location detail readonly input fix
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Fixed Location Detail rendering error by setting readonly via props instead of constructor.
+
+Changes:
+- `app/ui/location_detail.py`: switched to `.props("readonly")` on the Full Address input.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - Location detail section collapsibility
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Made Location Detail sections collapsible, with Summary open by default, and reordered Production Usage before Classification.
+
+Changes:
+- `app/ui/location_detail.py`: converted sections to expansions; removed redundant Full Address/Maps from Address & Geography; reordered sections.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - Location detail cache + map link target
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Open Map link now opens in a new tab, and location detail responses are cached briefly for faster reopen.
+
+Changes:
+- `app/ui/location_detail.py`: Open Map link uses `target=_blank`.
+- `app/api/locations_api.py`: in-memory cache for `/api/locations/detail` with 60s TTL.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - Location detail medical facilities section
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Added a Medical Facilities section to Location Detail with nearest ER and two nearest UCs.
+
+Changes:
+- `app/services/notion_locations.py`: expose ER/UC relation IDs on normalized master rows.
+- `app/api/locations_api.py`: include medical facilities summary in `/api/locations/detail`.
+- `app/ui/location_detail.py`: render Medical Facilities section before Production Usage.
+
+Testing:
+- Not run (requires Notion data for linked facilities).
+
+Session: 2025-12-30 - Location detail loading spinner
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Added a loading spinner next to the Location Detail loading message.
+
+Changes:
+- `app/ui/location_detail.py`: show spinner during load and hide on success or error.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - Location detail header title swap
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Replaced the content header text with the location Practical Name after load.
+
+Changes:
+- `app/ui/location_detail.py`: update header title to Practical Name and clear the subtitle.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - MF generation friendly summary
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Made the Medical Facilities generation summary output more readable.
+
+Changes:
+- `app/services/medical_facilities_runner.py`: replaced the single-line summary with a labeled, multi-line report.
+
+Testing:
+- Not run (output format only).
+
+Session: 2025-12-30 - Production detail locations cross-linking
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Added a read-only Production Detail page with a Locations Used section linking to Location Detail pages.
+
+Changes:
+- `app/api/productions_api.py`: added `/api/productions/detail` to resolve production locations from the production `_Locations` table and map them to Locations Master.
+- `app/ui/production_detail.py`: new Production Detail UI with Summary, Locations Used (expanded by default), and Metadata sections.
+- `app/ui/productions.py`: ProductionID now links to the local Production Detail page.
+- `app/main.py`: added `/productions/{ProductionID}` route.
+
+Testing:
+- Not run (requires Notion data for production lookups).
+
+Session: 2025-12-30 - Production detail PSL location name
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Added PSL Location Name to the Production Detail Locations Used table.
+
+Changes:
+- `app/api/productions_api.py`: map PSL Location Name per LocationsMasterID when building locations list.
+- `app/ui/production_detail.py`: added "Location Name (PSL)" column.
+
+Testing:
+- Not run (requires Notion data for production lookups).
+
+Session: 2025-12-30 - Production detail summary layout
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Reflowed Production Detail summary into two columns for better use of width.
+
+Changes:
+- `app/ui/production_detail.py`: split summary fields into two columns with responsive wrap.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - Production ID Notion link
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Linked the Production ID on the detail page back to the Notion record.
+
+Changes:
+- `app/ui/production_detail.py`: Production ID now links to Notion when a URL is available.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - PSL drill-down
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Added a read-only PSL drill-down page scoped to Production + Location and linked it from Production Detail.
+
+Changes:
+- `app/api/psl_enrichment_api.py`: added `/api/psl/detail` to fetch PSL rows scoped to production + LocationsMasterID.
+- `app/services/notion_locations.py`: added filtered PSL fetch helper and exposed PSL notes/timestamps in normalized rows.
+- `app/ui/psl_detail.py`: new PSL Details UI with context summary, PSL table, and metadata.
+- `app/ui/production_detail.py`: added “View PSL” link per location row.
+- `app/main.py`: added `/psl/{ProductionID}/{LocationMasterID}` route.
+
+Testing:
+- Not run (requires Notion data for PSL lookup).
+
 Session: 2025-12-29 - Admin tools cleanup, MF selection, timers, and debug logging
 Author: Codex 5
 Milestone: v0.9.4 (no version bump)

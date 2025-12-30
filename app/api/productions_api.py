@@ -17,6 +17,11 @@ from app.services.import_jobs import import_locations_for_production
 from app.services.job_manager import schedule_job
 from app.services.logger import log_job
 from app.services.create_production import CreateProductionError, create_production
+from app.services.notion_locations import (
+    fetch_production_locations,
+    get_locations_master_cached,
+    list_production_location_databases,
+)
 from config import Config
 
 try:  # pragma: no cover - optional dependency for local dev
@@ -181,6 +186,196 @@ async def fetch_productions() -> Dict[str, Any]:
     if cache_used:
         response["source"] = "cache"
     return response
+
+
+@router.get("/detail")
+async def production_detail(production_id: str | None = None) -> Dict[str, Any]:
+    production_id = (production_id or "").strip()
+    if not production_id:
+        return {"status": "error", "message": "production_id is required", "data": {}}
+
+    records: List[Dict[str, Any]] = []
+    try:
+        records = await background_sync.fetch_from_notion()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Productions fetch failed; using cache: %s", exc)
+        cache = background_sync.get_cached_records()
+        records = cache.get("records", []) if isinstance(cache, dict) else []
+
+    production = next(
+        (row for row in records if str(row.get("ProductionID", "")).strip().lower() == production_id.lower()),
+        None,
+    )
+    if not production:
+        return {"status": "error", "message": f"Production {production_id} not found", "data": {}}
+
+    productions_db_id = Config.PRODUCTIONS_MASTER_DB or Config.PRODUCTIONS_DB_ID or Config.NOTION_PRODUCTIONS_DB_ID
+    if not productions_db_id:
+        return {"status": "error", "message": "Missing productions master database id", "data": {}}
+
+    try:
+        prod_entries = await list_production_location_databases(productions_db_id)
+    except Exception as exc:  # noqa: BLE001
+        err = f"Failed to list production databases: {exc}"
+        return {"status": "error", "message": err, "data": {}}
+
+    entry = next(
+        (
+            e
+            for e in prod_entries
+            if (e.get("production_id") or "").strip().lower() == production_id.lower()
+            or (e.get("production_title") or "").strip().lower() == production_id.lower()
+        ),
+        None,
+    )
+    if not entry:
+        return {
+            "status": "success",
+            "message": f"No locations table found for {production_id}",
+            "data": {"production": production, "locations": []},
+        }
+
+    locations_db_id = entry.get("locations_db_id") or ""
+    if not locations_db_id:
+        return {
+            "status": "success",
+            "message": f"No locations table found for {production_id}",
+            "data": {"production": production, "locations": []},
+        }
+
+    prod_rows = await fetch_production_locations(locations_db_id, production_id=entry.get("production_id"))
+    master_ids: List[str] = []
+    for row in prod_rows:
+        master_ids.extend(row.get("locations_master_ids") or [])
+    unique_master_ids = {mid for mid in master_ids if mid}
+
+    master_rows = await get_locations_master_cached(refresh=False)
+    master_by_id = {row.get("row_id") or row.get("id"): row for row in master_rows}
+
+    location_name_by_master: Dict[str, str] = {}
+    for row in prod_rows:
+        psl_name = row.get("location_name") or row.get("name") or ""
+        if not psl_name:
+            continue
+        for mid in row.get("locations_master_ids") or []:
+            if mid and mid not in location_name_by_master:
+                location_name_by_master[mid] = psl_name
+
+    locations: List[Dict[str, Any]] = []
+    for mid in unique_master_ids:
+        master = master_by_id.get(mid)
+        if not master:
+            continue
+        types = master.get("types") or []
+        locations.append(
+            {
+                "master_id": master.get("prod_loc_id") or "",
+                "practical_name": master.get("practical_name") or master.get("name") or "",
+                "psl_location_name": location_name_by_master.get(mid, ""),
+                "city": master.get("city") or "",
+                "state": master.get("state") or "",
+                "place_types": types if isinstance(types, list) else [],
+                "google_maps_url": master.get("google_maps_url") or "",
+            }
+        )
+
+    locations.sort(key=lambda r: (r.get("master_id") or "").lower())
+
+    return {
+        "status": "success",
+        "message": f"Loaded {production_id}",
+        "data": {"production": production, "locations": locations},
+    }
+
+
+@router.get("/detail")
+async def production_detail(production_id: str | None = None) -> Dict[str, Any]:
+    production_id = (production_id or "").strip()
+    if not production_id:
+        return {"status": "error", "message": "production_id is required", "data": {}}
+
+    records: List[Dict[str, Any]] = []
+    try:
+        records = await background_sync.fetch_from_notion()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Productions fetch failed; using cache: %s", exc)
+        cache = background_sync.get_cached_records()
+        records = cache.get("records", []) if isinstance(cache, dict) else []
+
+    production = next(
+        (row for row in records if str(row.get("ProductionID", "")).strip().lower() == production_id.lower()),
+        None,
+    )
+    if not production:
+        return {"status": "error", "message": f"Production {production_id} not found", "data": {}}
+
+    productions_db_id = Config.PRODUCTIONS_MASTER_DB or Config.PRODUCTIONS_DB_ID or Config.NOTION_PRODUCTIONS_DB_ID
+    if not productions_db_id:
+        return {"status": "error", "message": "Missing productions master database id", "data": {}}
+
+    try:
+        prod_entries = await list_production_location_databases(productions_db_id)
+    except Exception as exc:  # noqa: BLE001
+        err = f"Failed to list production databases: {exc}"
+        return {"status": "error", "message": err, "data": {}}
+
+    entry = next(
+        (
+            e
+            for e in prod_entries
+            if (e.get("production_id") or "").strip().lower() == production_id.lower()
+            or (e.get("production_title") or "").strip().lower() == production_id.lower()
+        ),
+        None,
+    )
+    if not entry:
+        return {
+            "status": "success",
+            "message": f"No locations table found for {production_id}",
+            "data": {"production": production, "locations": []},
+        }
+
+    locations_db_id = entry.get("locations_db_id") or ""
+    if not locations_db_id:
+        return {
+            "status": "success",
+            "message": f"No locations table found for {production_id}",
+            "data": {"production": production, "locations": []},
+        }
+
+    prod_rows = await fetch_production_locations(locations_db_id, production_id=entry.get("production_id"))
+    master_ids: List[str] = []
+    for row in prod_rows:
+        master_ids.extend(row.get("locations_master_ids") or [])
+    unique_master_ids = {mid for mid in master_ids if mid}
+
+    master_rows = await get_locations_master_cached(refresh=False)
+    master_by_id = {row.get("row_id") or row.get("id"): row for row in master_rows}
+
+    locations: List[Dict[str, Any]] = []
+    for mid in unique_master_ids:
+        master = master_by_id.get(mid)
+        if not master:
+            continue
+        types = master.get("types") or []
+        locations.append(
+            {
+                "master_id": master.get("prod_loc_id") or "",
+                "practical_name": master.get("practical_name") or master.get("name") or "",
+                "city": master.get("city") or "",
+                "state": master.get("state") or "",
+                "place_types": types if isinstance(types, list) else [],
+                "google_maps_url": master.get("google_maps_url") or "",
+            }
+        )
+
+    locations.sort(key=lambda r: (r.get("master_id") or "").lower())
+
+    return {
+        "status": "success",
+        "message": f"Loaded {production_id}",
+        "data": {"production": production, "locations": locations},
+    }
 
 
 @router.post("/sync")

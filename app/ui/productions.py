@@ -130,8 +130,8 @@ def page_content() -> None:
             """
             <q-td :props="props">
               <a
-                v-if="props.row.NotionURL"
-                :href="props.row.NotionURL"
+                v-if="props.row.ProductionID"
+                :href="`/productions/${props.row.ProductionID}`"
                 target="_blank"
                 class="px-2 py-1 rounded inline-block hover:bg-slate-100 dark:hover:bg-slate-800"
               >

@@ -76,9 +76,13 @@ async def stream_generate_medical_facilities_all() -> AsyncGenerator[str, None]:
             continue
 
     summary = (
-        f"Done. total_scanned={total} eligible={counts['eligible']} "
-        f"processed={counts['processed']} skipped_er={counts['skipped_er']} "
-        f"skipped_missing={counts['skipped_missing']} errors={counts['errors']}\n"
+        "Medical Facilities generation complete.\n"
+        f"- Locations Master scanned: {total}\n"
+        f"- Eligible for generation: {counts['eligible']}\n"
+        f"- Generated/linked successfully: {counts['processed']}\n"
+        f"- Skipped (already had ER): {counts['skipped_er']}\n"
+        f"- Skipped (missing geo/place_id): {counts['skipped_missing']}\n"
+        f"- Errors: {counts['errors']}\n"
     )
     yield summary
 

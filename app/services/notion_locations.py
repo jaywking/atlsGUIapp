@@ -51,9 +51,30 @@ def _number(props: Dict[str, Any], key: str) -> Optional[float]:
     return float(num) if num is not None else None
 
 
+def _url(props: Dict[str, Any], key: str) -> str:
+    return (props.get(key, {}).get("url") or "").strip()
+
+
+def _timestamp(props: Dict[str, Any], key: str) -> str:
+    return (props.get(key, {}).get("created_time") or props.get(key, {}).get("last_edited_time") or "").strip()
+
+
+def _timestamp_any(props: Dict[str, Any], keys: List[str]) -> str:
+    for k in keys:
+        value = _timestamp(props, k)
+        if value:
+            return value
+    return ""
+
+
 def _relation_ids(props: Dict[str, Any], key: str) -> List[str]:
     rels = props.get(key, {}).get("relation") or []
     return [rel.get("id") for rel in rels if rel.get("id")]
+
+
+def _multi_select(props: Dict[str, Any], key: str) -> List[str]:
+    items = props.get(key, {}).get("multi_select") or []
+    return [opt.get("name") for opt in items if isinstance(opt, dict) and opt.get("name")]
 
 
 def _rt(value: str) -> Dict[str, Any]:
@@ -189,6 +210,14 @@ def normalize_location(page: Dict[str, Any]) -> Dict[str, Any]:
     borough = _rich_text(props, "borough")
     existing_full_address = _rich_text(props, "Full Address")
     status = _status(props, "Status")
+    location_op_status = _status(props, "Location Op Status")
+    google_maps_url = _url(props, "Google Maps URL")
+    created_time = _timestamp_any(props, ["Created Time", "Created time"])
+    updated_time = _timestamp_any(props, ["Updated", "Last edited time", "Last Edited Time", "Last edited time"])
+    er_rel = _relation_ids(props, "ER")
+    uc1_rel = _relation_ids(props, "UC1")
+    uc2_rel = _relation_ids(props, "UC2")
+    uc3_rel = _relation_ids(props, "UC3")
     full_address = build_full_address(
         {
             "address1": address1,
@@ -207,6 +236,12 @@ def normalize_location(page: Dict[str, Any]) -> Dict[str, Any]:
     rels = prop_prod_rel.get("relation") or []
     if isinstance(rels, list) and rels:
         production_id = rels[0].get("id") or ""
+    types = _multi_select(props, "Types")
+    notes = _rich_text_any(props, ["Notes", "notes"])
+    if not created_time:
+        created_time = page.get("created_time") or ""
+    if not updated_time:
+        updated_time = page.get("last_edited_time") or ""
 
     return {
         "row_id": page.get("id") or "",
@@ -233,12 +268,22 @@ def normalize_location(page: Dict[str, Any]) -> Dict[str, Any]:
         "county": county,
         "borough": borough,
         "status": status,
+        "location_op_status": location_op_status,
         "production_id": production_id or "",
         "place_id": _rich_text(props, "Place_ID"),
         "latitude": _number(props, "Latitude"),
         "longitude": _number(props, "Longitude"),
         "formatted_address_google": _rich_text(props, "formatted_address_google"),
         "locations_master_ids": _relation_ids(props, "LocationsMasterID"),
+        "types": types,
+        "google_maps_url": google_maps_url,
+        "created_time": created_time,
+        "updated_time": updated_time,
+        "notes": notes,
+        "er_ids": er_rel,
+        "uc1_ids": uc1_rel,
+        "uc2_ids": uc2_rel,
+        "uc3_ids": uc3_rel,
     }
 
 
@@ -295,6 +340,15 @@ async def fetch_production_locations(db_id: str, production_id: Optional[str] = 
     return normalized_rows
 
 
+async def fetch_production_locations_by_master(db_id: str, master_page_id: str) -> List[Dict[str, Any]]:
+    """Fetch PSL rows for a production filtered to a single LocationsMasterID relation."""
+    if not master_page_id:
+        return []
+    filter_block = {"property": "LocationsMasterID", "relation": {"contains": master_page_id}}
+    pages = await _query_notion(filter_block=filter_block, sorts=[], db_id=db_id)
+    return [normalize_location(p) for p in pages]
+
+
 async def fetch_database_title(db_id: str) -> str:
     """Return the Notion database title for display."""
     headers = _headers()
@@ -329,6 +383,7 @@ async def list_production_location_databases(productions_master_db_id: str) -> L
                 "display_name": display_name,
                 "locations_db_id": db_id,
                 "locations_url": locations_url,
+                "db_title": "",
             }
         )
         db_ids_for_titles.append(db_id)
@@ -339,9 +394,9 @@ async def list_production_location_databases(productions_master_db_id: str) -> L
             title_results = await asyncio.gather(*(fetch_database_title(dbid) for dbid in db_ids_for_titles))
             for rec, db_title in zip(records, title_results):
                 if db_title:
-                    rec["display_name"] = db_title
+                    rec["db_title"] = db_title
                 if not rec.get("display_name"):
-                    rec["display_name"] = rec.get("production_title") or rec.get("production_id") or "Production"
+                    rec["display_name"] = db_title or rec.get("production_title") or rec.get("production_id") or "Production"
                 if not rec.get("production_title"):
                     rec["production_title"] = rec.get("production_id") or rec.get("display_name") or "Production"
         except Exception:
@@ -500,6 +555,17 @@ async def _query_notion(
 async def fetch_location_pages_raw() -> List[Dict[str, Any]]:
     """Return raw Location pages from Notion without normalization (used by backfill jobs)."""
     return await _query_notion(filter_block=None, sorts=[])
+
+
+async def fetch_master_by_id(master_id: str) -> Optional[Dict[str, Any]]:
+    """Fetch a single Locations Master row by LocationsMasterID (title)."""
+    if not master_id:
+        return None
+    filter_block = {"property": "LocationsMasterID", "title": {"equals": master_id}}
+    pages = await _query_notion(filter_block=filter_block, sorts=[])
+    if not pages:
+        return None
+    return normalize_location(pages[0])
 
 
 async def create_location_page(properties: Dict[str, Any]) -> Dict[str, Any]:
