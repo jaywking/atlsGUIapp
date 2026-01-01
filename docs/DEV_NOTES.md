@@ -13,6 +13,107 @@ DEV_NOTES records historical version bumps as they occurred at the time.
 Current rule (see PROJECT_HANDBOOK.md):
 Version increments occur only at verified milestone acceptance, not during intermediate fixes, experiments, or drafts.
 
+Session: 2025-12-30 - PSL reprocess Status write fix
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Prevented production reprocess writes from sending `Status` to PSL tables, which do not include that property.
+
+Changes:
+- `app/services/matching_service.py`: removed `Status` from reprocess payload for PSL updates.
+- `app/api/locations_api.py`: removed `Status` from reprocess PATCH payload when matching PSL rows.
+- `docs/PROJECT_HANDBOOK.md`: clarified PSL enrichment/write rules and removed `Status` from PSL schema expectations.
+
+Testing:
+- Not run (reported Notion 400 validation errors resolved by removing Status writes).
+
+Notes:
+- Rerun reprocess on affected productions to apply match updates without schema validation errors.
+
+Session: 2025-12-30 - PSL data quality check (Production Detail)
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Added a Production Detail tool to detect PSL rows with missing address fields that can break reprocess matching.
+
+Changes:
+- `app/api/productions_api.py`: added `/api/productions/inspect_psl` to report missing PSL address fields with Notion links.
+- `app/ui/production_detail.py`: added "Inspect PSL Rows" tool with results table and Notion links.
+
+Testing:
+- Not run (requires Notion data).
+
+Session: 2025-12-30 - Location Detail Notion link
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Made the Location Master ID on the Location Detail page link to the Notion record for quick edits.
+
+Changes:
+- `app/api/locations_api.py`: include `notion_url` in Location Detail payload.
+- `app/ui/location_detail.py`: render Location Master ID as a Notion link when available.
+
+Testing:
+- Not run (requires Notion data).
+
+Session: 2025-12-30 - Preserve LM Practical Name on PSL enrichment
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Prevented PSL enrichment from overwriting Locations Master `Practical Name`; enrichment only fills it when empty.
+
+Changes:
+- `app/services/psl_enrichment.py`: skip `Practical Name` updates on existing LM rows regardless of source.
+- `docs/PROJECT_HANDBOOK.md`: clarified that enrichment only fills `Practical Name` when empty.
+
+Testing:
+- Not run (requires Notion data).
+
+Session: 2025-12-30 - PSL address-to-business fallback
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- When Google Place Details returns an address-only result (`premise`/`street_address`), enrichment now looks up the nearest business within 50m and with the same street number to capture the correct Practical Name and Place_ID.
+
+Changes:
+- `app/services/psl_enrichment.py`: added nearby search fallback for address-only place results.
+- `docs/PROJECT_HANDBOOK.md`: documented address-only fallback behavior.
+
+Testing:
+- Not run (requires Google Places API key).
+
+Session: 2025-12-30 - Preserve PSL Practical Name
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- PSL enrichment no longer overwrites Practical Name if it already exists on PSL rows.
+
+Changes:
+- `app/services/psl_enrichment.py`: only set `Practical Name` in PSL payloads when it is blank.
+- `docs/PROJECT_HANDBOOK.md`: clarified PSL Practical Name preservation.
+
+Testing:
+- Not run (requires Notion data).
+
+Session: 2025-12-30 - Disable PSL batch enrichment
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Disabled the PSL batch enrichment UI to reduce risk; per-production enrichment remains available.
+
+Changes:
+- `app/ui/admin_tools.py`: replaced batch panel with a disabled notice.
+
+Testing:
+- Not run (UI-only change).
+
 Session: 2025-12-30 - Medical Facilities maintenance tool
 Author: Codex 5
 Milestone: v0.9.4 (no version bump)
@@ -584,6 +685,47 @@ Changes:
 
 Testing:
 - Not run (requires Notion data for PSL lookup).
+
+Session: 2025-12-30 - PSL detail context practical name
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Added Practical Name and PSL Location Name to the PSL detail context summary.
+
+Changes:
+- `app/api/psl_enrichment_api.py`: include PSL location name in context.
+- `app/ui/psl_detail.py`: show Practical Name and PSL Location Name in context summary.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - PSL detail full address
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Added full address to the PSL detail context summary.
+
+Changes:
+- `app/api/psl_enrichment_api.py`: include full address in location context.
+- `app/ui/psl_detail.py`: display full address in the context summary.
+
+Testing:
+- Not run (UI change only).
+
+Session: 2025-12-30 - Productions loading label
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary:
+- Replaced the initial "No data available" message with "Loading productions..." while data loads.
+
+Changes:
+- `app/ui/productions.py`: set table no-data label during loading.
+
+Testing:
+- Not run (UI change only).
 
 Session: 2025-12-29 - Admin tools cleanup, MF selection, timers, and debug logging
 Author: Codex 5

@@ -210,8 +210,8 @@ This chapter is the authoritative contract for where data in PSL, LM, and MF com
   - PSL must not infer or fabricate missing address components.
 
 ### Overwrite & Preservation Rules
-- **May overwrite (by enrichment):** Structured address fields, `Full Address`, `formatted_address_google`, `Place_ID`, `Latitude`, `Longitude`, `LocationsMasterID`, `ProductionID`, `ProdLocID` (when missing/wrong prefix), `Status` per matching rules.
-- **Must preserve:** `Location Name`, `Practical Name`, `Notes`, user-set `Status` outside enrichment, and any field not present in the PSL schema. Enrichment must never erase production intent.
+- **May overwrite (by enrichment):** Structured address fields, `Full Address`, `formatted_address_google`, `Place_ID`, `Latitude`, `Longitude`, `LocationsMasterID`, `ProductionID`, `ProdLocID` (when missing/wrong prefix). PSL tables do not carry a `Status` field and enrichment must never send it.
+- **Must preserve:** `Location Name`, `Practical Name`, `Notes`, and any field not present in the PSL schema. Enrichment must never erase production intent.
 
 ## 2. Locations Master (LM) Schema → Canonical & External Source Mapping
 
@@ -260,15 +260,16 @@ This chapter is the authoritative contract for where data in PSL, LM, and MF com
 - **Operational State**
   - `business_status` → `Location Op Status`
 - **Explicit Non-Mappings**
-  - Google `name` does not overwrite `Name` or `Practical Name`.
-  - Google `business_status` must not map to `Status` (pipeline only).
-  - LM does not infer or fabricate missing address components.
-  - Missing Google data results in empty LM fields.
+- Google `name` does not overwrite `Name` or `Practical Name`. Enrichment may fill `Practical Name` only when it is empty.
+- Google `business_status` must not map to `Status` (pipeline only).
+- LM does not infer or fabricate missing address components.
+- Missing Google data results in empty LM fields.
+- If a PSL row provides only an address and Google resolves a `premise`/`street_address` place, enrichment performs a nearby search and selects a business only when it is within 50m and shares the same street number before writing `Practical Name` or `Place_ID`.
 
 ### Overwrite, Deduplication & Preservation Rules
 - LM rows are created or updated via `place_id` upsert.
 - Address and coordinate fields may be overwritten on re-enrichment.
-- User-authored fields (`Name`, `Practical Name`, `Notes`) must be preserved.
+- User-authored fields (`Name`, `Practical Name`, `Notes`) must be preserved; PSL enrichment only fills `Practical Name` when it is empty.
 - `LocationsMasterID` must never change once assigned.
 - LM canonical values take precedence over PSL copies.
 
@@ -568,7 +569,7 @@ This section is the authoritative specification for all ingestion-time address n
 - Run `python -m scripts.repair_master` to canonicalize every Locations Master row via the ingestion normalizer.
 - Overwrites structured fields, ATLS Full Address, Place_ID (when available), Latitude/Longitude, county/borough, and stores `formatted_address_google`.
 - Ensures address hashes and component keys reflect canonical values; assumes schema already includes canonical fields.
-- Run `python -m scripts.verify_schema` to ensure Locations Master and all production `_Locations` databases have canonical properties (address1/2/3, city, state, zip, country, county, borough, Full Address, formatted_address_google, Place_ID, Latitude, Longitude, Status).
+- Run `python -m scripts.verify_schema` to ensure Locations Master has canonical properties (address1/2/3, city, state, zip, country, county, borough, Full Address, formatted_address_google, Place_ID, Latitude, Longitude, Status). Production `_Locations` databases must include the canonical address fields but do not include `Status`.
 
 ## Address Repair Tool
 

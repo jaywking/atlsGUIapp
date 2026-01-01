@@ -93,7 +93,16 @@ def page_content(master_id: str) -> None:
         with summary_block:
             with ui.row().classes("w-full gap-6 flex-wrap"):
                 with ui.column().classes("flex-1 min-w-[260px] gap-2"):
-                    _render_kv("Location Master ID", loc.get("master_id", ""))
+                    with ui.row().classes("w-full items-start gap-2"):
+                        ui.label("Location Master ID").classes("text-sm text-slate-500 w-48 shrink-0")
+                        master_value = loc.get("master_id", "") or "--"
+                        notion_url = loc.get("notion_url") or ""
+                        if notion_url:
+                            ui.link(master_value, notion_url).props("target=_blank").classes(
+                                "text-sm text-slate-900 hover:underline"
+                            )
+                        else:
+                            ui.label(master_value).classes("text-sm text-slate-900 dark:text-slate-200")
                     _render_kv("Practical Name", loc.get("practical_name", "") or loc.get("name", ""))
                     _render_kv("Full Address", loc.get("full_address", ""))
                     _render_kv(

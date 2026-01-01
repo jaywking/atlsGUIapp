@@ -33,6 +33,7 @@ from app.services.notion_medical_facilities import get_cached_medical_facilities
 from app.services.notion_schema_utils import search_location_databases, ensure_schema
 from app.services.notion_writeback import archive_master_rows, update_master_fields, update_production_master_links, write_address_updates
 from app.services.validation_service import validate_links
+from app.services.create_production import notion_url_for_id
 from config import Config
 from scripts import process_new_locations
 
@@ -126,6 +127,7 @@ def _serialize_master_row(row: Dict[str, Any]) -> Dict[str, Any]:
         "row_id": row.get("row_id") or row.get("id") or "",
         "master_id": row.get("prod_loc_id") or "",
         "name": row.get("name") or row.get("location_name") or row.get("practical_name") or "",
+        "full_address": row.get("address") or "",
         "city": row.get("city") or "",
         "state": row.get("state") or "",
         "country": row.get("country") or "",
@@ -468,6 +470,10 @@ async def get_location_detail(master_id: str | None = None) -> Dict[str, Any]:
         "updated_time": master_row.get("updated_time") or "",
         "notion_page_id": master_row.get("row_id") or master_row.get("id") or "",
     }
+    if detail["notion_page_id"]:
+        detail["notion_url"] = notion_url_for_id(detail["notion_page_id"])
+    else:
+        detail["notion_url"] = ""
 
     payload = {
         "status": "success",
@@ -1320,6 +1326,7 @@ async def reprocess_stream(force: bool = False, db_id: str | None = Query(None))
             return
 
         total_rows = updated = skipped = unmatched = errors = 0
+        summaries: List[str] = []
         productions_processed = 0
 
         for entry in prod_entries:
@@ -1328,7 +1335,8 @@ async def reprocess_stream(force: bool = False, db_id: str | None = Query(None))
             if not current_db_id:
                 continue
             productions_processed += 1
-            yield f"Production: {prod_name} ({current_db_id})\n"
+            if not target_db:
+                yield f"Production: {prod_name} ({current_db_id})\n"
             try:
                 rows = await fetch_production_locations(current_db_id, production_id=prod_name)
             except Exception as exc:  # noqa: BLE001
@@ -1340,7 +1348,7 @@ async def reprocess_stream(force: bool = False, db_id: str | None = Query(None))
             yield f"Rows: {count}\n"
             prod_updated = prod_skipped = prod_unmatched = prod_errors = 0
             for idx, row in enumerate(rows, start=1):
-                yield f"Row {idx}/{count} — "
+                yield f"Row {idx}/{count} - "
                 try:
                     from app.services.ingestion_normalizer import normalize_ingest_record
 
@@ -1372,11 +1380,6 @@ async def reprocess_stream(force: bool = False, db_id: str | None = Query(None))
                         yield "no match found\n"
                         continue
 
-                    new_status = resolve_status(
-                        normalized_row.get("place_id"),
-                        matched=True,
-                        explicit=match_result.get("status"),
-                    )
                     props = {
                         "address1": {"rich_text": [{"text": {"content": normalized_row["components"].get("address1") or ""}}]},
                         "address2": {"rich_text": [{"text": {"content": normalized_row["components"].get("address2") or ""}}]},
@@ -1389,7 +1392,6 @@ async def reprocess_stream(force: bool = False, db_id: str | None = Query(None))
                         "borough": {"rich_text": [{"text": {"content": normalized_row["components"].get("borough") or ""}}]},
                         "Full Address": {"rich_text": [{"text": {"content": normalized_row.get("full_address") or ""}}]},
                         "Place_ID": {"rich_text": [{"text": {"content": normalized_row.get("place_id") or ""}}]},
-                        "Status": {"status": {"name": new_status}},
                         "LocationsMasterID": {"relation": [{"id": matched_id}]},
                     }
                     if normalized_row.get("formatted_address_google"):
@@ -1399,16 +1401,81 @@ async def reprocess_stream(force: bool = False, db_id: str | None = Query(None))
                     if normalized_row.get("longitude") is not None:
                         props["Longitude"] = {"number": normalized_row.get("longitude")}
 
-                    await update_location_page(row.get("id") or "", props)
-                    prod_updated += 1
-                    updated += 1
-                    yield f"normalized -> matched via {match_reason}\n"
+                    def _rt_value(prop: Dict[str, Any]) -> str:
+                        parts = prop.get("rich_text") or []
+                        if not parts:
+                            return ""
+                        return parts[0].get("text", {}).get("content", "") or ""
+
+                    def _num_matches(current: Any, expected: Any) -> bool:
+                        if current is None and expected is None:
+                            return True
+                        try:
+                            return abs(float(current) - float(expected)) < 1e-6
+                        except Exception:
+                            return False
+
+                    def _needs_write(current_row: Dict[str, Any], payload: Dict[str, Any]) -> bool:
+                        key_map = {
+                            "address1": "address1",
+                            "address2": "address2",
+                            "address3": "address3",
+                            "city": "city",
+                            "state": "state",
+                            "zip": "zip",
+                            "country": "country",
+                            "county": "county",
+                            "borough": "borough",
+                            "Full Address": "address",
+                            "Place_ID": "place_id",
+                            "formatted_address_google": "formatted_address_google",
+                        }
+                        for key, value in payload.items():
+                            if key == "LocationsMasterID":
+                                existing_ids = current_row.get("locations_master_ids") or []
+                                target_ids = [rel.get("id") for rel in value.get("relation", []) if rel.get("id")]
+                                if target_ids and target_ids[0] not in existing_ids:
+                                    return True
+                                continue
+                            if key in {"Latitude", "Longitude"}:
+                                current_val = current_row.get("latitude") if key == "Latitude" else current_row.get("longitude")
+                                if not _num_matches(current_val, value.get("number")):
+                                    return True
+                                continue
+                            mapped = key_map.get(key)
+                            if not mapped:
+                                return True
+                            expected = _rt_value(value)
+                            current_val = current_row.get(mapped) or ""
+                            if str(current_val) != str(expected):
+                                return True
+                        return False
+
+                    if _needs_write(row, props):
+                        await update_location_page(row.get("id") or "", props)
+                        prod_updated += 1
+                        updated += 1
+                        yield f"address normalized -> matched to existing record in Locations Master via {match_reason}\n"
+                    else:
+                        prod_skipped += 1
+                        skipped += 1
+                        yield "No changes - already matched.\n"
                 except Exception as exc:  # noqa: BLE001
                     prod_errors += 1
                     errors += 1
                     yield f"error: {exc}\n"
-            yield f"Summary for {prod_name}: updated={prod_updated} skipped={prod_skipped} unmatched={prod_unmatched} errors={prod_errors}\n"
+            summaries.append(
+                "Summary for {prod}:\nSkipped={skipped}\nUpdated={updated}\nUnmatched={unmatched}\nErrors={errors}\n".format(
+                    prod=prod_name,
+                    skipped=prod_skipped,
+                    updated=prod_updated,
+                    unmatched=prod_unmatched,
+                    errors=prod_errors,
+                )
+            )
 
-        yield f"Done. productions={productions_processed} rows={total_rows} updated={updated} skipped={skipped} unmatched={unmatched} errors={errors}\n"
+        yield "\nDone.\n"
+        for summary in summaries:
+            yield summary
 
     return StreamingResponse(_generator(), media_type="text/plain")

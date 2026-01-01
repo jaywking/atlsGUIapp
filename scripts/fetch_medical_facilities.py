@@ -128,6 +128,14 @@ def _append_log_row(row: Dict[str, Any], lock: threading.Lock) -> None:
                 w.writeheader()
             w.writerow(row)
 
+def _normalize_hours_value(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return value
+    cleaned = value.strip()
+    if cleaned.lower() in {"24 hours", "open 24 hours"}:
+        return "Open 24 hours"
+    return cleaned
+
 def _discover_backlink_prop(facilities_db_id: str, master_db_id: str) -> Optional[str]:
     """
     Try to discover the Facilities→Master backlink relation property by inspecting the
@@ -213,7 +221,7 @@ def _enrich_facility_from_google_if_needed(
             continue
         day, hours = entry.split(":", 1)
         day = day.strip()
-        hours = hours.strip()
+        hours = _normalize_hours_value(hours.strip())
         prop_name = DAY_TO_PROP.get(day)
         if prop_name and not _get_rich_text(facility_props, prop_name):
             update_props[prop_name] = nu.format_rich_text(hours)
@@ -309,7 +317,8 @@ def _backfill_existing_links_and_details(
             if ":" not in entry:
                 continue
             day, hours = entry.split(":", 1)
-            day = day.strip(); hours = hours.strip()
+            day = day.strip()
+            hours = _normalize_hours_value(hours.strip())
             prop_name = DAY_TO_PROP.get(day)
             if prop_name and not _get_rich_text(props, prop_name):
                 updates[prop_name] = nu.format_rich_text(hours)
@@ -486,7 +495,7 @@ def _create_or_get_facility_page(
                 continue
             day, hours = entry.split(":", 1)
             day = day.strip()
-            hours = hours.strip()
+            hours = _normalize_hours_value(hours.strip())
             prop_name = DAY_TO_PROP.get(day)
             if prop_name and not _get_rich_text(facility_props, prop_name):
                 update_props[prop_name] = nu.format_rich_text(hours)
@@ -532,7 +541,7 @@ def _create_or_get_facility_page(
             continue
         day, hours = entry.split(":", 1)
         day = day.strip()
-        hours = hours.strip()
+        hours = _normalize_hours_value(hours.strip())
         prop_name = DAY_TO_PROP.get(day)
         if prop_name:
             props[prop_name] = nu.format_rich_text(hours)

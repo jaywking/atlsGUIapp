@@ -206,10 +206,8 @@ async def stream_reprocess(
                 unmatched += 1
                 yield "-> no match found"
                 continue
-            new_status = resolve_status_fn(row.get("place_id"), matched=True, explicit=match_result.get("status"))
             props = {
                 "LocationsMasterID": {"relation": [{"id": matched_id}]},
-                "Status": {"status": {"name": new_status}},
             }
             await update_page_fn(row.get("id") or "", props)
             updated += 1

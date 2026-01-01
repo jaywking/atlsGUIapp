@@ -24,6 +24,7 @@ from config import Config
 GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
 PLACE_DETAILS_URL = "https://maps.googleapis.com/maps/api/place/details/json"
 PLACE_SEARCH_URL = "https://maps.googleapis.com/maps/api/place/textsearch/json"
+PLACE_NEARBY_URL = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
 
 MASTER_SCHEMA_CACHE: Dict[str, Any] | None = None
 MASTER_TITLE_PROP: Optional[str] = None
@@ -152,7 +153,7 @@ async def _geocode(address: str) -> Dict[str, Any] | None:
     return results[0]
 
 
-async def _place_details(place_id: str) -> Dict[str, Any]:
+async def _place_details(place_id: str, *, allow_nearby_fallback: bool = True) -> Dict[str, Any]:
     data = await _google_request(
         PLACE_DETAILS_URL,
         {"place_id": place_id, "fields": "place_id,name,formatted_address,address_component,geometry,url,vicinity,international_phone_number,website,types,business_status"},
@@ -160,6 +161,10 @@ async def _place_details(place_id: str) -> Dict[str, Any]:
     result = data.get("result") or {}
     if not result:
         raise ValueError("Place details missing result")
+    if allow_nearby_fallback and _is_address_only_result(result):
+        fallback = await _nearby_business(result)
+        if fallback and fallback.get("place_id") and fallback.get("place_id") != place_id:
+            return fallback
     return result
 
 
@@ -171,6 +176,70 @@ async def _place_search(query: str) -> Dict[str, Any] | None:
     if len(results) != 1:
         raise ValueError("Ambiguous place search result")
     return results[0]
+
+
+def _is_address_only_result(result: Dict[str, Any]) -> bool:
+    types = result.get("types") or []
+    if not types:
+        return False
+    address_types = {"premise", "street_address", "route", "intersection", "locality"}
+    has_address = any(t in address_types for t in types)
+    has_business = any(t in {"establishment", "point_of_interest"} for t in types)
+    return has_address and not has_business
+
+
+def _haversine_meters(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    radius = 6371000.0
+    phi1 = lat1 * 0.017453292519943295
+    phi2 = lat2 * 0.017453292519943295
+    dphi = (lat2 - lat1) * 0.017453292519943295
+    dlambda = (lon2 - lon1) * 0.017453292519943295
+    a = (dphi / 2) ** 2 + (phi1 * phi2 * (dlambda / 2) ** 2)
+    return 2 * radius * (a ** 0.5)
+
+
+def _extract_street_number(result: Dict[str, Any]) -> str:
+    components = result.get("address_components") or []
+    for comp in components:
+        if "street_number" in comp.get("types", []):
+            return str(comp.get("long_name") or comp.get("short_name") or "").strip()
+    return ""
+
+
+async def _nearby_business(result: Dict[str, Any]) -> Dict[str, Any] | None:
+    lat, lng = _google_geometry(result)
+    if lat is None or lng is None:
+        return None
+    target_number = _extract_street_number(result)
+    params = {"location": f"{lat},{lng}", "radius": 50}
+    try:
+        data = await _google_request(PLACE_NEARBY_URL, params, allow_zero=True)
+    except Exception:
+        return None
+    results = data.get("results") or []
+    if not results:
+        return None
+    for candidate in results:
+        cand_loc = (candidate.get("geometry") or {}).get("location") or {}
+        cand_lat = cand_loc.get("lat")
+        cand_lng = cand_loc.get("lng")
+        if cand_lat is None or cand_lng is None:
+            continue
+        if _haversine_meters(lat, lng, cand_lat, cand_lng) > 50:
+            continue
+        cand_id = candidate.get("place_id")
+        if not cand_id:
+            continue
+        try:
+            details = await _place_details(str(cand_id), allow_nearby_fallback=False)
+        except Exception:
+            continue
+        if target_number:
+            cand_number = _extract_street_number(details)
+            if not cand_number or cand_number != target_number:
+                continue
+        return details
+    return None
 
 
 def _matches_anchor(components: Dict[str, Any], anchors: Dict[str, str]) -> bool:
@@ -289,6 +358,7 @@ def _build_psl_update_properties(
     matched_master_id: str | None,
     production_page_id: str | None = None,
     prodloc_id: str | None = None,
+    existing_practical_name: str | None = None,
 ) -> Dict[str, Any]:
     """Build PSL payload; actual write filters by schema/types later."""
     if "international_phone" in google_fields or "International Phone" in google_fields:
@@ -302,7 +372,7 @@ def _build_psl_update_properties(
         props["ProductionID"] = {"relation": [{"id": production_page_id}]}
     if prodloc_id:
         props["ProdLocID"] = {"title": [{"text": {"content": prodloc_id}}]}
-    if google_fields.get("practical_name"):
+    if google_fields.get("practical_name") and not (existing_practical_name or "").strip():
         props["Practical Name"] = _rt(str(google_fields["practical_name"]))
     if google_fields.get("full_address"):
         props["Full Address"] = _rt(str(google_fields["full_address"]))
@@ -386,6 +456,9 @@ async def _upsert_master_row(
         loc_title = current_title if LOC_RE.match(current_title) else _next_loc_title(master_cache)
         if loc_title:
             props[title_prop] = {"title": [{"text": {"content": loc_title}}]}
+        existing_practical = (master_row.get("practical_name") or "").strip()
+        if existing_practical:
+            props.pop("Practical Name", None)
         await update_location_page(master_row.get("id") or "", props)
         _update_cache_entry(master_cache, google_fields, master_row.get("id") or "", loc_title=loc_title)
         return master_row.get("id") or ""
@@ -537,6 +610,7 @@ async def _enrich_row(
                     master_id,
                     production_page_id=production_page_id,
                     prodloc_id=prodloc_id_to_apply,
+                    existing_practical_name=row.get("practical_name") or row.get("name"),
                 ),
                 psl_schema_props,
             )
@@ -590,6 +664,7 @@ async def _enrich_row(
                     master_id,
                     production_page_id=production_page_id,
                     prodloc_id=prodloc_id_to_apply,
+                    existing_practical_name=row.get("practical_name") or row.get("name"),
                 ),
                 psl_schema_props,
             )
@@ -638,6 +713,7 @@ async def _enrich_row(
                     master_id,
                     production_page_id=production_page_id,
                     prodloc_id=prodloc_id_to_apply,
+                    existing_practical_name=row.get("practical_name") or row.get("name"),
                 ),
                 psl_schema_props,
             )

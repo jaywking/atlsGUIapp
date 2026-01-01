@@ -56,6 +56,9 @@ def page_content() -> None:
         "rows": [],
         "filtered": [],
         "search": "",
+        "prod_status_filter": "",
+        "status_filter": "",
+        "studio_filter": "",
         "page": 0,
         "auto_refresh": False,
         "sort_by": "",
@@ -64,16 +67,36 @@ def page_content() -> None:
         "status_options": [],
     }
 
-    with ui.row().classes(f"{PAGE_HEADER_CLASSES} min-h-[52px]"):
-        with ui.row().classes("items-center gap-2 flex-wrap"):
-            refresh_button = ui.button("Refresh").classes("bg-blue-500 text-white hover:bg-slate-100 dark:hover:bg-slate-800")
-            sync_button = ui.button("Sync to Notion").classes("bg-slate-800 text-white hover:bg-slate-900 dark:hover:bg-slate-800")
-            auto_switch = ui.switch("Auto-refresh (60s)").classes("text-sm text-slate-600")
-            spinner = ui.spinner(size="md").style("display: none;")
-            dirty_label = ui.label("").classes("text-xs text-amber-600")
-        with ui.row().classes("items-center gap-2 flex-wrap ml-4"):
-            add_button = ui.button("Add Production").classes("bg-emerald-600 text-white hover:bg-emerald-700")
-            search_input = ui.input(label="Search productions...").props("dense clearable debounce=300").classes("w-72")
+    with ui.column().classes("w-full gap-3"):
+        with ui.row().classes(f"{PAGE_HEADER_CLASSES} min-h-[52px]"):
+            with ui.row().classes("items-center gap-2 flex-wrap w-full"):
+                refresh_button = ui.button("Refresh").classes(
+                    "bg-blue-500 text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+                )
+                sync_button = ui.button("Sync to Notion").classes(
+                    "bg-slate-800 text-white hover:bg-slate-900 dark:hover:bg-slate-800"
+                )
+                auto_switch = ui.switch("Auto-refresh (60s)").classes("text-sm text-slate-600")
+                spinner = ui.spinner(size="md").style("display: none;")
+                dirty_label = ui.label("").classes("text-xs text-amber-600")
+            with ui.row().classes("items-center gap-2 flex-wrap w-full"):
+                add_button = ui.button("Add Production").classes("bg-emerald-600 text-white hover:bg-emerald-700")
+                search_input = ui.input(label="Search productions...").props(
+                    "dense clearable debounce=300"
+                ).classes("flex-1 min-w-[240px]")
+                clear_button = ui.button("Clear", icon="refresh").classes(
+                    "bg-slate-200 text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
+                )
+
+        with ui.expansion("Advanced Filters", icon="tune", value=False).classes("w-full"):
+            with ui.row().classes("items-end gap-2 flex-wrap w-full"):
+                prod_status_filter_input = ui.input(label="ProdStatus contains").props("dense clearable").classes("w-56")
+                status_filter_input = ui.input(label="Status contains").props("dense clearable").classes("w-48")
+                studio_filter_input = ui.input(label="Studio contains").props("dense clearable").classes("w-56")
+
+        status_label = ui.label("Loading productions...").classes("text-sm text-slate-500")
+
+        with ui.row().classes("items-center gap-2 flex-wrap w-full"):
             page_info = ui.label("Page 1 of 1").classes("text-sm text-slate-500")
             prev_button = ui.button("Prev").classes("bg-slate-200 text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800")
             next_button = ui.button("Next").classes("bg-slate-200 text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800")
@@ -99,7 +122,7 @@ def page_content() -> None:
         table = (
             ui.table(columns=columns, rows=[], row_key="row_id")
             .classes("w-full text-sm q-table--striped min-w-[1600px]")
-            .props('flat wrap-cells square separator="horizontal" rows-per-page-options="[10]"')
+            .props('flat wrap-cells square separator="horizontal" rows-per-page-options="[10]" no-data-label="Loading productions..."')
         )
 
         def update_table_rows(rows: List[Dict[str, Any]]) -> None:
@@ -146,6 +169,9 @@ def page_content() -> None:
         spinner.style("display: inline-block;" if is_loading else "display: none;")
         refresh_button.set_enabled(not is_loading)
         sync_button.set_enabled(not is_loading)
+        table._props["no-data-label"] = "Loading productions..." if is_loading else "No data available"
+        status_label.set_text("Loading productions..." if is_loading else "No data available.")
+        table.update()
 
     def _lower(value: Any) -> str:
         try:
@@ -166,6 +192,15 @@ def page_content() -> None:
                 or search_term in _lower(r.get("Studio"))
                 or search_term in _lower(r.get("ProdStatus"))
         ]
+        prod_status_term = _lower(state.get("prod_status_filter"))
+        if prod_status_term:
+            rows = [r for r in rows if prod_status_term in _lower(r.get("ProdStatus"))]
+        status_term = _lower(state.get("status_filter"))
+        if status_term:
+            rows = [r for r in rows if status_term in _lower(r.get("Status"))]
+        studio_term = _lower(state.get("studio_filter"))
+        if studio_term:
+            rows = [r for r in rows if studio_term in _lower(r.get("Studio"))]
         state["filtered"] = rows
 
         sort_by = state.get("sort_by") or ""
@@ -183,6 +218,7 @@ def page_content() -> None:
         visible = rows[start:end]
         table.update_rows(visible)  # type: ignore[attr-defined]
         page_info.set_text(f"Page {state['page'] + 1} of {total_pages} ({len(rows)} rows)")
+        status_label.set_text(f"Returned {len(rows)} productions" if rows else "No data available.")
         table._props["pagination"] = {
             "page": state["page"] + 1,
             "rowsPerPage": ROWS_PER_PAGE,
@@ -274,11 +310,27 @@ def page_content() -> None:
         state["page"] = 0
         apply_filters()
 
+    def clear_filters() -> None:
+        state["search"] = ""
+        state["prod_status_filter"] = ""
+        state["status_filter"] = ""
+        state["studio_filter"] = ""
+        state["page"] = 0
+        search_input.set_value("")
+        prod_status_filter_input.set_value("")
+        status_filter_input.set_value("")
+        studio_filter_input.set_value("")
+        apply_filters()
+
     refresh_button.on("click", handle_refresh_click)
     sync_button.on("click", sync_now)
     prev_button.on("click", go_prev)
     next_button.on("click", go_next)
+    clear_button.on("click", lambda _: clear_filters())
     search_input.on_value_change(lambda e: on_search(getattr(e, "value", None)))
+    prod_status_filter_input.on_value_change(lambda e: state.update({"prod_status_filter": (e.value or "").strip()}) or apply_filters())
+    status_filter_input.on_value_change(lambda e: state.update({"status_filter": (e.value or "").strip()}) or apply_filters())
+    studio_filter_input.on_value_change(lambda e: state.update({"studio_filter": (e.value or "").strip()}) or apply_filters())
     auto_switch.bind_value(state, "auto_refresh")
     table.on("request", lambda e: handle_table_request(e))
 

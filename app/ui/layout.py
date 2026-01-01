@@ -49,7 +49,7 @@ h1, h2, h3, h4 {
     letter-spacing: -0.2px;
     font-weight: 600;
 }
-.q-table thead th { font-weight: 600 !important; font-size: 14px !important; }
+.q-table thead th { font-weight: 600 !important; font-size: 16px !important; }
 .q-table tbody td { font-size: 14px !important; }
 
 /* ========================================================= */
@@ -199,6 +199,10 @@ h1, h2, h3, h4 {
 </style>
 """
     )
+    ui.add_head_html(
+        '<link rel="icon" href="/static/favicon.ico" type="image/x-icon">'
+        '<link rel="shortcut icon" href="/static/favicon.ico" type="image/x-icon">'
+    )
 
     with ui.row().classes('w-full h-screen no-wrap items-stretch'):
         # sidebar
@@ -215,7 +219,7 @@ h1, h2, h3, h4 {
                     ui.icon(icon).classes('text-slate-700 dark:text-slate-100')
                     ui.link(text, link).classes('flex-1 text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white')
         # main area
-        with ui.column().classes('flex-1 h-screen overflow-y-auto overflow-x-auto px-3'):
+        with ui.column().classes('flex-1 h-screen overflow-y-auto overflow-x-auto pl-3 pr-5'):
             # header
             with ui.row().classes("atls-global-header w-full justify-between items-center py-4 bg-white text-slate-900 border-b border-slate-200 sticky top-0 z-10 dark:bg-slate-900 dark:text-white dark:border-slate-700"):
                 ui.label(title).classes('text-2xl font-semibold leading-none text-slate-900 dark:text-white')

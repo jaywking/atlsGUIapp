@@ -1,4 +1,4 @@
-t# ATLSApp Canonical Layout Pattern (NiceGUI-Native)
+# ATLSApp Canonical Layout Pattern (NiceGUI-Native)
 
 ## Purpose
 
@@ -54,7 +54,7 @@ with ui.row().classes('w-full h-screen no-wrap'):
     build_sidebar()
 
 with ui.column().classes(
-        'flex-1 h-screen overflow-y-auto overflow-x-hidden px-3'
+        'flex-1 h-screen overflow-y-auto overflow-x-hidden pl-3 pr-5'
     ):
         build_global_header()
         build_page_content()
@@ -65,6 +65,7 @@ Rules:
 - px-3 is defined only here
 - This column establishes the canonical left edge for the entire app
 - No other component may introduce horizontal padding
+- Left and right gutters should feel balanced (use the layout owner to tune)
 
 ---
 
@@ -155,6 +156,29 @@ Violations must be fixed at the layout-owner level.
 
 ---
 
+## Data Table Page Standard (Search + Results)
+
+For list/search pages like Productions, Locations, and Medical Facilities, use this consistent structure
+in addition to the canonical padding rule.
+
+Required structure:
+
+- Global header (page title only; no duplicate content title)
+- Search panel (full width, single row where possible)
+- Advanced filters (collapsible, full width)
+- Status line (loading / result count / empty)
+- Table controls row (sort + pagination, full width)
+- Results table (full width, flat)
+
+Behavioral notes:
+
+- Search panel uses the full content width (inputs can flex).
+- Do not repeat the page title inside the content area.
+- Status line always appears under the search panel.
+- Table controls align to the same left edge as the table.
+
+---
+
 ## Codex Enforcement Rules
 
 Provide the following verbatim to Codex:
@@ -192,3 +216,4 @@ Any future layout changes must preserve the single padding owner principle.
 ## Change Log
 
 - 2025-12-30: Initial version created and adopted
+- 2025-12-30: Documented standard layout for data-table pages (search + results)

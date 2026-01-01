@@ -77,6 +77,8 @@ def page_content(production_id: str, master_id: str) -> None:
                         else:
                             ui.label("--").classes("text-sm text-slate-900 dark:text-slate-200")
                     _render_kv("Practical Name", location.get("practical_name") or "")
+                    _render_kv("Location Name (PSL)", location.get("psl_location_name") or "")
+                    _render_kv("Full Address", location.get("full_address") or "")
                     _render_kv(
                         "City / State",
                         f"{location.get('city', '')}, {location.get('state', '')}".strip(", "),

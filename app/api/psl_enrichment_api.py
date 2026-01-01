@@ -136,10 +136,14 @@ async def psl_detail(production_id: str | None = None, master_id: str | None = N
         "location": {
             "master_id": master_id,
             "practical_name": master_row.get("practical_name") or master_row.get("name") or "",
+            "psl_location_name": "",
+            "full_address": master_row.get("address") or "",
             "city": master_row.get("city") or "",
             "state": master_row.get("state") or "",
         },
     }
+    if records:
+        context["location"]["psl_location_name"] = records[0].get("location_name") or ""
 
     return {
         "status": "success",

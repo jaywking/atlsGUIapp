@@ -208,7 +208,21 @@ def page_content() -> None:
             "body-cell-name",
             """
             <q-td :props="props">
-              <span class="name-cell">{{ props.row.name }}</span>
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="name-cell">{{ props.row.name }}</span>
+                <span
+                  v-if="props.row.open_all_week"
+                  class="px-2 py-1 rounded text-xs font-semibold bg-emerald-100 text-emerald-700"
+                >
+                  7 days
+                </span>
+                <span
+                  v-if="props.row.open_24"
+                  class="px-2 py-1 rounded text-xs font-semibold bg-indigo-100 text-indigo-700"
+                >
+                  24 Hours
+                </span>
+              </div>
             </q-td>
             """,
         )
@@ -232,6 +246,14 @@ def page_content() -> None:
             with ui.row().classes("items-center gap-2"):
                 ui.icon("healing").classes("text-slate-500")
                 type_chip = ui.label("--").classes("px-2 py-1 rounded text-xs font-semibold bg-slate-100 text-slate-600")
+                open_chip = ui.label("Open 7 Days").classes(
+                    "px-2 py-1 rounded text-xs font-semibold bg-emerald-100 text-emerald-700"
+                )
+                open_chip.set_visibility(False)
+                open_24_chip = ui.label("24 Hours").classes(
+                    "px-2 py-1 rounded text-xs font-semibold bg-indigo-100 text-indigo-700"
+                )
+                open_24_chip.set_visibility(False)
             with ui.row().classes("items-start gap-2"):
                 ui.icon("place").classes("text-slate-500")
                 address_value = ui.label("--").classes("text-sm")
@@ -317,6 +339,10 @@ def page_content() -> None:
     def normalize_row(raw: Dict[str, Any], idx: int) -> Dict[str, Any]:
         addr = _format_address(raw)
         state_code = (raw.get("state") or "").strip().upper() or _extract_state_code(addr)
+        hours_text = (raw.get("hours") or "").strip()
+        parts = [p.strip() for p in hours_text.split(";") if p.strip()] if hours_text else []
+        is_open_all_week = len(parts) == 7 and all("closed" not in p.lower() for p in parts)
+        is_open_24 = is_open_all_week and all("24 hours" in p.lower() for p in parts)
         return {
             "row_id": raw.get("row_id") or raw.get("id") or f"facility-{idx}",
             "medical_facility_id": raw.get("medical_facility_id") or raw.get("MedicalFacilityID") or "",
@@ -331,6 +357,8 @@ def page_content() -> None:
             "distance": format_distance(raw.get("distance")),
             "place_types": raw.get("place_types") or [],
             "state_code": state_code or "",
+            "open_all_week": is_open_all_week,
+            "open_24": is_open_24,
         }
 
     def _page_window(total_pages: int, current: int) -> List[int]:
@@ -510,6 +538,10 @@ def page_content() -> None:
         hours_value.clear()
         hours_text = row.get("hours") or ""
         parts = [p.strip() for p in hours_text.split(";") if p.strip()] if hours_text else []
+        is_open_all_week = len(parts) == 7 and all("closed" not in p.lower() for p in parts)
+        open_chip.set_visibility(is_open_all_week)
+        is_open_24 = is_open_all_week and all("24 hours" in p.lower() for p in parts)
+        open_24_chip.set_visibility(is_open_24)
         with hours_value:
             if parts:
                 for part in parts:

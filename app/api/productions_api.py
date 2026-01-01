@@ -17,6 +17,7 @@ from app.services.import_jobs import import_locations_for_production
 from app.services.job_manager import schedule_job
 from app.services.logger import log_job
 from app.services.create_production import CreateProductionError, create_production
+from app.services.create_production import notion_url_for_id
 from app.services.notion_locations import (
     fetch_production_locations,
     get_locations_master_cached,
@@ -232,7 +233,15 @@ async def production_detail(production_id: str | None = None) -> Dict[str, Any]:
         return {
             "status": "success",
             "message": f"No locations table found for {production_id}",
-            "data": {"production": production, "locations": []},
+            "data": {
+                "production": production,
+                "locations": [],
+                "context": {
+                    "production_id": production_id,
+                    "production_name": production.get("Name") or production_id,
+                    "locations_db_id": "",
+                },
+            },
         }
 
     locations_db_id = entry.get("locations_db_id") or ""
@@ -240,7 +249,15 @@ async def production_detail(production_id: str | None = None) -> Dict[str, Any]:
         return {
             "status": "success",
             "message": f"No locations table found for {production_id}",
-            "data": {"production": production, "locations": []},
+            "data": {
+                "production": production,
+                "locations": [],
+                "context": {
+                    "production_id": production_id,
+                    "production_name": production.get("Name") or production_id,
+                    "locations_db_id": "",
+                },
+            },
         }
 
     prod_rows = await fetch_production_locations(locations_db_id, production_id=entry.get("production_id"))
@@ -284,7 +301,64 @@ async def production_detail(production_id: str | None = None) -> Dict[str, Any]:
     return {
         "status": "success",
         "message": f"Loaded {production_id}",
-        "data": {"production": production, "locations": locations},
+        "data": {
+            "production": production,
+            "locations": locations,
+            "context": {
+                "production_id": entry.get("production_id") or production_id,
+                "production_name": entry.get("display_name")
+                or entry.get("production_title")
+                or production.get("Name")
+                or production_id,
+                "locations_db_id": locations_db_id,
+            },
+        },
+    }
+
+
+@router.get("/inspect_psl")
+async def inspect_psl(db_id: str | None = None) -> Dict[str, Any]:
+    db_id = (db_id or "").strip()
+    if not db_id:
+        return {"status": "error", "message": "db_id is required", "data": []}
+
+    try:
+        rows = await fetch_production_locations(db_id)
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "error", "message": f"Failed to load PSL rows: {exc}", "data": []}
+
+    issues: List[Dict[str, Any]] = []
+    for row in rows:
+        missing_fields: List[str] = []
+        address1 = (row.get("address1") or "").strip()
+        city = (row.get("city") or "").strip()
+        state = (row.get("state") or "").strip()
+        full_address = (row.get("address") or "").strip()
+
+        if not address1:
+            missing_fields.append("address1")
+        if not city:
+            missing_fields.append("city")
+        if not state:
+            missing_fields.append("state")
+        if not full_address:
+            missing_fields.append("Full Address")
+
+        if missing_fields:
+            page_id = row.get("id") or row.get("row_id") or ""
+            issues.append(
+                {
+                    "prod_loc_id": row.get("prod_loc_id") or "",
+                    "location_name": row.get("location_name") or row.get("name") or "",
+                    "missing": missing_fields,
+                    "notion_url": notion_url_for_id(page_id) if page_id else "",
+                }
+            )
+
+    return {
+        "status": "success",
+        "message": f"Found {len(issues)} rows with missing address data",
+        "data": issues,
     }
 
 
@@ -332,7 +406,15 @@ async def production_detail(production_id: str | None = None) -> Dict[str, Any]:
         return {
             "status": "success",
             "message": f"No locations table found for {production_id}",
-            "data": {"production": production, "locations": []},
+            "data": {
+                "production": production,
+                "locations": [],
+                "context": {
+                    "production_id": production_id,
+                    "production_name": production.get("Name") or production_id,
+                    "locations_db_id": "",
+                },
+            },
         }
 
     locations_db_id = entry.get("locations_db_id") or ""
@@ -340,7 +422,15 @@ async def production_detail(production_id: str | None = None) -> Dict[str, Any]:
         return {
             "status": "success",
             "message": f"No locations table found for {production_id}",
-            "data": {"production": production, "locations": []},
+            "data": {
+                "production": production,
+                "locations": [],
+                "context": {
+                    "production_id": production_id,
+                    "production_name": production.get("Name") or production_id,
+                    "locations_db_id": "",
+                },
+            },
         }
 
     prod_rows = await fetch_production_locations(locations_db_id, production_id=entry.get("production_id"))
@@ -352,6 +442,15 @@ async def production_detail(production_id: str | None = None) -> Dict[str, Any]:
     master_rows = await get_locations_master_cached(refresh=False)
     master_by_id = {row.get("row_id") or row.get("id"): row for row in master_rows}
 
+    location_name_by_master: Dict[str, str] = {}
+    for row in prod_rows:
+        psl_name = row.get("location_name") or row.get("name") or ""
+        if not psl_name:
+            continue
+        for mid in row.get("locations_master_ids") or []:
+            if mid and mid not in location_name_by_master:
+                location_name_by_master[mid] = psl_name
+
     locations: List[Dict[str, Any]] = []
     for mid in unique_master_ids:
         master = master_by_id.get(mid)
@@ -362,6 +461,7 @@ async def production_detail(production_id: str | None = None) -> Dict[str, Any]:
             {
                 "master_id": master.get("prod_loc_id") or "",
                 "practical_name": master.get("practical_name") or master.get("name") or "",
+                "psl_location_name": location_name_by_master.get(mid, ""),
                 "city": master.get("city") or "",
                 "state": master.get("state") or "",
                 "place_types": types if isinstance(types, list) else [],
@@ -374,7 +474,18 @@ async def production_detail(production_id: str | None = None) -> Dict[str, Any]:
     return {
         "status": "success",
         "message": f"Loaded {production_id}",
-        "data": {"production": production, "locations": locations},
+        "data": {
+            "production": production,
+            "locations": locations,
+            "context": {
+                "production_id": entry.get("production_id") or production_id,
+                "production_name": entry.get("display_name")
+                or entry.get("production_title")
+                or production.get("Name")
+                or production_id,
+                "locations_db_id": locations_db_id,
+            },
+        },
     }
 
 

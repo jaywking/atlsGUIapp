@@ -34,6 +34,15 @@ def _strip_weekday_prefix(value: Optional[str]) -> Optional[str]:
     return cleaned or None
 
 
+def _normalize_hours(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return value
+    cleaned = value.strip()
+    if cleaned.lower() == "open 24 hours":
+        return "Open 24 hours"
+    return cleaned
+
+
 async def _get_next_mf_id() -> str:
     """
     Generate the next available MF### ID based on authoritative current rows (not stale cache).
@@ -219,7 +228,7 @@ def _build_mf_properties_from_google_place(
     hours = {day: None for day in ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]}
     for idx, day in enumerate(hours.keys()):
         if idx < len(weekday_text):
-            hours[day] = _strip_weekday_prefix(weekday_text[idx])
+            hours[day] = _normalize_hours(_strip_weekday_prefix(weekday_text[idx]))
 
     # --- Property Dictionary Construction ---
     props = {
