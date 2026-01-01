@@ -166,16 +166,32 @@ Required structure:
 - Global header (page title only; no duplicate content title)
 - Search panel (full width, single row where possible)
 - Advanced filters (collapsible, full width)
-- Status line (loading / result count / empty)
-- Table controls row (sort + pagination, full width)
+- Status + pagination row (single line, full width)
 - Results table (full width, flat)
 
 Behavioral notes:
 
 - Search panel uses the full content width (inputs can flex).
 - Do not repeat the page title inside the content area.
-- Status line always appears under the search panel.
-- Table controls align to the same left edge as the table.
+- Status + pagination sit on one row (status left, pager right).
+- Avoid redundant page labels when numbered page buttons are shown.
+
+---
+
+### Example: Status + Pagination Row (Single Line)
+
+```python
+with ui.row().classes("items-center justify-between w-full gap-2"):
+    status_label = ui.label("Returned 0 rows").classes("text-sm text-slate-500")
+    with ui.row().classes("items-center gap-2"):
+        prev_button = ui.button("Prev").classes("bg-slate-200 text-slate-700")
+        page_numbers_container = ui.row().classes("items-center gap-2")
+        next_button = ui.button("Next").classes("bg-slate-200 text-slate-700")
+```
+
+Notes:
+- Use numbered buttons when paginating (avoid "Page 1 of 3" labels).
+- Keep buttons compact to avoid wrapping.
 
 ---
 

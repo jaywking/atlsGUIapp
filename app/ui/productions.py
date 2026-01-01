@@ -67,8 +67,9 @@ def page_content() -> None:
         "status_options": [],
     }
 
-    with ui.column().classes("w-full gap-3"):
-        with ui.row().classes(f"{PAGE_HEADER_CLASSES} min-h-[52px]"):
+    with ui.column().classes("w-full gap-2"):
+        header_classes = PAGE_HEADER_CLASSES.replace("mb-4", "mb-0")
+        with ui.row().classes(f"{header_classes} min-h-[52px]"):
             with ui.row().classes("items-center gap-2 flex-wrap w-full"):
                 refresh_button = ui.button("Refresh").classes(
                     "bg-blue-500 text-white hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -76,10 +77,8 @@ def page_content() -> None:
                 sync_button = ui.button("Sync to Notion").classes(
                     "bg-slate-800 text-white hover:bg-slate-900 dark:hover:bg-slate-800"
                 )
-                auto_switch = ui.switch("Auto-refresh (60s)").classes("text-sm text-slate-600")
                 spinner = ui.spinner(size="md").style("display: none;")
                 dirty_label = ui.label("").classes("text-xs text-amber-600")
-            with ui.row().classes("items-center gap-2 flex-wrap w-full"):
                 add_button = ui.button("Add Production").classes("bg-emerald-600 text-white hover:bg-emerald-700")
                 search_input = ui.input(label="Search productions...").props(
                     "dense clearable debounce=300"
@@ -94,12 +93,11 @@ def page_content() -> None:
                 status_filter_input = ui.input(label="Status contains").props("dense clearable").classes("w-48")
                 studio_filter_input = ui.input(label="Studio contains").props("dense clearable").classes("w-56")
 
-        status_label = ui.label("Loading productions...").classes("text-sm text-slate-500")
-
-        with ui.row().classes("items-center gap-2 flex-wrap w-full"):
-            page_info = ui.label("Page 1 of 1").classes("text-sm text-slate-500")
-            prev_button = ui.button("Prev").classes("bg-slate-200 text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800")
-            next_button = ui.button("Next").classes("bg-slate-200 text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800")
+        with ui.row().classes("items-center justify-between w-full gap-2"):
+            status_label = ui.label("Loading productions...").classes("text-sm text-slate-500")
+            with ui.row().classes("items-center gap-2"):
+                prev_button = ui.button("Prev").classes("bg-slate-200 text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800")
+                next_button = ui.button("Next").classes("bg-slate-200 text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800")
 
     columns = [
         {"name": "ProductionID", "label": "ProductionID", "field": "ProductionID", "sortable": True},
@@ -121,9 +119,10 @@ def page_content() -> None:
     with ui.element("div").classes("overflow-x-auto w-full py-2"):
         table = (
             ui.table(columns=columns, rows=[], row_key="row_id")
-            .classes("w-full text-sm q-table--striped min-w-[1600px]")
-            .props('flat wrap-cells square separator="horizontal" rows-per-page-options="[10]" no-data-label="Loading productions..."')
+            .classes("w-full text-sm q-table--flat min-w-[1600px]")
+            .props('flat wrap-cells square separator="horizontal" rows-per-page-options="[10]"')
         )
+        table.add_slot("no-data", '<div class="hidden"></div>')
 
         def update_table_rows(rows: List[Dict[str, Any]]) -> None:
             table.rows = rows
@@ -165,12 +164,22 @@ def page_content() -> None:
             """,
         )
 
+        table.add_slot(
+            "body-cell-Name",
+            """
+            <q-td :props="props">
+              <span class="font-semibold">{{ props.row.Name }}</span>
+            </q-td>
+            """,
+        )
+
     def set_loading(is_loading: bool) -> None:
         spinner.style("display: inline-block;" if is_loading else "display: none;")
         refresh_button.set_enabled(not is_loading)
         sync_button.set_enabled(not is_loading)
-        table._props["no-data-label"] = "Loading productions..." if is_loading else "No data available"
-        status_label.set_text("Loading productions..." if is_loading else "No data available.")
+        table._props["no-data-label"] = "Loading productions..." if is_loading else ""
+        if is_loading:
+            status_label.set_text("Loading productions...")
         table.update()
 
     def _lower(value: Any) -> str:
@@ -217,8 +226,8 @@ def page_content() -> None:
         end = start + ROWS_PER_PAGE
         visible = rows[start:end]
         table.update_rows(visible)  # type: ignore[attr-defined]
-        page_info.set_text(f"Page {state['page'] + 1} of {total_pages} ({len(rows)} rows)")
         status_label.set_text(f"Returned {len(rows)} productions" if rows else "No data available.")
+        table._props["no-data-label"] = ""
         table._props["pagination"] = {
             "page": state["page"] + 1,
             "rowsPerPage": ROWS_PER_PAGE,
@@ -331,7 +340,6 @@ def page_content() -> None:
     prod_status_filter_input.on_value_change(lambda e: state.update({"prod_status_filter": (e.value or "").strip()}) or apply_filters())
     status_filter_input.on_value_change(lambda e: state.update({"status_filter": (e.value or "").strip()}) or apply_filters())
     studio_filter_input.on_value_change(lambda e: state.update({"studio_filter": (e.value or "").strip()}) or apply_filters())
-    auto_switch.bind_value(state, "auto_refresh")
     table.on("request", lambda e: handle_table_request(e))
 
     with ui.dialog() as add_dialog, ui.card().classes("min-w-[360px]"):

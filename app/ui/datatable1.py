@@ -115,7 +115,12 @@ def page_content() -> None:
                     label="Status",
                 ).props("dense dropdown-icon=keyboard_arrow_down").classes("w-40")
 
-        status_label = ui.label("Use the search controls to filter results.").classes("text-sm text-slate-500")
+        with ui.row().classes("items-center justify-between w-full gap-2"):
+            status_controls = ui.label("Returned 0 rows").classes("text-sm text-slate-500")
+            with ui.row().classes("items-center gap-2"):
+                prev_button = ui.button("Prev").classes("bg-slate-200 text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800")
+                page_label = ui.label("Page 1 of 1").classes("text-sm text-slate-500 whitespace-nowrap")
+                next_button = ui.button("Next").classes("bg-slate-200 text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800")
 
         columns = [
             {"name": "id", "label": "ID", "field": "id", "sortable": True},
@@ -175,7 +180,8 @@ def page_content() -> None:
         state["filtered"] = filtered
         table.rows = filtered
         table.update()
-        status_label.set_text(f"Returned {len(filtered)} rows" if filtered else "No data available.")
+        status_controls.set_text(f"Returned {len(filtered)} rows")
+        page_label.set_text("Page 1 of 1")
 
     def clear_filters() -> None:
         search_input.value = ""
@@ -186,3 +192,5 @@ def page_content() -> None:
     search_button.on_click(lambda _: apply_filters())
     clear_button.on_click(lambda _: clear_filters())
     search_input.on("keydown.enter", lambda _: apply_filters())
+    prev_button.on_click(lambda _: None)
+    next_button.on_click(lambda _: None)

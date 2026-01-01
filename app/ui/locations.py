@@ -14,10 +14,10 @@ def page_content() -> None:
 
     state: Dict[str, Any] = {"rows": [], "searched": False}
 
-    with ui.column().classes("w-full gap-2"):
+    with ui.column().classes("w-full gap-3"):
         with ui.row().classes("items-end gap-2 flex-wrap w-full"):
-            production_input = ui.input(label="Production Name").props("dense clearable").classes("w-64")
-            name_input = ui.input(label="Practical Name / Name").props("dense clearable").classes("w-64")
+            production_input = ui.input(label="Production Name").props("dense clearable").classes("flex-1 min-w-[220px]")
+            name_input = ui.input(label="Practical Name / Name").props("dense clearable").classes("flex-1 min-w-[220px]")
             city_input = ui.input(label="City").props("dense clearable").classes("w-48")
             state_input = ui.input(label="State").props("dense clearable").classes("w-24")
             search_button = ui.button("Search", icon="search").classes(
@@ -56,7 +56,11 @@ def page_content() -> None:
                     place_id_input = ui.input(label="Place ID").props("dense clearable").classes("w-72")
                     master_id_input = ui.input(label="Location Master ID").props("dense clearable").classes("w-40")
 
-    status_label = ui.label("Run a search to see Locations Master results.").classes("text-sm text-slate-500")
+        with ui.row().classes("items-center justify-between w-full gap-2"):
+            status_label = ui.label("Run a search to see Locations Master results.").classes("text-sm text-slate-500")
+            with ui.row().classes("items-center gap-2"):
+                prev_button = ui.button("Prev").classes("bg-slate-200 text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800").props("disable")
+                next_button = ui.button("Next").classes("bg-slate-200 text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800").props("disable")
 
     columns = [
         {
@@ -79,10 +83,18 @@ def page_content() -> None:
     with table_container:
         table = (
             ui.table(columns=columns, rows=[], row_key="row_id")
-            .classes("w-full text-sm")
-            .props('flat square wrap-cells dense sort-by="master_id"')
+            .classes("w-full text-sm q-table--flat")
+            .props('flat square wrap-cells sort-by="master_id" separator="horizontal"')
         )
 
+        table.add_slot(
+            "body-cell-name",
+            """
+            <q-td :props="props">
+              <span class="font-semibold">{{ props.row.name }}</span>
+            </q-td>
+            """,
+        )
         table.add_slot(
             "body-cell-master_id",
             """

@@ -76,7 +76,14 @@ def page_content() -> None:
         "limit": 25,
         "total": 0,
         "search_initiated": False,
-        "filters": {"name": "", "address": "", "state": "", "facility_type": "All"},
+        "filters": {
+            "name": "",
+            "address": "",
+            "state": "",
+            "facility_type": "All",
+            "open_all_week": False,
+            "open_24": False,
+        },
         "sort": "name_asc",
     }
 
@@ -99,12 +106,12 @@ def page_content() -> None:
     )
 
     # Search panel
-    with ui.column().classes("w-full gap-1"):
-        with ui.row().classes("items-end gap-2 flex-wrap"):
-            name_input = ui.input(label="Name contains").props("dense clearable").classes("w-64")
+    with ui.column().classes("w-full gap-3"):
+        with ui.row().classes("items-end gap-2 flex-wrap w-full"):
+            name_input = ui.input(label="Name contains").props("dense clearable").classes("flex-1 min-w-[220px]")
             name_input.add_slot("prepend", '<q-icon name="search" size="18px" class="text-slate-500" />')
 
-            address_input = ui.input(label="Address contains").props("dense clearable").classes("w-64")
+            address_input = ui.input(label="Address contains").props("dense clearable").classes("flex-1 min-w-[220px]")
             address_input.add_slot("prepend", '<q-icon name="search" size="18px" class="text-slate-500" />')
 
             state_input = ui.select(
@@ -138,20 +145,19 @@ def page_content() -> None:
             reset_button = ui.button("Reset", icon="refresh").classes(
                 "bg-slate-200 text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800"
             )
-            refresh_button = ui.button("Refresh Cache", icon="cached").classes(
-                "bg-slate-800 text-white hover:bg-slate-900 dark:hover:bg-slate-800"
-            )
             spinner = ui.spinner(size="md").props("color=primary").style("display: none;")
 
-    ui.separator().classes("w-full")
+        with ui.expansion("Advanced Filters", icon="tune", value=False).classes("w-full"):
+            with ui.row().classes("items-center gap-3 flex-wrap w-full"):
+                open_all_week_toggle = ui.switch("Open 7 Days")
+                open_24_toggle = ui.switch("24 Hours")
 
-    status_label = ui.label("Use the search tool above to find facilities.").classes("text-sm text-slate-500")
-
-    with ui.row().classes("items-center gap-2 flex-wrap w-full"):
-        prev_button = ui.button("Prev").classes("bg-slate-200 text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800")
-        page_numbers_container = ui.row().classes("items-center gap-2")
-        next_button = ui.button("Next").classes("bg-slate-200 text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800")
-        page_meta = ui.label("Page 1 of 1").classes("text-sm text-slate-500")
+    with ui.row().classes("items-center justify-between w-full gap-2"):
+        status_label = ui.label("Use the search tool above to find facilities.").classes("text-sm text-slate-500")
+        with ui.row().classes("items-center gap-2"):
+            prev_button = ui.button("Prev").classes("bg-slate-200 text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800")
+            page_numbers_container = ui.row().classes("items-center gap-2")
+            next_button = ui.button("Next").classes("bg-slate-200 text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800")
 
     columns = [
         {"name": "medical_facility_id", "label": "ID", "field": "medical_facility_id", "sortable": True},
@@ -287,7 +293,6 @@ def page_content() -> None:
         spinner.style("display: inline-block;" if is_loading else "display: none;")
         search_button.set_enabled(not is_loading)
         reset_button.set_enabled(not is_loading)
-        refresh_button.set_enabled(not is_loading)
 
     def format_distance(raw: Any) -> str:
         if raw is None or raw == "":
@@ -372,7 +377,6 @@ def page_content() -> None:
             1, math.ceil(len(state["filtered_rows"]) / state["limit"])
         )
         current_page = state["page"]
-        page_meta.set_text(f"Page {current_page} of {total_pages}")
         prev_button.set_enabled(current_page > 1)
         next_button.set_enabled(current_page < total_pages)
         page_numbers_container.clear()
@@ -395,6 +399,8 @@ def page_content() -> None:
         address_term = (filters.get("address") or "").strip().lower()
         state_term = (filters.get("state") or "").strip().upper()
         type_filter = (filters.get("facility_type") or "All").strip()
+        open_all_week = bool(filters.get("open_all_week"))
+        open_24 = bool(filters.get("open_24"))
 
         filtered: List[Dict[str, Any]] = []
         for r in rows:
@@ -410,6 +416,10 @@ def page_content() -> None:
             if state_term and (not st or st != state_term):
                 continue
             if type_filter and type_filter != "All" and r_type != type_filter:
+                continue
+            if open_all_week and not r.get("open_all_week"):
+                continue
+            if open_24 and not r.get("open_24"):
                 continue
             filtered.append(r)
 
@@ -589,6 +599,8 @@ def page_content() -> None:
         filters["address"] = (address_input.value or "").strip()
         filters["state"] = (state_input.value or "").strip()
         filters["facility_type"] = facility_type_select.value or "All"
+        filters["open_all_week"] = bool(getattr(open_all_week_toggle, "value", False))
+        filters["open_24"] = bool(getattr(open_24_toggle, "value", False))
         state["sort"] = sort_select.value or "name_asc"
         if not state.get("search_initiated"):
             await load_facilities(show_toast=True)
@@ -596,17 +608,23 @@ def page_content() -> None:
             apply_filters_and_sort()
             paginate_and_render(page=1, show_toast=True)
 
-    async def on_refresh_cache() -> None:
-        await load_facilities(show_toast=True, force_refresh=True)
-
     def on_reset() -> None:
-        state["filters"] = {"name": "", "address": "", "state": "", "facility_type": "All"}
+        state["filters"] = {
+            "name": "",
+            "address": "",
+            "state": "",
+            "facility_type": "All",
+            "open_all_week": False,
+            "open_24": False,
+        }
         state["sort"] = "name_asc"
         name_input.value = ""
         address_input.value = ""
         state_input.value = ""
         facility_type_select.value = "All"
         sort_select.value = "name_asc"
+        open_all_week_toggle.value = False
+        open_24_toggle.value = False
         state["all_facilities"] = []
         state["filtered_rows"] = []
         state["paginated_rows"] = []
@@ -623,7 +641,6 @@ def page_content() -> None:
     next_button.on_click(lambda _: paginate_and_render(page=state["page"] + 1))
     search_button.on_click(on_search)
     reset_button.on_click(on_reset)
-    refresh_button.on_click(on_refresh_cache)
     sort_select.on("update:model-value", lambda e: (state.update({"sort": e.value or "name_asc"}), apply_filters_and_sort(), paginate_and_render(page=1)))
     name_input.on("keydown.enter", lambda _: on_search())
     address_input.on("keydown.enter", lambda _: on_search())
