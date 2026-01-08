@@ -160,7 +160,9 @@ async def generate_schema_report_stream() -> Iterable[str]:
             continue
         combined.append((db_id, source, "psl"))
 
-    for db_id, source, kind in combined:
+    total = len(combined)
+    for idx, (db_id, source, kind) in enumerate(combined, start=1):
+        yield f"Row {idx}/{total}\n"
         yield f"Inspecting {db_id} ({source})...\n"
         try:
             data = await _fetch_database(db_id)

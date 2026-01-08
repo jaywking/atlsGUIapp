@@ -29,6 +29,7 @@ from app.services.notion_locations import (
     update_location_page,
     resolve_status,
 )
+from app.services.notion_assets import fetch_assets_for_location
 from app.services.notion_medical_facilities import get_cached_medical_facilities, fetch_and_cache_medical_facilities
 from app.services.notion_schema_utils import search_location_databases, ensure_schema
 from app.services.notion_writeback import archive_master_rows, update_master_fields, update_production_master_links, write_address_updates
@@ -442,6 +443,18 @@ async def get_location_detail(master_id: str | None = None) -> Dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         log_job("locations", "detail", "error", f"facilities_lookup_failed: {exc}")
 
+    assets: List[Dict[str, Any]] = []
+    assets_warning = ""
+    master_page_id = master_row.get("row_id") or master_row.get("id") or ""
+    if Config.ASSETS_DB_ID and master_page_id:
+        try:
+            assets = await fetch_assets_for_location(master_page_id)
+        except Exception as exc:  # noqa: BLE001
+            log_job("locations", "detail", "error", f"assets_lookup_failed: {exc}")
+    elif not Config.ASSETS_DB_ID:
+        assets_warning = "Assets database is not configured (ASSETS_DB_ID)."
+        log_job("locations", "detail", "error", "assets_lookup_failed: Missing ASSETS_DB_ID")
+
     types = master_row.get("types") or []
     detail = {
         "master_id": master_id,
@@ -478,7 +491,13 @@ async def get_location_detail(master_id: str | None = None) -> Dict[str, Any]:
     payload = {
         "status": "success",
         "message": f"Loaded {master_id}",
-        "data": {"location": detail, "productions": productions, "medical_facilities": facilities},
+        "data": {
+            "location": detail,
+            "productions": productions,
+            "medical_facilities": facilities,
+            "assets": assets,
+            "assets_warning": assets_warning,
+        },
     }
     _detail_cache[master_id] = {"ts": time.time(), "payload": payload}
     return payload
@@ -1049,29 +1068,36 @@ async def dedup_stream(refresh: bool = Query(False)) -> StreamingResponse:
         groups = 0
         try:
             master_rows = await get_locations_master_cached(refresh=True)
+            prod_entries: List[Dict[str, Any]] = []
+            productions_db_id = Config.PRODUCTIONS_MASTER_DB or Config.PRODUCTIONS_DB_ID or Config.NOTION_PRODUCTIONS_DB_ID
+            if productions_db_id:
+                prod_entries = await list_production_location_databases(productions_db_id)
+                prod_entries = [entry for entry in prod_entries if entry.get("locations_db_id")]
+            total_steps = 1 + len(prod_entries)
+            step = 1
+            yield f"Row {step}/{total_steps}\n"
             yield f"Scanning Locations Master ({len(master_rows)} rows)...\n"
             count, msgs = _stream_duplicates("Locations Master", master_rows)
             groups += count
             for line in msgs:
                 yield line
-            productions_db_id = Config.PRODUCTIONS_MASTER_DB or Config.PRODUCTIONS_DB_ID or Config.NOTION_PRODUCTIONS_DB_ID
-            if productions_db_id:
-                prod_entries = await list_production_location_databases(productions_db_id)
-                for entry in prod_entries:
-                    dbid = entry.get("locations_db_id")
-                    name = entry.get("display_name") or entry.get("production_title") or dbid
-                    if not dbid:
-                        continue
-                    try:
-                        rows = await fetch_production_locations(dbid, production_id=name)
-                    except Exception as exc:  # noqa: BLE001
-                        yield f"Scanning {name} ({dbid}) failed: {exc}\n"
-                        continue
-                    yield f"Scanning Production {name} ({len(rows)} rows)...\n"
-                    count, msgs = _stream_duplicates(name, rows)
-                    groups += count
-                    for line in msgs:
-                        yield line
+            for entry in prod_entries:
+                step += 1
+                yield f"Row {step}/{total_steps}\n"
+                dbid = entry.get("locations_db_id")
+                name = entry.get("display_name") or entry.get("production_title") or dbid
+                if not dbid:
+                    continue
+                try:
+                    rows = await fetch_production_locations(dbid, production_id=name)
+                except Exception as exc:  # noqa: BLE001
+                    yield f"Scanning {name} ({dbid}) failed: {exc}\n"
+                    continue
+                yield f"Scanning Production {name} ({len(rows)} rows)...\n"
+                count, msgs = _stream_duplicates(name, rows)
+                groups += count
+                for line in msgs:
+                    yield line
             yield f"Done. groups={groups}\n"
         except Exception as exc:  # noqa: BLE001
             yield f"error: {exc}\n"
@@ -1109,29 +1135,40 @@ def _stream_duplicates(label: str, rows: List[Dict[str, Any]]) -> tuple[int, Lis
 async def diagnostics_stream(refresh: bool = Query(False)) -> StreamingResponse:
     async def _generator():
         try:
+            prod_entries: List[Dict[str, Any]] = []
+            productions_db_id = Config.PRODUCTIONS_MASTER_DB or Config.PRODUCTIONS_DB_ID or Config.NOTION_PRODUCTIONS_DB_ID
+            if productions_db_id:
+                prod_entries = await list_production_location_databases(productions_db_id)
+                prod_entries = [entry for entry in prod_entries if entry.get("locations_db_id")]
+            total_steps = 1 + len(prod_entries) + 2
+            step = 1
+            yield f"Row {step}/{total_steps}\n"
             master = await get_locations_master_cached(refresh=True)
             yield f"Diagnostics:\nMaster: {len(master)} rows\n"
             missing_pid = sum(1 for r in master if not r.get("place_id"))
             yield f"-> missing_place_id={missing_pid}\n"
-            productions_db_id = Config.PRODUCTIONS_MASTER_DB or Config.PRODUCTIONS_DB_ID or Config.NOTION_PRODUCTIONS_DB_ID
-            if productions_db_id:
-                prod_entries = await list_production_location_databases(productions_db_id)
-                for entry in prod_entries:
-                    dbid = entry.get("locations_db_id")
-                    name = entry.get("display_name") or entry.get("production_title") or dbid
-                    if not dbid:
-                        continue
-                    try:
-                        rows = await fetch_production_locations(dbid, production_id=name)
-                        missing_full = sum(1 for r in rows if not r.get("address"))
-                        missing_pid_prod = sum(1 for r in rows if not r.get("place_id"))
-                        yield f"{name} ({len(rows)} rows): missing_full_address={missing_full} missing_place_id={missing_pid_prod}\n"
-                    except Exception as exc:  # noqa: BLE001
-                        yield f"{name}: error {exc}\n"
+            for entry in prod_entries:
+                step += 1
+                yield f"Row {step}/{total_steps}\n"
+                dbid = entry.get("locations_db_id")
+                name = entry.get("display_name") or entry.get("production_title") or dbid
+                if not dbid:
+                    continue
+                try:
+                    rows = await fetch_production_locations(dbid, production_id=name)
+                    missing_full = sum(1 for r in rows if not r.get("address"))
+                    missing_pid_prod = sum(1 for r in rows if not r.get("place_id"))
+                    yield f"{name} ({len(rows)} rows): missing_full_address={missing_full} missing_place_id={missing_pid_prod}\n"
+                except Exception as exc:  # noqa: BLE001
+                    yield f"{name}: error {exc}\n"
+            step += 1
+            yield f"Row {step}/{total_steps}\n"
             cache = await load_master_cache(refresh=True)
             place_size = len(cache.get("place_id_index", {}))
             hash_size = len(cache.get("canonical_hash_index", {}))
             yield f"Cache: place_id_index={place_size} hash_index={hash_size}\n"
+            step += 1
+            yield f"Row {step}/{total_steps}\n"
             notion_status = "loaded" if Config.NOTION_TOKEN else "missing"
             maps_status = "loaded" if Config.GOOGLE_MAPS_API_KEY else "missing"
             yield f"APIs: Notion={notion_status} GoogleMaps={maps_status}\n"
@@ -1199,6 +1236,7 @@ async def schema_update_stream() -> StreamingResponse:
         updated = skipped = failed = 0
         for idx, db_id in enumerate(db_ids, start=1):
             name = db_names.get(db_id, db_id)
+            yield f"Row {idx}/{total}\n"
             yield f"Checking {idx}/{total}: {name}...\n"
             try:
                 changed, fields = await ensure_schema(db_id)
@@ -1220,10 +1258,13 @@ async def schema_update_stream() -> StreamingResponse:
 async def cache_refresh_stream() -> StreamingResponse:
     async def _generator():
         try:
+            yield "Row 1/3\n"
             yield "Starting cache refresh...\n"
             locations = await fetch_and_cache_locations()
             total = len(locations)
+            yield "Row 2/3\n"
             yield f"Refreshed locations cache: {total} rows\n"
+            yield "Row 3/3\n"
             yield "Done.\n"
         except Exception as exc:  # noqa: BLE001
             yield f"Failed: {exc}\n"
@@ -1235,9 +1276,12 @@ async def cache_refresh_stream() -> StreamingResponse:
 async def cache_purge_stream() -> StreamingResponse:
     async def _generator():
         try:
+            yield "Row 1/3\n"
             yield "Purging dedup cache...\n"
             # No dedicated dedup cache implemented; placeholder message.
+            yield "Row 2/3\n"
             yield "No dedicated dedup cache configured; nothing to purge.\n"
+            yield "Row 3/3\n"
             yield "Done.\n"
         except Exception as exc:  # noqa: BLE001
             yield f"Failed: {exc}\n"
@@ -1249,13 +1293,18 @@ async def cache_purge_stream() -> StreamingResponse:
 async def cache_reload_stream() -> StreamingResponse:
     async def _generator():
         try:
+            yield "Row 1/5\n"
             yield "Reloading all places data...\n"
             master_cache = await load_master_cache(refresh=True)
             rows = master_cache.get("rows", [])
+            yield "Row 2/5\n"
             yield f"Loaded {len(rows)} master rows\n"
+            yield "Row 3/5\n"
             yield "Rebuilding locations cache...\n"
             locations = await fetch_and_cache_locations()
+            yield "Row 4/5\n"
             yield f"Rebuilt locations cache with {len(locations)} rows\n"
+            yield "Row 5/5\n"
             yield "Done.\n"
         except Exception as exc:  # noqa: BLE001
             yield f"Failed: {exc}\n"

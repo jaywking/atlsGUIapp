@@ -23,6 +23,7 @@ class Config:
     MEDICAL_FACILITIES_DB: str | None = os.getenv("MEDICAL_FACILITIES_DB") or os.getenv("NOTION_MEDICAL_DB_ID")
     PRODUCTIONS_MASTER_DB: str | None = os.getenv("PRODUCTIONS_MASTER_DB") or os.getenv("NOTION_PRODUCTIONS_DB_ID")
     PRODUCTIONS_DB_ID: str | None = os.getenv("PRODUCTIONS_DB_ID") or os.getenv("NOTION_PRODUCTIONS_DB_ID")
+    ASSETS_DB_ID: str | None = os.getenv("ASSETS_DB_ID")
     NOTION_DATABASES_PARENT_PAGE_ID: str | None = os.getenv("NOTION_DATABASES_PARENT_PAGE_ID")
     STATUS_ON_RESET: str | None = os.getenv("STATUS_ON_RESET", "Ready")
     STATUS_AFTER_MATCHING: str | None = os.getenv("STATUS_AFTER_MATCHING", "Matched")

@@ -34,7 +34,8 @@ async def stream_generate_medical_facilities_all() -> AsyncGenerator[str, None]:
         "errors": 0,
     }
 
-    for page in pages:
+    for idx, page in enumerate(pages, start=1):
+        yield f"Row {idx}/{total}\n"
         page_id = page.get("id") or ""
         props = page.get("properties") or {}
         er_rel = props.get("ER", {}).get("relation") or []
@@ -164,6 +165,7 @@ async def stream_backfill_medical_facilities_missing() -> AsyncGenerator[str, No
     }
 
     for idx, page in enumerate(pages, start=1):
+        yield f"Row {idx}/{total}\n"
         page_id = page.get("id") or ""
         props = page.get("properties") or {}
         missing = {name for name, ptype in fields.items() if _missing_field(props, name, ptype)}

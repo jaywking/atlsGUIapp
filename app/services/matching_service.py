@@ -144,7 +144,7 @@ async def stream_match_all(
     yield f"Starting Match All... total={total}"
     for idx, record in enumerate(prod_locations, start=1):
         reviewed += 1
-        yield f"Matching {idx}/{total}..."
+        yield f"Row {idx}/{total}"
         if not force and record.get("locations_master_ids"):
             match_noop += 1
             continue

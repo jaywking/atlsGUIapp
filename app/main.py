@@ -35,6 +35,7 @@ from app.ui import admin_tools, dashboard, datatable1, dedup, jobs, layout, loca
 # API router imports
 import app.api.locations_api as locations_api
 from app.api import (
+    assets_api,
     facilities_api,
     jobs_api,
     settings_api,
@@ -57,6 +58,7 @@ fastapi_app.include_router(jobs_api.router)
 fastapi_app.include_router(settings_api.router)
 fastapi_app.include_router(dashboard_api.router)
 fastapi_app.include_router(productions_api.router)
+fastapi_app.include_router(assets_api.router)
 fastapi_app.include_router(notion_admin_api.router)
 fastapi_app.include_router(psl_enrichment_api.router)
 fastapi_app.include_router(schema_report_api.router)
@@ -86,9 +88,9 @@ def production_detail_page(production_id: str):
     layout.shell('Production Details', lambda: production_detail.page_content(production_id))
 
 
-@ui.page('/psl/{production_id}/{master_id}', title='ATLS - PSL Details')
+@ui.page('/psl/{production_id}/{master_id}', title='ATLS - Location Details')
 def psl_detail_page(production_id: str, master_id: str):
-    layout.shell('PSL Details', lambda: psl_detail.page_content(production_id, master_id))
+    layout.shell('Location Details', lambda: psl_detail.page_content(production_id, master_id))
 
 
 @ui.page('/locations', title='ATLS - Locations')

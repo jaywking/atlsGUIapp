@@ -140,6 +140,7 @@ async def psl_detail(production_id: str | None = None, master_id: str | None = N
             "full_address": master_row.get("address") or "",
             "city": master_row.get("city") or "",
             "state": master_row.get("state") or "",
+            "google_maps_url": master_row.get("google_maps_url") or "",
         },
     }
     if records:

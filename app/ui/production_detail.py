@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 import httpx
@@ -25,6 +26,30 @@ def _join_list(values: Any) -> str:
         cleaned = [str(v) for v in values if v]
         return ", ".join(cleaned)
     return str(values)
+
+
+def _parse_iso_datetime(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        text = str(value)
+        if text.endswith("Z"):
+            text = text.replace("Z", "+00:00")
+        return datetime.fromisoformat(text)
+    except Exception:
+        return None
+
+
+def _format_local_datetime(value: Any) -> str:
+    dt = _parse_iso_datetime(value)
+    if not dt:
+        return str(value or "")
+    try:
+        dt = dt.astimezone()
+    except Exception:
+        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.astimezone()
+    return dt.strftime("%Y-%m-%d %H:%M")
 
 
 def page_content(production_id: str) -> None:
@@ -128,7 +153,7 @@ def page_content(production_id: str) -> None:
                     {"name": "state", "label": "State", "field": "state", "sortable": True},
                     {"name": "place_type", "label": "Place Type", "field": "place_type", "sortable": False},
                     {"name": "map", "label": "Map", "field": "google_maps_url", "sortable": False},
-                    {"name": "view_psl", "label": "View PSL", "field": "master_id", "sortable": False},
+                    {"name": "view_psl", "label": "View Details", "field": "master_id", "sortable": False},
                 ]
                 table_rows = []
                 for loc in locations:
@@ -195,7 +220,7 @@ def page_content(production_id: str) -> None:
                             target="_blank"
                             class="text-slate-700 hover:text-slate-900 hover:underline"
                           >
-                            View PSL
+                            Details
                           </a>
                           <span v-else>--</span>
                         </q-td>
@@ -450,7 +475,7 @@ def page_content(production_id: str) -> None:
         meta_block.clear()
         with meta_block:
             _render_kv("Notion URL", production.get("url") or "")
-            _render_kv("Created", production.get("CreatedTime") or "")
-            _render_kv("Last Edited", production.get("LastEditedTime") or "")
+            _render_kv("Created", _format_local_datetime(production.get("CreatedTime")))
+            _render_kv("Last Edited", _format_local_datetime(production.get("LastEditedTime")))
 
     ui.timer(0.1, lambda: asyncio.create_task(load_detail()), once=True)

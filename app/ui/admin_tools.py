@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import sys
 import time
 from typing import Any, Dict, List, Optional, Tuple
@@ -65,6 +66,29 @@ def page_content(request: Request) -> None:
         except Exception:
             return str(data)
 
+    def _upsert_progress_line(current: str, line: str, last_line: str | None) -> tuple[str, str]:
+        if last_line:
+            idx = current.rfind(last_line)
+            if idx != -1:
+                current = current[:idx] + line + current[idx + len(last_line):]
+            else:
+                if current and not current.endswith("\n"):
+                    current += "\n"
+                current += line
+        else:
+            if current and not current.endswith("\n"):
+                current += "\n"
+            current += line
+        return current, line
+
+    def _append_stream_line(current: str, line: str, last_line: str | None) -> str:
+        if last_line and current.endswith(last_line):
+            current += "\n"
+        current += line
+        if not line.endswith("\n"):
+            current += "\n"
+        return current
+
     # Expand to full available width (no max width constraint) for better visibility of admin panels.
     with ui.column().classes("w-full max-w-none gap-3 items-stretch").style("width: 100%; max-width: 100%;"):
         # Section 1 - Match All Locations
@@ -98,6 +122,7 @@ def page_content(request: Request) -> None:
                 match_timer["start"] = time.time()
                 match_timer["running"] = True
                 match_timer_label.set_text("Elapsed: 0s")
+                last_row_line: str | None = None
                 try:
                     async with httpx.AsyncClient(base_url=str(request.base_url), timeout=None) as client:
                         async with client.stream("GET", "/api/locations/match_all_stream") as response:
@@ -105,7 +130,20 @@ def page_content(request: Request) -> None:
                             async for line in response.aiter_lines():
                                 if line is None:
                                     continue
-                                progress_box.value += line + "\n"
+                                current = progress_box.value
+                                if line.startswith("Row "):
+                                    current, last_row_line = _upsert_progress_line(current, line, last_row_line)
+                                    progress_box.value = current
+                                    progress_box.update()
+                                    continue
+                                match = re.match(r"^Matching (\d+)/(\d+)", line or "")
+                                if match:
+                                    row_line = f"Row {match.group(1)}/{match.group(2)}"
+                                    current, last_row_line = _upsert_progress_line(current, row_line, last_row_line)
+                                    progress_box.value = current
+                                    progress_box.update()
+                                    continue
+                                progress_box.value = _append_stream_line(current, line, last_row_line)
                                 progress_box.update()
                 except Exception as exc:  # noqa: BLE001
                     progress_box.value += f"error: {exc}\n"
@@ -114,7 +152,7 @@ def page_content(request: Request) -> None:
                 finally:
                     if match_timer["start"] is not None:
                         elapsed = int(time.time() - match_timer["start"])
-                        match_timer_label.set_text(f"Elapsed: {elapsed}s")
+                        match_timer_label.set_text(f"DONE: {elapsed}s")
                     match_timer["running"] = False
                     btn.enable()
 
@@ -153,6 +191,7 @@ def page_content(request: Request) -> None:
                 schema_timer["start"] = time.time()
                 schema_timer["running"] = True
                 schema_timer_label.set_text("Elapsed: 0s")
+                last_row_line: str | None = None
                 try:
                     async with httpx.AsyncClient(base_url=str(request.base_url), timeout=None) as client:
                         async with client.stream("GET", "/api/locations/schema_update_stream") as response:
@@ -160,7 +199,20 @@ def page_content(request: Request) -> None:
                             async for line in response.aiter_lines():
                                 if line is None:
                                     continue
-                                schema_output.value += line + "\n"
+                                current = schema_output.value
+                                if line.startswith("Row "):
+                                    current, last_row_line = _upsert_progress_line(current, line, last_row_line)
+                                    schema_output.value = current
+                                    schema_output.update()
+                                    continue
+                                match = re.match(r"^Checking (\d+)/(\d+)", line or "")
+                                if match:
+                                    row_line = f"Row {match.group(1)}/{match.group(2)}"
+                                    current, last_row_line = _upsert_progress_line(current, row_line, last_row_line)
+                                    schema_output.value = current
+                                    schema_output.update()
+                                    continue
+                                schema_output.value = _append_stream_line(current, line, last_row_line)
                                 schema_output.update()
                 except Exception as exc:  # noqa: BLE001
                     schema_output.value += f"error: {exc}\n"
@@ -169,7 +221,7 @@ def page_content(request: Request) -> None:
                 finally:
                     if schema_timer["start"] is not None:
                         elapsed = int(time.time() - schema_timer["start"])
-                        schema_timer_label.set_text(f"Elapsed: {elapsed}s")
+                        schema_timer_label.set_text(f"DONE: {elapsed}s")
                     schema_timer["running"] = False
                     schema_btn.enable()
 
@@ -208,6 +260,16 @@ def page_content(request: Request) -> None:
                 cache_timer["start"] = time.time()
                 cache_timer["running"] = True
                 cache_timer_label.set_text("Elapsed: 0s")
+                last_row_line: str | None = None
+                step_index = 0
+                if endpoint.endswith("cache_reload_stream"):
+                    step_total = 5
+                elif endpoint.endswith("cache_refresh_stream"):
+                    step_total = 3
+                elif endpoint.endswith("cache_purge_stream"):
+                    step_total = 3
+                else:
+                    step_total = 0
                 try:
                     async with httpx.AsyncClient(base_url=str(request.base_url), timeout=None) as client:
                         async with client.stream("GET", endpoint) as response:
@@ -215,9 +277,17 @@ def page_content(request: Request) -> None:
                             async for line in response.aiter_lines():
                                 if line is None:
                                     continue
-                                cache_output.value += line
-                                if not line.endswith("\n"):
-                                    cache_output.value += "\n"
+                                current = cache_output.value
+                                if line.startswith("Row "):
+                                    current, last_row_line = _upsert_progress_line(current, line, last_row_line)
+                                    cache_output.value = current
+                                    cache_output.update()
+                                    continue
+                                if step_total and line.strip():
+                                    step_index = min(step_index + 1, step_total)
+                                    row_line = f"Row {step_index}/{step_total}"
+                                    current, last_row_line = _upsert_progress_line(current, row_line, last_row_line)
+                                cache_output.value = _append_stream_line(current, line, last_row_line)
                                 cache_output.update()
                 except Exception as exc:  # noqa: BLE001
                     cache_output.value += f"error: {exc}\n"
@@ -226,7 +296,7 @@ def page_content(request: Request) -> None:
                 finally:
                     if cache_timer["start"] is not None:
                         elapsed = int(time.time() - cache_timer["start"])
-                        cache_timer_label.set_text(f"Elapsed: {elapsed}s")
+                        cache_timer_label.set_text(f"DONE: {elapsed}s")
                     cache_timer["running"] = False
                     btn_ref.enable()
 
@@ -279,6 +349,7 @@ def page_content(request: Request) -> None:
                 report_timer["start"] = time.time()
                 report_timer["running"] = True
                 report_timer_label.set_text("Elapsed: 0s")
+                last_row_line: str | None = None
                 try:
                     async with httpx.AsyncClient(base_url=str(request.base_url), timeout=None) as client:
                         async with client.stream("GET", "/api/schema_report/stream") as response:
@@ -286,9 +357,20 @@ def page_content(request: Request) -> None:
                             async for line in response.aiter_lines():
                                 if line is None:
                                     continue
-                                schema_report_output.value += line
-                                if not line.endswith("\n"):
-                                    schema_report_output.value += "\n"
+                                current = schema_report_output.value
+                                if line.startswith("Row "):
+                                    current, last_row_line = _upsert_progress_line(current, line, last_row_line)
+                                    schema_report_output.value = current
+                                    schema_report_output.update()
+                                    continue
+                                match = re.match(r"^Inspecting (\d+)/(\d+):", line or "")
+                                if match:
+                                    row_line = f"Row {match.group(1)}/{match.group(2)}"
+                                    current, last_row_line = _upsert_progress_line(current, row_line, last_row_line)
+                                    schema_report_output.value = current
+                                    schema_report_output.update()
+                                    continue
+                                schema_report_output.value = _append_stream_line(current, line, last_row_line)
                                 schema_report_output.update()
                 except Exception as exc:  # noqa: BLE001
                     schema_report_output.value += f"error: {exc}\n"
@@ -297,7 +379,7 @@ def page_content(request: Request) -> None:
                 finally:
                     if report_timer["start"] is not None:
                         elapsed = int(time.time() - report_timer["start"])
-                        report_timer_label.set_text(f"Elapsed: {elapsed}s")
+                        report_timer_label.set_text(f"DONE: {elapsed}s")
                     report_timer["running"] = False
                     schema_report_btn.enable()
 
@@ -360,7 +442,7 @@ def page_content(request: Request) -> None:
                 finally:
                     if psl_debug_timer["start"] is not None:
                         elapsed = int(time.time() - psl_debug_timer["start"])
-                        psl_debug_timer_label.set_text(f"Elapsed: {elapsed}s")
+                        psl_debug_timer_label.set_text(f"DONE: {elapsed}s")
                     psl_debug_timer["running"] = False
 
                 master_rows = payload_master.get("data") if ok_master else []
@@ -402,13 +484,14 @@ def page_content(request: Request) -> None:
                 on_click=lambda e: start_task(load_production_debug()),
             ).classes("bg-slate-900 text-white hover:bg-slate-800 px-3 py-1 mt-2")
 
-        # Section 8 - Generate Medical Facilities
-        with ui.expansion("Generate Medical Facilities", icon="local_hospital").classes(
+        # Section 8 - Medical Facilities
+        with ui.expansion("Medical Facilities", icon="local_hospital").classes(
             "border border-slate-200 dark:border-slate-700"
         ):
             ui.label(
-                "Finds nearby ER and Urgent Care locations and links them to each Locations Master row."
+                "Generate nearby ER/Urgent Care links, or backfill missing Medical Facilities fields."
             ).classes("text-sm text-slate-500")
+            ui.label("Generate Medical Facilities (Locations Master)").classes("text-sm text-slate-700 font-semibold")
             medfac_timer = {"start": None, "running": False}
             medfac_timer_label = ui.label("Elapsed: 0s").classes("text-sm text-slate-500")
 
@@ -434,6 +517,7 @@ def page_content(request: Request) -> None:
                 medfac_timer["start"] = time.time()
                 medfac_timer["running"] = True
                 medfac_timer_label.set_text("Elapsed: 0s")
+                last_row_line: str | None = None
                 try:
                     async with httpx.AsyncClient(base_url=str(request.base_url), timeout=None) as client:
                         async with client.stream("GET", "/api/medicalfacilities/generate_all_stream") as response:
@@ -441,9 +525,13 @@ def page_content(request: Request) -> None:
                             async for line in response.aiter_lines():
                                 if line is None:
                                     continue
-                                medfac_output.value += line
-                                if not line.endswith("\n"):
-                                    medfac_output.value += "\n"
+                                current = medfac_output.value
+                                if line.startswith("Row "):
+                                    current, last_row_line = _upsert_progress_line(current, line, last_row_line)
+                                    medfac_output.value = current
+                                    medfac_output.update()
+                                    continue
+                                medfac_output.value = _append_stream_line(current, line, last_row_line)
                                 medfac_output.update()
                 except Exception as exc:  # noqa: BLE001
                     medfac_output.value += f"error: {exc}\n"
@@ -452,7 +540,7 @@ def page_content(request: Request) -> None:
                 finally:
                     if medfac_timer["start"] is not None:
                         elapsed = int(time.time() - medfac_timer["start"])
-                        medfac_timer_label.set_text(f"Elapsed: {elapsed}s")
+                        medfac_timer_label.set_text(f"DONE: {elapsed}s")
                     medfac_timer["running"] = False
                     medfac_btn.enable()
 
@@ -462,10 +550,8 @@ def page_content(request: Request) -> None:
                 on_click=lambda e: start_task(run_medfac_stream()),
             ).classes("bg-slate-900 text-white hover:bg-slate-800 px-3 py-1 mt-2")
 
-        # Section 8.5 - Medical Facilities Maintenance
-        with ui.expansion("Medical Facilities Maintenance", icon="build").classes(
-            "border border-slate-200 dark:border-slate-700"
-        ):
+            ui.separator()
+            ui.label("Medical Facilities Maintenance (Backfill Missing Fields)").classes("text-sm text-slate-700 font-semibold mt-2")
             ui.label(
                 "Backfills missing Medical Facilities fields from Google (fills blanks only)."
             ).classes("text-sm text-slate-500")
@@ -493,6 +579,7 @@ def page_content(request: Request) -> None:
                 medfac_maint_timer["start"] = time.time()
                 medfac_maint_timer["running"] = True
                 medfac_maint_timer_label.set_text("Elapsed: 0s")
+                last_row_line: str | None = None
                 try:
                     async with httpx.AsyncClient(base_url=str(request.base_url), timeout=None) as client:
                         async with client.stream("GET", "/api/medicalfacilities/maintenance_stream") as response:
@@ -500,9 +587,31 @@ def page_content(request: Request) -> None:
                             async for line in response.aiter_lines():
                                 if line is None:
                                     continue
-                                medfac_maint_output.value += line
+                                current = medfac_maint_output.value
+                                if line.startswith("Row "):
+                                    if last_row_line:
+                                        idx = current.rfind(last_row_line)
+                                        if idx != -1:
+                                            current = current[:idx] + line + current[idx + len(last_row_line):]
+                                        else:
+                                            if current and not current.endswith("\n"):
+                                                current += "\n"
+                                            current += line
+                                    else:
+                                        if current and not current.endswith("\n"):
+                                            current += "\n"
+                                        current += line
+                                    last_row_line = line
+                                    medfac_maint_output.value = current
+                                    medfac_maint_output.update()
+                                    continue
+
+                                if last_row_line and current.endswith(last_row_line):
+                                    current += "\n"
+                                current += line
                                 if not line.endswith("\n"):
-                                    medfac_maint_output.value += "\n"
+                                    current += "\n"
+                                medfac_maint_output.value = current
                                 medfac_maint_output.update()
                 except Exception as exc:  # noqa: BLE001
                     medfac_maint_output.value += f"error: {exc}\n"
@@ -511,7 +620,7 @@ def page_content(request: Request) -> None:
                 finally:
                     if medfac_maint_timer["start"] is not None:
                         elapsed = int(time.time() - medfac_maint_timer["start"])
-                        medfac_maint_timer_label.set_text(f"Elapsed: {elapsed}s")
+                        medfac_maint_timer_label.set_text(f"DONE: {elapsed}s")
                     medfac_maint_timer["running"] = False
                     medfac_maint_btn.enable()
 
@@ -550,6 +659,7 @@ def page_content(request: Request) -> None:
                 dedup_timer["start"] = time.time()
                 dedup_timer["running"] = True
                 dedup_timer_label.set_text("Elapsed: 0s")
+                last_row_line: str | None = None
                 try:
                     async with httpx.AsyncClient(base_url=str(request.base_url), timeout=None) as client:
                         async with client.stream("GET", "/api/locations/dedup_stream") as response:
@@ -557,9 +667,13 @@ def page_content(request: Request) -> None:
                             async for line in response.aiter_lines():
                                 if line is None:
                                     continue
-                                dedup_output.value += line
-                                if not line.endswith("\n"):
-                                    dedup_output.value += "\n"
+                                current = dedup_output.value
+                                if line.startswith("Row "):
+                                    current, last_row_line = _upsert_progress_line(current, line, last_row_line)
+                                    dedup_output.value = current
+                                    dedup_output.update()
+                                    continue
+                                dedup_output.value = _append_stream_line(current, line, last_row_line)
                                 dedup_output.update()
                 except Exception as exc:  # noqa: BLE001
                     dedup_output.value += f"error: {exc}\n"
@@ -567,7 +681,7 @@ def page_content(request: Request) -> None:
                 finally:
                     if dedup_timer["start"] is not None:
                         elapsed = int(time.time() - dedup_timer["start"])
-                        dedup_timer_label.set_text(f"Elapsed: {elapsed}s")
+                        dedup_timer_label.set_text(f"DONE: {elapsed}s")
                     dedup_timer["running"] = False
                     dedup_btn.enable()
 
@@ -606,6 +720,7 @@ def page_content(request: Request) -> None:
                 diag_timer["start"] = time.time()
                 diag_timer["running"] = True
                 diag_timer_label.set_text("Elapsed: 0s")
+                last_row_line: str | None = None
                 try:
                     async with httpx.AsyncClient(base_url=str(request.base_url), timeout=None) as client:
                         async with client.stream("GET", "/api/locations/diagnostics_stream") as response:
@@ -613,9 +728,13 @@ def page_content(request: Request) -> None:
                             async for line in response.aiter_lines():
                                 if line is None:
                                     continue
-                                diag_output.value += line
-                                if not line.endswith("\n"):
-                                    diag_output.value += "\n"
+                                current = diag_output.value
+                                if line.startswith("Row "):
+                                    current, last_row_line = _upsert_progress_line(current, line, last_row_line)
+                                    diag_output.value = current
+                                    diag_output.update()
+                                    continue
+                                diag_output.value = _append_stream_line(current, line, last_row_line)
                                 diag_output.update()
                 except Exception as exc:  # noqa: BLE001
                     diag_output.value += f"error: {exc}\n"
@@ -624,7 +743,7 @@ def page_content(request: Request) -> None:
                 finally:
                     if diag_timer["start"] is not None:
                         elapsed = int(time.time() - diag_timer["start"])
-                        diag_timer_label.set_text(f"Elapsed: {elapsed}s")
+                        diag_timer_label.set_text(f"DONE: {elapsed}s")
                     diag_timer["running"] = False
                     diag_btn.enable()
 
@@ -664,14 +783,14 @@ def page_content(request: Request) -> None:
                     sys_output.update()
                     if sys_timer["start"] is not None:
                         elapsed = int(time.time() - sys_timer["start"])
-                        sys_timer_label.set_text(f"Elapsed: {elapsed}s")
+                        sys_timer_label.set_text(f"DONE: {elapsed}s")
                     sys_timer["running"] = False
                     return
                 sys_output.content = format_json(payload)
                 sys_output.update()
                 if sys_timer["start"] is not None:
                     elapsed = int(time.time() - sys_timer["start"])
-                    sys_timer_label.set_text(f"Elapsed: {elapsed}s")
+                    sys_timer_label.set_text(f"DONE: {elapsed}s")
                 sys_timer["running"] = False
 
             ui.button(

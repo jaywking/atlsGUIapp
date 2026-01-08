@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 import httpx
@@ -16,14 +17,40 @@ def _render_kv(label: str, value: str) -> None:
         ui.label(value or "--").classes("text-sm text-slate-900 dark:text-slate-200")
 
 
+def _parse_iso_datetime(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        text = str(value)
+        if text.endswith("Z"):
+            text = text.replace("Z", "+00:00")
+        return datetime.fromisoformat(text)
+    except Exception:
+        return None
+
+
+def _format_local_datetime(value: Any) -> str:
+    dt = _parse_iso_datetime(value)
+    if not dt:
+        return str(value or "")
+    try:
+        dt = dt.astimezone()
+    except Exception:
+        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.astimezone()
+    return dt.strftime("%Y-%m-%d %H:%M")
+
+
 def page_content(production_id: str, master_id: str) -> None:
-    title_label = ui.label("PSL Details").classes("text-xl font-semibold")
+    name_label = ui.label("").classes("text-xl font-semibold")
     subtitle_label = ui.label("").classes("text-sm text-slate-500")
+    practical_label = ui.label("").classes("text-sm text-slate-500")
 
     with ui.row().classes(f"{PAGE_HEADER_CLASSES} min-h-[52px] items-center justify-between"):
         with ui.column().classes("w-full"):
-            title_label
+            name_label
             subtitle_label
+            practical_label
 
     with ui.row().classes("items-center gap-2"):
         loading_spinner = ui.spinner(size="md").props("color=primary")
@@ -58,7 +85,9 @@ def page_content(production_id: str, master_id: str) -> None:
 
         production = context.get("production") or {}
         location = context.get("location") or {}
-        subtitle_label.set_text(f"{production.get('name', '')} • {location.get('practical_name', '')}".strip(" •"))
+        name_label.set_text(location.get("psl_location_name") or "Location Details")
+        subtitle_label.set_text(production.get("name") or "")
+        practical_label.set_text(location.get("practical_name") or "")
 
         context_block.clear()
         with context_block:
@@ -77,12 +106,15 @@ def page_content(production_id: str, master_id: str) -> None:
                         else:
                             ui.label("--").classes("text-sm text-slate-900 dark:text-slate-200")
                     _render_kv("Practical Name", location.get("practical_name") or "")
-                    _render_kv("Location Name (PSL)", location.get("psl_location_name") or "")
-                    _render_kv("Full Address", location.get("full_address") or "")
-                    _render_kv(
-                        "City / State",
-                        f"{location.get('city', '')}, {location.get('state', '')}".strip(", "),
-                    )
+                    with ui.row().classes("w-full items-start gap-2"):
+                        ui.label("Full Address").classes("text-sm text-slate-500 w-48 shrink-0")
+                        with ui.row().classes("items-center gap-2 flex-wrap"):
+                            ui.label(location.get("full_address") or "--").classes("text-sm text-slate-900 dark:text-slate-200")
+                            google_maps_url = location.get("google_maps_url") or ""
+                            if google_maps_url:
+                                ui.link("map", google_maps_url).props("target=_blank").classes(
+                                    "text-slate-700 hover:text-slate-900"
+                                )
 
         table_block.clear()
         with table_block:
@@ -111,8 +143,8 @@ def page_content(production_id: str, master_id: str) -> None:
             else:
                 for row in rows:
                     ui.label(row.get("psl_id") or "PSL Row").classes("text-sm font-semibold")
-                    _render_kv("Created", row.get("created_time") or "")
-                    _render_kv("Last Updated", row.get("updated_time") or "")
+                    _render_kv("Created", _format_local_datetime(row.get("created_time")))
+                    _render_kv("Last Updated", _format_local_datetime(row.get("updated_time")))
                     _render_kv("Notion Page ID", row.get("notion_page_id") or "")
 
     ui.timer(0.1, lambda: asyncio.create_task(load_detail()), once=True)

@@ -4116,3 +4116,66 @@ Changes
 
 Testing
 - Not run (not requested).
+
+Date: 2026-01-07 12:45 -0500 (Session 104)
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary
+- Standardized Admin Tools streaming UX (single-line Row n/total progress and DONE timers) across tools.
+- Consolidated Medical Facilities admin actions into one panel with separate Generate/Maintenance sections.
+- Refined PSL Details layout, removed redundant fields, added map link, and localized metadata timestamps.
+- Production Detail metadata now renders timestamps in local time; documentation rule added for local-time display.
+
+Changes
+- `app/ui/admin_tools.py`
+- `app/api/locations_api.py`
+- `app/services/matching_service.py`
+- `app/services/schema_report.py`
+- `app/services/medical_facilities_runner.py`
+- `app/ui/production_detail.py`
+- `app/ui/psl_detail.py`
+- `app/api/psl_enrichment_api.py`
+- `docs/PROJECT_HANDBOOK.md`
+
+Testing
+- Not run (UI/streaming changes only).
+
+Date: 2026-01-07 13:15 -0500 (Session 105)
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary
+- Added Assets Editing Flow spec and implemented explicit asset edit UI for existing assets (PIC/AST/FOL) with validation and save/cancel staging.
+- Added Assets API endpoints for edit options and atomic updates against the Assets table only.
+- Wired Location Detail asset entries with Edit actions and inline refresh on success.
+
+Changes
+- `docs/ASSET_EDITING_FLOW.md`
+- `app/services/notion_assets.py`
+- `app/api/assets_api.py`
+- `app/main.py`
+- `app/ui/location_detail.py`
+
+Testing
+- Not run (UI/API integration only).
+
+### 2026-01-05 - Assets Model Introduced (Design Locked)
+
+A canonical Assets model was defined and locked to support referencing external folders, documents, and photos within ATLSApp.
+
+Key decisions:
+- Assets are reference-only; no file storage, uploads, or Drive crawling
+- Distinct human-facing ID prefixes introduced:
+  - PIC### for promoted photos
+  - FOL### for folders
+  - AST### for all other assets
+- Photos physically remain inside production location folders
+- Individual photos may be explicitly promoted to Assets when independent reference is required
+- Hero photos are explicitly selected Photo Assets (PIC###), never automatic
+- Photo Assets carry both Production-specific Location context and Locations Master context
+- Hazard Types are multi-select to support multiple hazards per image
+
+The full design, schema, and rules are documented in:
+
+docs/ASSETS_MODEL.md

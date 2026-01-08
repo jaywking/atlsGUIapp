@@ -545,6 +545,7 @@ Short milestone summary posted back to ChatGPT to align PM + Dev agent context.
 - Control bars: keep controls left-aligned with consistent gaps (gap-2), minimum height around 52px, and keep controls on one line until the viewport forces wrap.
 - Table containers: wrap each table in an `overflow-x-auto` block with light vertical padding to keep spacing consistent.
 - Hover/focus: use `hover:bg-slate-100` on buttons and links for consistent feedback.
+- All timestamps must display in local time (convert from ISO/UTC inputs).
 - New Admin Tools page (v0.8.4): replaces Dedup Simple in the sidebar, centralizes admin/debug/maintenance operations, is visible only when `DEBUG_ADMIN=true`, and uses collapsible sections for each tool.
 - Address Normalization UI is retired; normalization now runs only during ingestion (imports/repair pipelines). Do not re-enable the panel.
 - Medical Facilities Maintenance (Admin Tools): backfills missing MF fields from Google Place Details, fills blanks only (no overwrites), and requires `Place_ID`.
@@ -796,3 +797,18 @@ Master canonicalization and matching stability: Locations Master rows must be re
 - Keep changes modular  
 - Update `DEV_NOTES.md` every session  
 - Follow this Handbook and the Project Framework
+
+## Assets & Media References
+
+ATLSApp supports referencing external assets (folders, documents, and selected photos) associated with Productions and Locations. Assets are reference-only and point to externally managed files, primarily in Google Drive. The system does not store files, upload binaries, or manage file permissions.
+
+The Assets system supports:
+- Folder references (e.g. production folders, location photo folders)
+- Document references (e.g. scripts, schedules, assessments)
+- Promoted photo references, including explicit Hero photos for Locations
+
+The complete design, rules, schema, and guardrails for the Assets system are defined in the canonical document:
+
+**docs/ASSETS_MODEL.md**
+
+All Assets-related development, UI behavior, and automation must align with that document.
