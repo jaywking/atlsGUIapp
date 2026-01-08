@@ -39,7 +39,7 @@ def _thumbnail_html(url: str, alt: str) -> str:
     safe_alt = alt.replace('"', "")
     return (
         f'<a href="{safe_url}" target="_blank" rel="noopener">'
-        f'<img src="{safe_url}" alt="{safe_alt}" class="w-20 h-20 object-cover rounded" />'
+        f'<img src="{safe_url}" alt="{safe_alt}" class="w-20 h-20 object-cover rounded" referrerpolicy="no-referrer" />'
         "</a>"
     )
 
@@ -143,7 +143,10 @@ def page_content(master_id: str) -> None:
             )
             # TODO: add explicit hero replacement action once admin UI is approved.
             if hero_asset and hero_asset.get("external_url"):
-                ui.html(_thumbnail_html(hero_asset["external_url"], hero_asset.get("asset_name") or "Hero Photo"))
+                ui.html(
+                    _thumbnail_html(hero_asset["external_url"], hero_asset.get("asset_name") or "Hero Photo"),
+                    sanitize=False,
+                )
                 hero_id = hero_asset.get("asset_id") or ""
                 hero_diags = compute_asset_diagnostics(
                     hero_asset,
@@ -234,7 +237,10 @@ def page_content(master_id: str) -> None:
                         if thumbnails:
                             with ui.row().classes("items-center gap-2"):
                                 for photo in thumbnails:
-                                    ui.html(_thumbnail_html(photo["external_url"], photo.get("asset_name") or "Photo"))
+                                    ui.html(
+                                        _thumbnail_html(photo["external_url"], photo.get("asset_name") or "Photo"),
+                                        sanitize=False,
+                                    )
 
         promoted_section.clear()
         with promoted_section:
@@ -256,7 +262,10 @@ def page_content(master_id: str) -> None:
                 for asset in promoted_assets:
                     with ui.row().classes("w-full gap-4 items-start"):
                         if asset.get("external_url"):
-                            ui.html(_thumbnail_html(asset["external_url"], asset.get("asset_name") or "Photo"))
+                            ui.html(
+                                _thumbnail_html(asset["external_url"], asset.get("asset_name") or "Photo"),
+                                sanitize=False,
+                            )
                         with ui.column().classes("gap-1"):
                             with ui.row().classes("items-center gap-2"):
                                 ui.label(asset.get("asset_name") or "Photo").classes("text-sm font-semibold text-slate-700")

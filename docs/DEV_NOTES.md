@@ -4297,6 +4297,33 @@ Changes
 Testing
 - Not run (documentation only).
 
+Date: 2026-01-08 12:55 -0500 (Session 114)
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary
+- Fixed NiceGUI Html rendering by setting sanitize=False for hero thumbnails and medical list links.
+
+Changes
+- `app/ui/location_detail.py`
+- `app/ui/medical_list.py`
+
+Testing
+- Not run (UI change only).
+
+Date: 2026-01-08 13:20 -0500 (Session 115)
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary
+- Added no-referrer policy to hero thumbnails to avoid Drive embed blocks.
+
+Changes
+- `app/ui/location_detail.py`
+
+Testing
+- Not run (UI change only).
+
 ### 2026-01-05 - Assets Model Introduced (Design Locked)
 
 A canonical Assets model was defined and locked to support referencing external folders, documents, and photos within ATLSApp.

@@ -66,7 +66,8 @@ def page_content() -> None:
                   </a>
                   <span v-else>{{ props.row.facility_name }}</span>
                 </q-td>
-                """
+                """,
+                sanitize=False,
             )
 
         with table.add_slot("body-cell-actions"):
@@ -83,7 +84,8 @@ def page_content() -> None:
                   </a>
                   <span v-else>--</span>
                 </q-td>
-                """
+                """,
+                sanitize=False,
             )
 
     def set_loading(is_loading: bool) -> None:
