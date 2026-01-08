@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any, Dict, List
+from urllib.parse import urlparse
 
 import httpx
 from nicegui import ui
@@ -42,6 +43,71 @@ def _thumbnail_html(url: str, alt: str) -> str:
     )
 
 
+def _is_valid_url(value: str) -> bool:
+    if not value:
+        return False
+    try:
+        parsed = urlparse(value)
+        return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+    except Exception:
+        return False
+
+
+def _asset_diagnostics_base(asset: Dict[str, Any], hero_conflicts: set[str]) -> List[Dict[str, str]]:
+    diags: List[Dict[str, str]] = []
+    asset_id = asset.get("asset_id") or ""
+    prefix = _asset_prefix(asset_id)
+    production_ids = asset.get("production_ids") or []
+    prod_loc_ids = asset.get("prod_loc_ids") or []
+    master_ids = asset.get("locations_master_ids") or []
+
+    # Missing or weak context
+    if prefix == "PIC" and production_ids and not master_ids:
+        diags.append({"severity": "INFO", "label": "Missing LocationsMasterID"})
+    if prefix == "PIC" and production_ids and not prod_loc_ids:
+        diags.append({"severity": "INFO", "label": "Missing ProdLocID"})
+    if prefix == "FOL" and not prod_loc_ids:
+        diags.append({"severity": "INFO", "label": "Missing ProdLocID"})
+
+    # Metadata gaps
+    if prefix == "PIC" and not (asset.get("asset_name") or "").strip():
+        diags.append({"severity": "CHECK", "label": "Missing Asset Name"})
+    if prefix == "PIC" and not (asset.get("notes") or "").strip():
+        diags.append({"severity": "INFO", "label": "Missing Notes"})
+    if prefix == "PIC" and not (asset.get("hazard_types") or []):
+        diags.append({"severity": "INFO", "label": "No Hazard Types"})
+    if prefix == "AST" and not (asset.get("asset_categories") or []):
+        diags.append({"severity": "CHECK", "label": "No Asset Category"})
+
+    # Visibility inconsistencies
+    if asset_id and asset_id in hero_conflicts:
+        diags.append({"severity": "WARNING", "label": "Multiple Hero photos for location"})
+
+    # External URL issues
+    external_url = (asset.get("external_url") or "").strip()
+    if not external_url:
+        diags.append({"severity": "WARNING", "label": "Missing External URL"})
+    elif not _is_valid_url(external_url):
+        diags.append({"severity": "WARNING", "label": "Invalid External URL"})
+
+    return diags
+
+
+def _render_diagnostics(diags: List[Dict[str, str]]) -> None:
+    if not diags:
+        return
+    with ui.row().classes("items-center gap-2 flex-wrap mt-1"):
+        for diag in diags:
+            severity = diag.get("severity") or "INFO"
+            label = diag.get("label") or ""
+            if severity == "WARNING":
+                classes = "text-xs px-2 py-0.5 rounded border border-rose-200 text-rose-700 bg-rose-50"
+            elif severity == "CHECK":
+                classes = "text-xs px-2 py-0.5 rounded border border-amber-200 text-amber-700 bg-amber-50"
+            else:
+                classes = "text-xs px-2 py-0.5 rounded border border-slate-200 text-slate-600 bg-slate-50"
+            ui.label(f"{severity}: {label}").classes(classes)
+
 def page_content(master_id: str) -> None:
     state: Dict[str, Any] = {"location": None, "productions": [], "assets": [], "assets_warning": "", "asset_options": None}
 
@@ -58,6 +124,8 @@ def page_content(master_id: str) -> None:
         status_label = ui.label("Loading location details...").classes("text-sm text-slate-500")
         assets_notice = ui.label("").classes("text-sm text-amber-600")
         assets_notice.set_visibility(False)
+        assets_diag_summary = ui.label("").classes("text-sm text-slate-500")
+        assets_diag_summary.set_visibility(False)
 
     hero_section = ui.column().classes("w-full gap-2")
     core_section = ui.column().classes("w-full gap-2")
@@ -264,6 +332,28 @@ def page_content(master_id: str) -> None:
         productions: List[Dict[str, str]] = state["productions"] or []
         assets: List[Dict[str, Any]] = state["assets"] or []
 
+        hero_conflicts: set[str] = set()
+        hero_by_location: Dict[str, List[str]] = {}
+        for asset in assets:
+            asset_id = asset.get("asset_id") or ""
+            if _asset_prefix(asset_id) != "PIC":
+                continue
+            if (asset.get("visibility_flag") or "") != "Hero":
+                continue
+            for loc_id in asset.get("locations_master_ids") or []:
+                hero_by_location.setdefault(loc_id, []).append(asset_id)
+        for loc_id, asset_ids in hero_by_location.items():
+            if len(asset_ids) > 1:
+                hero_conflicts.update(asset_ids)
+
+        base_diags: Dict[str, List[Dict[str, str]]] = {}
+        for asset in assets:
+            asset_id = asset.get("asset_id") or ""
+            base_diags[asset_id] = _asset_diagnostics_base(asset, hero_conflicts)
+
+        surfaced_assets: set[str] = set()
+        diag_assets: set[str] = set()
+
         location_name = loc.get("practical_name") or loc.get("name") or master_id
         title_label.set_text(location_name)
         subtitle_label.set_text(loc.get("master_id") or master_id)
@@ -289,6 +379,15 @@ def page_content(master_id: str) -> None:
             # TODO: add explicit hero replacement action once admin UI is approved.
             if hero_asset and hero_asset.get("external_url"):
                 ui.html(_thumbnail_html(hero_asset["external_url"], hero_asset.get("asset_name") or "Hero Photo"))
+                hero_id = hero_asset.get("asset_id") or ""
+                hero_diags = list(base_diags.get(hero_id) or [])
+                if (hero_asset.get("visibility_flag") or "") == "Hidden":
+                    hero_diags.append({"severity": "CHECK", "label": "Hidden asset surfaced"})
+                _render_diagnostics(hero_diags)
+                if hero_id:
+                    surfaced_assets.add(hero_id)
+                    if hero_diags:
+                        diag_assets.add(hero_id)
                 ui.button(
                     "Edit",
                     icon="edit",
@@ -347,6 +446,15 @@ def page_content(master_id: str) -> None:
                                     icon="edit",
                                     on_click=lambda e, asset=folder: asyncio.create_task(open_edit(asset)),
                                 ).classes("bg-slate-900 text-white hover:bg-slate-800 px-2 py-1 text-xs")
+                        folder_id = folder.get("asset_id") or ""
+                        folder_diags = list(base_diags.get(folder_id) or [])
+                        if (folder.get("visibility_flag") or "") == "Hidden":
+                            folder_diags.append({"severity": "CHECK", "label": "Hidden asset surfaced"})
+                        _render_diagnostics(folder_diags)
+                        if folder_id:
+                            surfaced_assets.add(folder_id)
+                            if folder_diags:
+                                diag_assets.add(folder_id)
                         prod_ids = folder.get("production_ids") or []
                         thumbnails = []
                         for photo in photo_assets:
@@ -392,6 +500,15 @@ def page_content(master_id: str) -> None:
                                     icon="edit",
                                     on_click=lambda e, asset=asset: asyncio.create_task(open_edit(asset)),
                                 ).classes("bg-slate-900 text-white hover:bg-slate-800 px-2 py-1 text-xs")
+                            promoted_id = asset.get("asset_id") or ""
+                            promoted_diags = list(base_diags.get(promoted_id) or [])
+                            if (asset.get("visibility_flag") or "") == "Hidden":
+                                promoted_diags.append({"severity": "CHECK", "label": "Hidden asset surfaced"})
+                            _render_diagnostics(promoted_diags)
+                            if promoted_id:
+                                surfaced_assets.add(promoted_id)
+                                if promoted_diags:
+                                    diag_assets.add(promoted_id)
                             if asset.get("notes"):
                                 ui.label(asset["notes"]).classes("text-sm text-slate-600")
                             source_name = (asset.get("source_production_names") or asset.get("production_names") or [""])[0]
@@ -417,6 +534,15 @@ def page_content(master_id: str) -> None:
                                     icon="edit",
                                     on_click=lambda e, asset=asset: asyncio.create_task(open_edit(asset)),
                                 ).classes("bg-slate-900 text-white hover:bg-slate-800 px-2 py-1 text-xs")
+                            other_id = asset.get("asset_id") or ""
+                            other_diags = list(base_diags.get(other_id) or [])
+                            if (asset.get("visibility_flag") or "") == "Hidden":
+                                other_diags.append({"severity": "CHECK", "label": "Hidden asset surfaced"})
+                            _render_diagnostics(other_diags)
+                            if other_id:
+                                surfaced_assets.add(other_id)
+                                if other_diags:
+                                    diag_assets.add(other_id)
                             categories = ", ".join(asset.get("asset_categories") or [])
                             if categories:
                                 ui.label(f"Category: {categories}").classes("text-xs text-slate-500")
@@ -429,6 +555,13 @@ def page_content(master_id: str) -> None:
                             )
             else:
                 other_assets_section.set_visibility(False)
+
+        diag_count = len(diag_assets)
+        if diag_count > 1:
+            assets_diag_summary.set_text(f"{diag_count} assets have checks.")
+            assets_diag_summary.set_visibility(True)
+        else:
+            assets_diag_summary.set_visibility(False)
 
         related_section.clear()
         with related_section:

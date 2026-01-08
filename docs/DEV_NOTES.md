@@ -4160,6 +4160,21 @@ Changes
 Testing
 - Not run (UI/API integration only).
 
+Date: 2026-01-07 14:05 -0500 (Session 106)
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary
+- Added Light Asset Validation & Diagnostics spec and implemented read-only asset diagnostics on Location Detail.
+- Diagnostics are computed in the UI and rendered as subtle badges with an optional page summary.
+
+Changes
+- `docs/LIGHT_ASSET_VALIDATION_DIAGNOSTICS.md`
+- `app/ui/location_detail.py`
+
+Testing
+- Not run (UI-only diagnostics).
+
 ### 2026-01-05 - Assets Model Introduced (Design Locked)
 
 A canonical Assets model was defined and locked to support referencing external folders, documents, and photos within ATLSApp.
