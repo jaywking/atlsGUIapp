@@ -135,6 +135,74 @@ def _asset_prefix(asset_id: str) -> str:
     return (asset_id or "")[:3].upper()
 
 
+def _normalize_asset_page(page: Dict[str, Any]) -> Dict[str, Any]:
+    props = page.get("properties") or {}
+    asset_id = _title(props, "Asset ID")
+    return {
+        "asset_id": asset_id,
+        "asset_prefix": _asset_prefix(asset_id),
+        "asset_name": _rich_text(props, "Asset Name"),
+        "asset_type": _select(props, "Asset Type"),
+        "asset_categories": _multi_select(props, "Asset Category"),
+        "external_url": _url(props, "External URL"),
+        "production_ids": _relation_ids(props, "ProductionID"),
+        "prod_loc_ids": _relation_ids(props, "ProdLocID"),
+        "locations_master_ids": _relation_ids(props, "LocationsMasterID"),
+        "source_production_ids": _relation_ids(props, "Source Production"),
+        "notes": _rich_text(props, "Notes"),
+        "hazard_types": _multi_select(props, "Hazard Types"),
+        "date_taken": _date(props, "Date Taken"),
+        "visibility_flag": _select(props, "Visibility Flag"),
+        "notion_page_id": page.get("id") or "",
+    }
+
+
+async def fetch_all_assets() -> List[Dict[str, Any]]:
+    pages = await _query_assets(filter_block=None)
+    assets = [_normalize_asset_page(page) for page in pages]
+
+    production_ids: List[str] = []
+    source_production_ids: List[str] = []
+    locations_master_ids: List[str] = []
+    prod_loc_ids: List[str] = []
+    for asset in assets:
+        production_ids.extend(asset.get("production_ids") or [])
+        source_production_ids.extend(asset.get("source_production_ids") or [])
+        locations_master_ids.extend(asset.get("locations_master_ids") or [])
+        prod_loc_ids.extend(asset.get("prod_loc_ids") or [])
+
+    title_map = await _resolve_titles(production_ids + source_production_ids + locations_master_ids + prod_loc_ids)
+    for asset in assets:
+        asset["production_names"] = [title_map.get(pid, pid) for pid in asset.get("production_ids") or []]
+        asset["source_production_names"] = [title_map.get(pid, pid) for pid in asset.get("source_production_ids") or []]
+        asset["locations_master_names"] = [title_map.get(pid, pid) for pid in asset.get("locations_master_ids") or []]
+        asset["prod_loc_names"] = [title_map.get(pid, pid) for pid in asset.get("prod_loc_ids") or []]
+
+    return assets
+
+
+async def fetch_asset_by_id(asset_id: str) -> Dict[str, Any] | None:
+    if not asset_id:
+        return None
+    filter_block = {"property": "Asset ID", "title": {"equals": asset_id}}
+    pages = await _query_assets(filter_block=filter_block)
+    if not pages:
+        return None
+    asset = _normalize_asset_page(pages[0])
+
+    title_map = await _resolve_titles(
+        (asset.get("production_ids") or [])
+        + (asset.get("source_production_ids") or [])
+        + (asset.get("locations_master_ids") or [])
+        + (asset.get("prod_loc_ids") or [])
+    )
+    asset["production_names"] = [title_map.get(pid, pid) for pid in asset.get("production_ids") or []]
+    asset["source_production_names"] = [title_map.get(pid, pid) for pid in asset.get("source_production_ids") or []]
+    asset["locations_master_names"] = [title_map.get(pid, pid) for pid in asset.get("locations_master_ids") or []]
+    asset["prod_loc_names"] = [title_map.get(pid, pid) for pid in asset.get("prod_loc_ids") or []]
+    return asset
+
+
 async def fetch_assets_schema() -> Dict[str, Any]:
     db_id = Config.ASSETS_DB_ID
     if not db_id:
@@ -166,37 +234,12 @@ async def fetch_assets_for_location(location_page_id: str) -> List[Dict[str, Any
     filter_block = {"property": "LocationsMasterID", "relation": {"contains": location_page_id}}
     pages = await _query_assets(filter_block=filter_block)
 
-    assets: List[Dict[str, Any]] = []
+    assets = [_normalize_asset_page(page) for page in pages]
     production_ids: List[str] = []
     source_production_ids: List[str] = []
-
-    for page in pages:
-        props = page.get("properties") or {}
-        asset_id = _title(props, "Asset ID")
-        production_rel = _relation_ids(props, "ProductionID")
-        source_rel = _relation_ids(props, "Source Production")
-        production_ids.extend(production_rel)
-        source_production_ids.extend(source_rel)
-
-        assets.append(
-            {
-                "asset_id": asset_id,
-                "asset_prefix": _asset_prefix(asset_id),
-                "asset_name": _rich_text(props, "Asset Name"),
-                "asset_type": _select(props, "Asset Type"),
-                "asset_categories": _multi_select(props, "Asset Category"),
-                "external_url": _url(props, "External URL"),
-                "production_ids": production_rel,
-                "prod_loc_ids": _relation_ids(props, "ProdLocID"),
-                "locations_master_ids": _relation_ids(props, "LocationsMasterID"),
-                "source_production_ids": source_rel,
-                "notes": _rich_text(props, "Notes"),
-                "hazard_types": _multi_select(props, "Hazard Types"),
-                "date_taken": _date(props, "Date Taken"),
-                "visibility_flag": _select(props, "Visibility Flag"),
-                "notion_page_id": page.get("id") or "",
-            }
-        )
+    for asset in assets:
+        production_ids.extend(asset.get("production_ids") or [])
+        source_production_ids.extend(asset.get("source_production_ids") or [])
 
     title_map = await _resolve_titles(production_ids + source_production_ids)
     for asset in assets:

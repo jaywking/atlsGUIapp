@@ -1,0 +1,4 @@
+﻿Asset ID,Asset Name,Asset Type,Asset Category,External URL,ProductionID,ProdLocID,LocationsMasterID,Source Production,Notes,Hazard Types,Date Taken,Visibility Flag
+PIC001,Front Entrance Overview,PIC,Locations,https://drive.google.com/drive/folders/EXAMPLE,AMCL,AMCL_LOC003,LOC003,American Classic,Clear view of main entrance and curb line.,"Traffic,Uneven Ground",2024-05-12,Visible
+FOL001,Location Photos Folder,FOL,Locations,https://drive.google.com/drive/folders/EXAMPLE,AMCL,AMCL_LOC003,LOC003,American Classic,,,,
+AST001,Prior Location Hazard Assessment,AST,Locations,https://drive.google.com/file/d/EXAMPLE,AMCL,,LOC003,American Classic,Assessment created for prior season.,,,

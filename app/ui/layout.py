@@ -13,6 +13,8 @@ SIDEBAR_LINKS = [
     ('Dashboard', '/', 'dashboard'),
     ('Productions', '/productions', 'folder'),
     ('Locations', '/locations', 'place'),
+    ('Assets', '/assets', 'inventory_2'),
+    ('Medical', '/medical', 'local_hospital'),
     ('Medical Facilities', '/facilities', 'medical_services'),
     ('RASP / Docs', '/productions', 'description'),  # placeholder
     ('Jobs / Logs', '/jobs', 'assignment'),

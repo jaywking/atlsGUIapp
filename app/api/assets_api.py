@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body
 
-from app.services.notion_assets import fetch_assets_schema, update_asset_page
+from app.services.notion_assets import fetch_all_assets, fetch_asset_by_id, fetch_assets_schema, update_asset_page
 
 
 router = APIRouter(prefix="/api/assets", tags=["assets"])
@@ -57,6 +57,29 @@ async def asset_options() -> Dict[str, Any]:
             "has_visibility_flag": bool(visibility_prop),
         },
     }
+
+
+@router.get("/list")
+async def list_assets() -> Dict[str, Any]:
+    try:
+        assets = await fetch_all_assets()
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "error", "message": f"Unable to load assets: {exc}", "data": {"items": []}}
+    return {"status": "success", "data": {"items": assets, "total": len(assets)}}
+
+
+@router.get("/detail")
+async def asset_detail(asset_id: str | None = None) -> Dict[str, Any]:
+    asset_id = (asset_id or "").strip()
+    if not asset_id:
+        return {"status": "error", "message": "asset_id is required", "data": {}}
+    try:
+        asset = await fetch_asset_by_id(asset_id)
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "error", "message": f"Unable to load asset: {exc}", "data": {}}
+    if not asset:
+        return {"status": "error", "message": f"Asset {asset_id} not found", "data": {}}
+    return {"status": "success", "data": {"asset": asset}}
 
 
 @router.post("/update")

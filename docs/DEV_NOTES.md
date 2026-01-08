@@ -4175,6 +4175,128 @@ Changes
 Testing
 - Not run (UI-only diagnostics).
 
+Date: 2026-01-07 15:05 -0500 (Session 107)
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary
+- Added global Assets list and Asset detail pages with shared edit dialog and diagnostics display.
+- Implemented Assets list/detail API endpoints and asset normalization helpers.
+- Refactored asset diagnostics and edit dialog into shared UI modules.
+
+Changes
+- `docs/GLOBAL_ASSET_VIEWS.md`
+- `app/ui/asset_diagnostics.py`
+- `app/ui/asset_edit_dialog.py`
+- `app/ui/assets_list.py`
+- `app/ui/asset_detail.py`
+- `app/ui/location_detail.py`
+- `app/services/notion_assets.py`
+- `app/api/assets_api.py`
+- `app/ui/layout.py`
+- `app/main.py`
+
+Testing
+- Not run (UI/API integration only).
+
+Date: 2026-01-08 09:08 -0500 (Session 108)
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary
+- Added Global Asset Views spec and implemented `/assets` list + `/assets/{AssetID}` detail pages.
+- Added shared asset diagnostics module and shared asset edit dialog module.
+- Refactored Location Detail assets to use shared diagnostics and edit dialog.
+
+Changes
+- `docs/GLOBAL_ASSET_VIEWS.md`
+- `app/ui/asset_diagnostics.py`
+- `app/ui/asset_edit_dialog.py`
+- `app/ui/assets_list.py`
+- `app/ui/asset_detail.py`
+- `app/ui/location_detail.py`
+- `app/services/notion_assets.py`
+- `app/api/assets_api.py`
+- `app/ui/layout.py`
+- `app/main.py`
+
+Testing
+- Not run (UI/API integration only).
+
+Date: 2026-01-08 10:20 -0500 (Session 109)
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary
+- Locked Assets subsystem v1 and documented guardrails for future changes.
+
+Changes
+- `docs/ASSETS_SUBSYSTEM_LOCK.md`
+
+Testing
+- Not run (documentation only).
+
+Date: 2026-01-08 11:10 -0500 (Session 110)
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary
+- Added Production subsystem v1 spec and read-only production list/detail views.
+
+Changes
+- `docs/PRODUCTION_SUBSYSTEM.md`
+- `app/ui/productions.py`
+- `app/ui/production_detail.py`
+- `app/ui/assets_list.py`
+
+Testing
+- Not run (UI changes only).
+
+Date: 2026-01-08 11:20 -0500 (Session 111)
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary
+- Locked Production subsystem v1 and documented guardrails for future changes.
+
+Changes
+- `docs/PRODUCTION_SUBSYSTEM_LOCK.md`
+
+Testing
+- Not run (documentation only).
+
+Date: 2026-01-08 12:05 -0500 (Session 112)
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary
+- Added Medical subsystem v1 spec and read-only medical list/detail views.
+
+Changes
+- `docs/MEDICAL_SUBSYSTEM.md`
+- `app/ui/medical_shared.py`
+- `app/ui/medical_list.py`
+- `app/ui/medical_detail.py`
+- `app/ui/layout.py`
+- `app/main.py`
+- `app/services/notion_medical_facilities.py`
+
+Testing
+- Not run (UI changes only).
+
+Date: 2026-01-08 12:35 -0500 (Session 113)
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary
+- Locked Medical subsystem v1 and documented guardrails for future changes.
+
+Changes
+- `docs/MEDICAL_SUBSYSTEM_LOCK.md`
+
+Testing
+- Not run (documentation only).
+
 ### 2026-01-05 - Assets Model Introduced (Design Locked)
 
 A canonical Assets model was defined and locked to support referencing external folders, documents, and photos within ATLSApp.

@@ -46,6 +46,11 @@ def _phone(props: Dict[str, Any], key: str) -> str:
     return props.get(key, {}).get("phone_number") or ""
 
 
+def _relation_ids(props: Dict[str, Any], key: str) -> List[str]:
+    rels = props.get(key, {}).get("relation") or []
+    return [rel.get("id") for rel in rels if rel.get("id")]
+
+
 def _build_hours(props: Dict[str, Any]) -> str:
     days = [
         ("Monday Hours", "Mon"),
@@ -112,6 +117,8 @@ def normalize_facility(page: Dict[str, Any]) -> Dict[str, Any]:
     country = _safe_country(_rich_text(props, "country") or _rich_text(props, "Country"))
     county = _rich_text(props, "county") or _rich_text(props, "County")
     borough = _rich_text(props, "borough") or _rich_text(props, "Borough")
+    notes = _rich_text(props, "Notes")
+    locations_master_ids = _relation_ids(props, "LocationsMasterID")
 
     parsed = parse_address(full_address_raw)
     if not state_province and parsed.get("state"):
@@ -165,11 +172,13 @@ def normalize_facility(page: Dict[str, Any]) -> Dict[str, Any]:
         "state_original": state_val,
         "phone": phone_val,
         "hours": _build_hours(props),
+        "notes": notes,
         "website": _url(props, "Website"),
         "google_maps_url": _url(props, "Google Maps URL"),
         "distance": distance_val,
         "place_types": [facility_type] if facility_type else [],
         "place_id": _rich_text(props, "Place_ID"),
+        "locations_master_ids": locations_master_ids,
         "notion_url": page.get("url") or "",
     }
 

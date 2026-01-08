@@ -30,7 +30,7 @@ fastapi_app = FastAPI(title='ATLSApp', lifespan=_lifespan)
 fastapi_app.mount("/static", StaticFiles(directory=_ROOT / "static"), name="static")
 
 # UI page imports
-from app.ui import admin_tools, dashboard, datatable1, dedup, jobs, layout, locations, location_detail, medicalfacilities, productions, production_detail, psl_detail, settings
+from app.ui import admin_tools, asset_detail, assets_list, dashboard, datatable1, dedup, jobs, layout, locations, location_detail, medical_detail, medical_list, medicalfacilities, productions, production_detail, psl_detail, settings
 
 # API router imports
 import app.api.locations_api as locations_api
@@ -103,9 +103,28 @@ def location_detail_page(master_id: str):
     layout.shell('Location Details', lambda: location_detail.page_content(master_id))
 
 
+@ui.page('/assets', title='ATLS - Assets')
+def assets_page():
+    layout.shell('Assets', assets_list.page_content)
+
+
+@ui.page('/assets/{asset_id}', title='ATLS - Asset Details')
+def asset_detail_page(asset_id: str, edit: str | None = None):
+    layout.shell('Asset Details', lambda: asset_detail.page_content(asset_id, edit=edit))
+
+
 @ui.page('/facilities', title='ATLS - Medical Facilities')
 def facilities_page():
     layout.shell('Medical Facilities', medicalfacilities.page_content)
+
+@ui.page('/medical', title='ATLS - Medical')
+def medical_page():
+    layout.shell('Medical', medical_list.page_content)
+
+
+@ui.page('/medical/{medical_facility_id}', title='ATLS - Medical Resource Details')
+def medical_detail_page(medical_facility_id: str):
+    layout.shell('Medical Resource Details', lambda: medical_detail.page_content(medical_facility_id))
 
 
 @ui.page('/jobs', title='ATLS - Jobs / Logs')
