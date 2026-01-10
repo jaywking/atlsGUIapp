@@ -22,6 +22,14 @@ def _render_kv(label: str, value: str) -> None:
         ui.label(value or "--").classes("text-sm text-slate-900")
 
 
+def _render_link(label: str, url: str, text: str) -> None:
+    if not url:
+        return
+    with ui.row().classes("w-full items-start gap-2"):
+        ui.label(label).classes("text-sm text-slate-500 w-48 shrink-0")
+        ui.link(text, url).classes("text-sm text-slate-900 hover:underline").props("target=_blank")
+
+
 def _render_kv_if(label: str, value: str | None) -> None:
     if value is None:
         return
@@ -132,7 +140,6 @@ def page_content(master_id: str) -> None:
 
         hero_section.clear()
         with hero_section:
-            _render_section_header("Hero Photo")
             hero_asset = next(
                 (
                     asset
@@ -143,104 +150,103 @@ def page_content(master_id: str) -> None:
             )
             # TODO: add explicit hero replacement action once admin UI is approved.
             if hero_asset and hero_asset.get("external_url"):
-                ui.html(
-                    _thumbnail_html(hero_asset["external_url"], hero_asset.get("asset_name") or "Hero Photo"),
-                    sanitize=False,
-                )
-                hero_id = hero_asset.get("asset_id") or ""
-                hero_diags = compute_asset_diagnostics(
-                    hero_asset,
-                    hero_conflicts=hero_conflicts,
-                    surfaced_in_location_detail=True,
-                )
-                _render_diagnostics(hero_diags)
-                if hero_id and hero_diags:
-                    diag_assets.add(hero_id)
-                ui.button(
-                    "Edit",
-                    icon="edit",
-                    on_click=lambda e, asset=hero_asset: asyncio.create_task(open_edit(asset)),
-                ).classes("bg-slate-900 text-white hover:bg-slate-800 px-3 py-1 mt-2")
+                with ui.card().classes("w-full border border-slate-200 rounded-md p-3"):
+                    ui.label("Hero Photo").classes("text-sm font-semibold text-slate-700")
+                    ui.html(
+                        _thumbnail_html(hero_asset["external_url"], hero_asset.get("asset_name") or "Hero Photo"),
+                        sanitize=False,
+                    )
+                    hero_id = hero_asset.get("asset_id") or ""
+                    hero_diags = compute_asset_diagnostics(
+                        hero_asset,
+                        hero_conflicts=hero_conflicts,
+                        surfaced_in_location_detail=True,
+                    )
+                    _render_diagnostics(hero_diags)
+                    if hero_id and hero_diags:
+                        diag_assets.add(hero_id)
+                    ui.button(
+                        "Edit",
+                        icon="edit",
+                        on_click=lambda e, asset=hero_asset: asyncio.create_task(open_edit(asset)),
+                    ).classes("bg-slate-900 text-white hover:bg-slate-800 px-3 py-1 mt-2")
             else:
                 ui.label("No hero photo selected").classes("text-sm text-slate-500")
 
         core_section.clear()
         with core_section:
-            _render_section_header("Core Location Information")
-            _render_kv_if("Location Name", loc.get("location_name") or "")
-            _render_kv_if("Practical Name", loc.get("practical_name") or "")
-            _render_kv_if("Full Address", loc.get("full_address") or "")
-            _render_kv_if("Address1", loc.get("address1") or "")
-            _render_kv_if("Address2", loc.get("address2") or "")
-            _render_kv_if("Address3", loc.get("address3") or "")
-            _render_kv_if("City", loc.get("city") or "")
-            _render_kv_if("State", loc.get("state") or "")
-            _render_kv_if("Zip", loc.get("zip") or "")
-            _render_kv_if("Country", loc.get("country") or "")
-            _render_kv_if("County", loc.get("county") or "")
-            _render_kv_if("Borough", loc.get("borough") or "")
-            _render_kv_if("Latitude", loc.get("latitude"))
-            _render_kv_if("Longitude", loc.get("longitude"))
-            _render_kv_if("Place ID", loc.get("place_id") or "")
-            _render_kv_if("Place Types", ", ".join(loc.get("place_types") or []))
-            _render_kv_if("Status", loc.get("status") or "")
-            _render_kv_if("Location Op Status", loc.get("location_op_status") or "")
+            with ui.card().classes("w-full border border-slate-200 rounded-md p-3"):
+                ui.label("Core Location Information").classes("text-sm font-semibold text-slate-700")
+                _render_kv_if("Location Name", loc.get("location_name") or "")
+                _render_kv_if("Practical Name", loc.get("practical_name") or "")
+                _render_kv_if("Full Address", loc.get("full_address") or "")
+                _render_link("Google Maps", loc.get("google_maps_url") or "", "Map")
+                _render_link("Website", loc.get("website") or "", "Website")
+                _render_kv_if("Latitude", loc.get("latitude"))
+                _render_kv_if("Longitude", loc.get("longitude"))
+                _render_kv_if("Place ID", loc.get("place_id") or "")
+                _render_kv_if("Place Types", ", ".join(loc.get("place_types") or []))
+                _render_kv_if("Status", loc.get("status") or "")
+                _render_kv_if("Location Op Status", loc.get("location_op_status") or "")
 
         folder_section.clear()
         with folder_section:
-            _render_section_header("Photo Folders (by Production)")
             folder_assets = [
                 asset
                 for asset in assets
-                if asset_prefix(asset.get("asset_id")) == "FOL" and "Locations" in (asset.get("asset_categories") or [])
+                if asset_prefix(asset.get("asset_id")) == "FOL"
+                and any(cat in {"Location", "Locations"} for cat in (asset.get("asset_categories") or []))
             ]
             photo_assets = [
                 asset for asset in assets if asset_prefix(asset.get("asset_id")) == "PIC"
             ]
-            if not folder_assets:
-                ui.label("No photo folders linked for this location.").classes("text-sm text-slate-500")
-            else:
-                for folder in folder_assets:
-                    production_name = (folder.get("production_names") or folder.get("production_ids") or ["Production"])[0]
-                    with ui.column().classes("w-full gap-2"):
-                        ui.label(production_name).classes("text-sm font-semibold text-slate-700")
-                        if folder.get("external_url"):
-                            with ui.row().classes("items-center gap-2"):
-                                ui.link("View Photos", folder["external_url"]).props("target=_blank").classes(
-                                    "text-sm text-slate-900 hover:underline"
+            with ui.card().classes("w-full border border-slate-200 rounded-md p-3"):
+                ui.label("Photo Folders (by Production)").classes("text-sm font-semibold text-slate-700")
+                if not folder_assets:
+                    ui.label("No photo folders linked for this location.").classes("text-sm text-slate-500")
+                else:
+                    for folder in folder_assets:
+                        production_name = (folder.get("production_names") or folder.get("production_ids") or ["Production"])[0]
+                        with ui.card().classes("w-full border border-slate-200 rounded-md p-3"):
+                            with ui.column().classes("w-full gap-2"):
+                                ui.label(production_name).classes("text-sm font-semibold text-slate-700")
+                                if folder.get("external_url"):
+                                    with ui.row().classes("items-center gap-2"):
+                                        ui.link("View Photos", folder["external_url"]).props("target=_blank").classes(
+                                            "text-sm text-slate-900 hover:underline"
+                                        )
+                                        ui.button(
+                                            "Edit",
+                                            icon="edit",
+                                            on_click=lambda e, asset=folder: asyncio.create_task(open_edit(asset)),
+                                        ).classes("bg-slate-900 text-white hover:bg-slate-800 px-2 py-1 text-xs")
+                                folder_id = folder.get("asset_id") or ""
+                                folder_diags = compute_asset_diagnostics(
+                                    folder,
+                                    hero_conflicts=hero_conflicts,
+                                    surfaced_in_location_detail=True,
                                 )
-                                ui.button(
-                                    "Edit",
-                                    icon="edit",
-                                    on_click=lambda e, asset=folder: asyncio.create_task(open_edit(asset)),
-                                ).classes("bg-slate-900 text-white hover:bg-slate-800 px-2 py-1 text-xs")
-                        folder_id = folder.get("asset_id") or ""
-                        folder_diags = compute_asset_diagnostics(
-                            folder,
-                            hero_conflicts=hero_conflicts,
-                            surfaced_in_location_detail=True,
-                        )
-                        _render_diagnostics(folder_diags)
-                        if folder_id and folder_diags:
-                            diag_assets.add(folder_id)
-                        prod_ids = folder.get("production_ids") or []
-                        thumbnails = []
-                        for photo in photo_assets:
-                            if not photo.get("external_url"):
-                                continue
-                            if not prod_ids:
-                                continue
-                            if any(pid in (photo.get("production_ids") or []) for pid in prod_ids):
-                                thumbnails.append(photo)
-                            if len(thumbnails) >= 3:
-                                break
-                        if thumbnails:
-                            with ui.row().classes("items-center gap-2"):
-                                for photo in thumbnails:
-                                    ui.html(
-                                        _thumbnail_html(photo["external_url"], photo.get("asset_name") or "Photo"),
-                                        sanitize=False,
-                                    )
+                                _render_diagnostics(folder_diags)
+                                if folder_id and folder_diags:
+                                    diag_assets.add(folder_id)
+                                prod_ids = folder.get("production_ids") or []
+                                thumbnails = []
+                                for photo in photo_assets:
+                                    if not photo.get("external_url"):
+                                        continue
+                                    if not prod_ids:
+                                        continue
+                                    if any(pid in (photo.get("production_ids") or []) for pid in prod_ids):
+                                        thumbnails.append(photo)
+                                    if len(thumbnails) >= 3:
+                                        break
+                                if thumbnails:
+                                    with ui.row().classes("items-center gap-2"):
+                                        for photo in thumbnails:
+                                            ui.html(
+                                                _thumbnail_html(photo["external_url"], photo.get("asset_name") or "Photo"),
+                                                sanitize=False,
+                                            )
 
         promoted_section.clear()
         with promoted_section:
@@ -260,36 +266,37 @@ def page_content(master_id: str) -> None:
                     )
                 )
                 for asset in promoted_assets:
-                    with ui.row().classes("w-full gap-4 items-start"):
-                        if asset.get("external_url"):
-                            ui.html(
-                                _thumbnail_html(asset["external_url"], asset.get("asset_name") or "Photo"),
-                                sanitize=False,
-                            )
-                        with ui.column().classes("gap-1"):
-                            with ui.row().classes("items-center gap-2"):
-                                ui.label(asset.get("asset_name") or "Photo").classes("text-sm font-semibold text-slate-700")
-                                ui.button(
-                                    "Edit",
-                                    icon="edit",
-                                    on_click=lambda e, asset=asset: asyncio.create_task(open_edit(asset)),
-                                ).classes("bg-slate-900 text-white hover:bg-slate-800 px-2 py-1 text-xs")
-                            promoted_id = asset.get("asset_id") or ""
-                            promoted_diags = compute_asset_diagnostics(
-                                asset,
-                                hero_conflicts=hero_conflicts,
-                                surfaced_in_location_detail=True,
-                            )
-                            _render_diagnostics(promoted_diags)
-                            if promoted_id and promoted_diags:
-                                diag_assets.add(promoted_id)
-                            if asset.get("notes"):
-                                ui.label(asset["notes"]).classes("text-sm text-slate-600")
-                            source_name = (asset.get("source_production_names") or asset.get("production_names") or [""])[0]
-                            if source_name:
-                                ui.label(f"Source Production: {source_name}").classes("text-xs text-slate-500")
-                            if asset.get("date_taken"):
-                                ui.label(f"Date Taken: {asset['date_taken']}").classes("text-xs text-slate-500")
+                    with ui.card().classes("w-full border border-slate-200 rounded-md p-3"):
+                        with ui.row().classes("w-full gap-4 items-start"):
+                            if asset.get("external_url"):
+                                ui.html(
+                                    _thumbnail_html(asset["external_url"], asset.get("asset_name") or "Photo"),
+                                    sanitize=False,
+                                )
+                            with ui.column().classes("gap-1"):
+                                with ui.row().classes("items-center gap-2"):
+                                    ui.label(asset.get("asset_name") or "Photo").classes("text-sm font-semibold text-slate-700")
+                                    ui.button(
+                                        "Edit",
+                                        icon="edit",
+                                        on_click=lambda e, asset=asset: asyncio.create_task(open_edit(asset)),
+                                    ).classes("bg-slate-900 text-white hover:bg-slate-800 px-2 py-1 text-xs")
+                                promoted_id = asset.get("asset_id") or ""
+                                promoted_diags = compute_asset_diagnostics(
+                                    asset,
+                                    hero_conflicts=hero_conflicts,
+                                    surfaced_in_location_detail=True,
+                                )
+                                _render_diagnostics(promoted_diags)
+                                if promoted_id and promoted_diags:
+                                    diag_assets.add(promoted_id)
+                                if asset.get("notes"):
+                                    ui.label(asset["notes"]).classes("text-sm text-slate-600")
+                                source_name = (asset.get("source_production_names") or asset.get("production_names") or [""])[0]
+                                if source_name:
+                                    ui.label(f"Source Production: {source_name}").classes("text-xs text-slate-500")
+                                if asset.get("date_taken"):
+                                    ui.label(f"Date Taken: {asset['date_taken']}").classes("text-xs text-slate-500")
             else:
                 promoted_section.set_visibility(False)
 
@@ -297,36 +304,38 @@ def page_content(master_id: str) -> None:
         with other_assets_section:
             other_assets = [asset for asset in assets if asset_prefix(asset.get("asset_id")) == "AST"]
             if other_assets:
-                _render_section_header("Other Assets (Non-Photo)")
-                for asset in other_assets:
-                    with ui.row().classes("w-full items-center justify-between gap-4"):
-                        with ui.column().classes("gap-1"):
-                            with ui.row().classes("items-center gap-2"):
-                                ui.label(asset.get("asset_name") or "Asset").classes("text-sm font-semibold text-slate-700")
-                                ui.button(
-                                    "Edit",
-                                    icon="edit",
-                                    on_click=lambda e, asset=asset: asyncio.create_task(open_edit(asset)),
-                                ).classes("bg-slate-900 text-white hover:bg-slate-800 px-2 py-1 text-xs")
-                            other_id = asset.get("asset_id") or ""
-                            other_diags = compute_asset_diagnostics(
-                                asset,
-                                hero_conflicts=hero_conflicts,
-                                surfaced_in_location_detail=True,
-                            )
-                            _render_diagnostics(other_diags)
-                            if other_id and other_diags:
-                                diag_assets.add(other_id)
-                            categories = ", ".join(asset.get("asset_categories") or [])
-                            if categories:
-                                ui.label(f"Category: {categories}").classes("text-xs text-slate-500")
-                            source_name = (asset.get("source_production_names") or asset.get("production_names") or [""])[0]
-                            if source_name:
-                                ui.label(f"Source Production: {source_name}").classes("text-xs text-slate-500")
-                        if asset.get("external_url"):
-                            ui.link("Open", asset["external_url"]).props("target=_blank").classes(
-                                "text-sm text-slate-900 hover:underline"
-                            )
+                with ui.card().classes("w-full border border-slate-200 rounded-md p-3"):
+                    ui.label("Other Assets (Non-Photo)").classes("text-sm font-semibold text-slate-700")
+                    for asset in other_assets:
+                        with ui.card().classes("w-full border border-slate-200 rounded-md p-3"):
+                            with ui.row().classes("w-full items-center justify-between gap-4"):
+                                with ui.column().classes("gap-1"):
+                                    with ui.row().classes("items-center gap-2"):
+                                        ui.label(asset.get("asset_name") or "Asset").classes("text-sm font-semibold text-slate-700")
+                                        ui.button(
+                                            "Edit",
+                                            icon="edit",
+                                            on_click=lambda e, asset=asset: asyncio.create_task(open_edit(asset)),
+                                        ).classes("bg-slate-900 text-white hover:bg-slate-800 px-2 py-1 text-xs")
+                                    other_id = asset.get("asset_id") or ""
+                                    other_diags = compute_asset_diagnostics(
+                                        asset,
+                                        hero_conflicts=hero_conflicts,
+                                        surfaced_in_location_detail=True,
+                                    )
+                                    _render_diagnostics(other_diags)
+                                    if other_id and other_diags:
+                                        diag_assets.add(other_id)
+                                    categories = ", ".join(asset.get("asset_categories") or [])
+                                    if categories:
+                                        ui.label(f"Category: {categories}").classes("text-xs text-slate-500")
+                                    source_name = (asset.get("source_production_names") or asset.get("production_names") or [""])[0]
+                                    if source_name:
+                                        ui.label(f"Source Production: {source_name}").classes("text-xs text-slate-500")
+                                if asset.get("external_url"):
+                                    ui.link("Open", asset["external_url"]).props("target=_blank").classes(
+                                        "text-sm text-slate-900 hover:underline"
+                                    )
             else:
                 other_assets_section.set_visibility(False)
 
@@ -339,19 +348,20 @@ def page_content(master_id: str) -> None:
 
         related_section.clear()
         with related_section:
-            _render_section_header("Related Productions")
-            related_names = {p.get("production_name") or p.get("production_id") for p in productions}
-            for asset in assets:
-                for name in asset.get("production_names") or []:
-                    related_names.add(name)
-                for name in asset.get("source_production_names") or []:
-                    related_names.add(name)
-            related_list = sorted([name for name in related_names if name])
-            if not related_list:
-                ui.label("No related productions found.").classes("text-sm text-slate-500")
-            else:
-                for name in related_list:
-                    ui.label(name).classes("text-sm")
+            with ui.card().classes("w-full border border-slate-200 rounded-md p-3"):
+                ui.label("Related Productions").classes("text-sm font-semibold text-slate-700")
+                related_names = {p.get("production_name") or p.get("production_id") for p in productions}
+                for asset in assets:
+                    for name in asset.get("production_names") or []:
+                        related_names.add(name)
+                    for name in asset.get("source_production_names") or []:
+                        related_names.add(name)
+                related_list = sorted([name for name in related_names if name])
+                if not related_list:
+                    ui.label("No related productions found.").classes("text-sm text-slate-500")
+                else:
+                    for name in related_list:
+                        ui.label(name).classes("text-sm")
 
     open_edit = build_asset_edit_dialog(load_detail)
 

@@ -212,6 +212,7 @@ def normalize_location(page: Dict[str, Any]) -> Dict[str, Any]:
     status = _status(props, "Status")
     location_op_status = _status(props, "Location Op Status")
     google_maps_url = _url(props, "Google Maps URL")
+    website = _url(props, "Website")
     created_time = _timestamp_any(props, ["Created Time", "Created time"])
     updated_time = _timestamp_any(props, ["Updated", "Last edited time", "Last Edited Time", "Last edited time"])
     er_rel = _relation_ids(props, "ER")
@@ -277,6 +278,7 @@ def normalize_location(page: Dict[str, Any]) -> Dict[str, Any]:
         "locations_master_ids": _relation_ids(props, "LocationsMasterID"),
         "types": types,
         "google_maps_url": google_maps_url,
+        "website": website,
         "created_time": created_time,
         "updated_time": updated_time,
         "notes": notes,

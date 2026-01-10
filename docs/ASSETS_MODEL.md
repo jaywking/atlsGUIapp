@@ -99,11 +99,12 @@ Examples:
 
 Asset Category is a **flexible multi-select**. The initial default values are:
 
-- Call Sheets
-- Incidents
-- Locations
-- Schedules
-- Scripts
+- Call Sheet
+- Incident
+- Location
+- Schedule
+- Script
+- Other
 
 Categories are descriptive, not exclusive. Additional categories may be added without schema changes.
 

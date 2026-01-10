@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from typing import Any, Awaitable, Callable, Dict, Optional
 
 import httpx
@@ -185,7 +184,7 @@ def build_asset_edit_dialog(on_saved: Callable[[], Awaitable[None]]) -> Callable
         edit_dialog.close()
         await on_saved()
 
-    save_btn.on("click", lambda e: asyncio.create_task(save_edit()))
+    save_btn.on("click", save_edit)
     cancel_btn.on("click", lambda e: edit_dialog.close())
 
     return open_edit

@@ -478,6 +478,7 @@ async def get_location_detail(master_id: str | None = None) -> Dict[str, Any]:
         "status": master_row.get("status") or "",
         "location_op_status": master_row.get("location_op_status") or "",
         "google_maps_url": master_row.get("google_maps_url") or "",
+        "website": master_row.get("website") or "",
         "formatted_address_google": master_row.get("formatted_address_google") or "",
         "created_time": master_row.get("created_time") or "",
         "updated_time": master_row.get("updated_time") or "",

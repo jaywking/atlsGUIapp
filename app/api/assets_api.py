@@ -99,11 +99,12 @@ async def update_asset(payload: Dict[str, Any] | None = Body(None)) -> Dict[str,
     allowed_categories = _extract_multi_options(schema.get("Asset Category") or {})
     allowed_hazards = _extract_multi_options(schema.get("Hazard Types") or {})
 
+    visibility_provided = "visibility_flag" in payload
     visibility = (payload.get("visibility_flag") or "").strip()
-    if visibility and visibility not in {"Visible", "Hidden"}:
+    if visibility_provided and visibility and visibility not in {"Visible", "Hidden"}:
         return {"status": "error", "message": "Visibility Flag must be Visible or Hidden", "field": "visibility_flag"}
 
-    if visibility == "Hero":
+    if visibility_provided and visibility == "Hero":
         return {"status": "error", "message": "Visibility Flag cannot be Hero", "field": "visibility_flag"}
 
     notes = payload.get("notes") or ""
@@ -125,14 +126,14 @@ async def update_asset(payload: Dict[str, Any] | None = Body(None)) -> Dict[str,
             properties["Hazard Types"] = _multi(hazard_types)
         if "Date Taken" in schema:
             properties["Date Taken"] = _date(date_taken)
-        if "Visibility Flag" in schema:
+        if visibility_provided and "Visibility Flag" in schema:
             properties["Visibility Flag"] = _select(visibility or None)
     elif asset_prefix == "AST":
         if "Asset Category" in schema:
             properties["Asset Category"] = _multi(asset_categories)
         if "Hazard Types" in schema and payload.get("hazard_types") is not None:
             properties["Hazard Types"] = _multi(hazard_types)
-        if "Visibility Flag" in schema:
+        if visibility_provided and "Visibility Flag" in schema:
             properties["Visibility Flag"] = _select(visibility or None)
     elif asset_prefix == "FOL":
         pass

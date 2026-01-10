@@ -4324,6 +4324,100 @@ Changes
 Testing
 - Not run (UI change only).
 
+Date: 2026-01-08 13:40 -0500 (Session 116)
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary
+- Prevented asset edits from clearing Hero visibility and fixed save action context for asset edit dialog.
+
+Changes
+- `app/api/assets_api.py`
+- `app/ui/asset_edit_dialog.py`
+
+Testing
+- Not run (UI change only).
+
+Date: 2026-01-08 13:55 -0500 (Session 117)
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary
+- Simplified Location Details address display and added Maps/Website links sourced from Locations Master.
+
+Changes
+- `app/ui/location_detail.py`
+- `app/services/notion_locations.py`
+- `app/api/locations_api.py`
+
+Testing
+- Not run (UI change only).
+
+Date: 2026-01-08 14:05 -0500 (Session 118)
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary
+- Removed the Hero Photo section header on Location Details.
+
+Changes
+- `app/ui/location_detail.py`
+
+Testing
+- Not run (UI change only).
+
+Date: 2026-01-08 14:20 -0500 (Session 119)
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary
+- Updated Asset Category default values (plural → singular, added ‘Other’).
+
+Changes
+- `docs/ASSETS_MODEL.md`
+
+Testing
+- Not run (documentation only).
+
+Date: 2026-01-08 14:40 -0500 (Session 120)
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary
+- Accepted singular Asset Category values when showing location photo folders.
+
+Changes
+- `app/ui/location_detail.py`
+
+Testing
+- Not run (UI change only).
+
+Date: 2026-01-08 14:55 -0500 (Session 121)
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary
+- Wrapped each asset entry on Location Details in a bordered card for clearer grouping.
+
+Changes
+- `app/ui/location_detail.py`
+
+Testing
+- Not run (UI change only).
+
+Date: 2026-01-08 15:10 -0500 (Session 122)
+Author: Codex 5
+Milestone: v0.9.4 (no version bump)
+
+Summary
+- Boxed core location information and asset section headers for clearer grouping.
+
+Changes
+- `app/ui/location_detail.py`
+
+Testing
+- Not run (UI change only).
+
 ### 2026-01-05 - Assets Model Introduced (Design Locked)
 
 A canonical Assets model was defined and locked to support referencing external folders, documents, and photos within ATLSApp.
